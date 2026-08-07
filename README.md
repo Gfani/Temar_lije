@@ -23,7 +23,7 @@ Most existing Learning Management Systems (LMS) rely heavily on continuous inter
 
 ##  Main Features
 
-- 🔐 User Authentication (Student, Teacher, Administrator)
+- User Authentication (Student, Teacher, Administrator)
 - 🏫 Classroom Creation and Management
 - 📚 Learning Material Upload and Offline Synchronization
 - 🎥 Live Classroom (Video, Audio, Screen Sharing, Whiteboard)

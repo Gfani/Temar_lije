@@ -1,12 +1,12 @@
 # Temar Lije – AI-Powered Hybrid Smart Learning Platform
 
-## 📖 Short Description
+## Short Description
 
 **Temar Lije** is an AI-powered hybrid learning platform designed for schools, universities, and training centers operating in environments with unreliable internet connectivity. The platform combines classroom management, live teaching, AI-powered tutoring, AI teaching assistants, offline-first learning, automatic cloud synchronization, and student collaboration into a single ecosystem. By leveraging a local **Classroom Hub**, students can continue accessing learning materials, completing assignments, collaborating on projects, and interacting with AI even when the internet is unavailable.
 
 ---
 
-## 🚨 Problem the Project Solves
+## Problem the Project Solves
 
 Many educational institutions, particularly in developing regions, struggle with:
 
@@ -21,7 +21,7 @@ Most existing Learning Management Systems (LMS) rely heavily on continuous inter
 
 ---
 
-## ✨ Main Features
+##  Main Features
 
 - 🔐 User Authentication (Student, Teacher, Administrator)
 - 🏫 Classroom Creation and Management

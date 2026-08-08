@@ -1,0 +1,372 @@
+/*
+  study-buddy.module.css
+  Tokens mirror the other classroom-tab modules so the whole app
+  stays visually consistent; declared locally on .container so this
+  file stays drop-in portable.
+*/
+
+.container {
+  --sb-bg: #f3f7f5;
+  --sb-surface: #ffffff;
+  --sb-border: #e3e9e6;
+  --sb-border-soft: #eaf0ed;
+
+  --sb-text-primary: #16181b;
+  --sb-text-secondary: #6b7573;
+  --sb-text-tertiary: #8b9491;
+
+  --sb-green: #14785c;
+  --sb-green-hover: #0f6049;
+  --sb-green-active: #0b4d3b;
+  --sb-green-tint: #dbeee7;
+
+  --sb-danger: #c0402f;
+
+  --sb-radius-lg: 20px;
+  --sb-radius-md: 12px;
+  --sb-radius-pill: 999px;
+
+  --sb-shadow-card: 0 1px 3px rgba(16, 24, 21, 0.04), 0 1px 2px rgba(16, 24, 21, 0.03);
+
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--sb-text-primary);
+  box-sizing: border-box;
+}
+
+.container *,
+.container *::before,
+.container *::after {
+  box-sizing: border-box;
+}
+
+/* ---------------- Sidebar ---------------- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerIconGlyph {
+  flex-shrink: 0;
+  width: 26px;
+  height: 23px;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.headerTitle {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--sb-text-primary);
+}
+
+.headerSubtitle {
+  font-size: 12px;
+  color: var(--sb-text-tertiary);
+}
+
+.newChatButton {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: var(--sb-radius-pill);
+  background: var(--sb-green);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.newChatButton:hover:not(:disabled) {
+  background: var(--sb-green-hover);
+}
+
+.newChatButton:active:not(:disabled) {
+  background: var(--sb-green-active);
+  transform: translateY(1px);
+}
+
+.newChatButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.28);
+}
+
+.newChatButton:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.buttonIcon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.conversationList {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conversationItem {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--sb-radius-md);
+  background: transparent;
+  color: var(--sb-text-secondary);
+  font-size: 13.5px;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.conversationItem:hover {
+  background: var(--sb-surface);
+  color: var(--sb-text-primary);
+}
+
+.conversationItem:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.2);
+}
+
+.conversationItemActive {
+  background: var(--sb-surface);
+  color: var(--sb-text-primary);
+  font-weight: 600;
+  box-shadow: var(--sb-shadow-card);
+}
+
+.conversationIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.conversationTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------- Main card ---------------- */
+
+.mainCard {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius-lg);
+  box-shadow: var(--sb-shadow-card);
+  min-height: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+}
+
+.mainCardInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 470px;
+}
+
+.heading {
+  margin: 0 0 14px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--sb-text-primary);
+}
+
+.description {
+  margin: 0 0 28px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--sb-text-secondary);
+}
+
+.promptList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.promptButton {
+  appearance: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  padding: 14px 18px;
+  border-radius: var(--sb-radius-md);
+  border: 1px solid var(--sb-border);
+  background: var(--sb-surface);
+  color: var(--sb-text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.promptButton:hover:not(:disabled) {
+  border-color: var(--sb-green);
+  background: var(--sb-bg);
+}
+
+.promptButton:active:not(:disabled) {
+  background: var(--sb-green-tint);
+}
+
+.promptButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.2);
+}
+
+.promptButton:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.blankChatButton {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 24px;
+  border-radius: var(--sb-radius-pill);
+  background: var(--sb-green);
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.blankChatButton:hover:not(:disabled) {
+  background: var(--sb-green-hover);
+}
+
+.blankChatButton:active:not(:disabled) {
+  background: var(--sb-green-active);
+  transform: translateY(1px);
+}
+
+.blankChatButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.28);
+}
+
+.blankChatButton:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.hintText {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--sb-text-tertiary);
+}
+
+/* ---------------- Feedback ---------------- */
+
+.inlineError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--sb-danger);
+}
+
+/* ---------------- Spinner ---------------- */
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  animation: sb-spin 0.7s linear infinite;
+}
+
+@keyframes sb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.4s;
+  }
+  .newChatButton,
+  .conversationItem,
+  .promptButton,
+  .blankChatButton {
+    transition: none;
+  }
+}
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 860px) {
+  .container {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    order: 2;
+  }
+
+  .mainCard {
+    order: 1;
+    min-height: 420px;
+    padding: 40px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .mainCard {
+    padding: 32px 16px;
+  }
+
+  .heading {
+    font-size: 22px;
+  }
+}

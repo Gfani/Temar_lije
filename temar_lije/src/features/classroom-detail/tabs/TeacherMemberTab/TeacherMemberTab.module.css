@@ -1,0 +1,226 @@
+/*
+  TeacherMemberTab.module.css
+  Tokens mirror LiveClassTab.module.css / AssignmentsTab.module.css so
+  every classroom tab stays visually consistent; declared locally on
+  .container so this file stays drop-in portable.
+*/
+
+.container {
+  --tm-bg: #f3f7f5;
+  --tm-surface: #ffffff;
+  --tm-border: #e3e9e6;
+  --tm-border-soft: #eaf0ed;
+
+  --tm-text-primary: #16181b;
+  --tm-text-secondary: #6b7573;
+  --tm-text-tertiary: #8b9491;
+
+  --tm-green: #14785c;
+  --tm-avatar-bg: #eef2f0;
+
+  --tm-danger: #c0402f;
+
+  --tm-radius-lg: 16px;
+
+  --tm-shadow-card: 0 1px 3px rgba(16, 24, 21, 0.04), 0 1px 2px rgba(16, 24, 21, 0.03);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--tm-text-primary);
+  box-sizing: border-box;
+}
+
+.container *,
+.container *::before,
+.container *::after {
+  box-sizing: border-box;
+}
+
+/* ---------------- Member list card ---------------- */
+
+.memberList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--tm-surface);
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius-lg);
+  box-shadow: var(--tm-shadow-card);
+  overflow: hidden;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--tm-border-soft);
+  transition: background-color 0.15s ease;
+}
+
+.memberRow:last-child {
+  border-bottom: none;
+}
+
+.memberRow:hover {
+  background: var(--tm-bg);
+}
+
+.memberInfo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--tm-avatar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatarIcon {
+  width: 18px;
+  height: 18px;
+  color: var(--tm-text-secondary);
+}
+
+.memberText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.memberName {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--tm-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberJoined {
+  font-size: 12.5px;
+  color: var(--tm-text-tertiary);
+}
+
+/* ---------------- Remove action ---------------- */
+
+.removeButton {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tm-text-secondary);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.removeButton:hover:not(:disabled) {
+  color: var(--tm-danger);
+  background: rgba(192, 64, 47, 0.07);
+}
+
+.removeButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(192, 64, 47, 0.2);
+}
+
+.removeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.removeButton[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.9;
+  color: var(--tm-text-secondary);
+}
+
+/* ---------------- Empty state ---------------- */
+
+.emptyCard {
+  border: 1px solid var(--tm-border-soft);
+  background: var(--tm-surface);
+  border-radius: var(--tm-radius-lg);
+  box-shadow: var(--tm-shadow-card);
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.emptyState {
+  margin: 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--tm-text-tertiary);
+  line-height: 1.5;
+}
+
+/* ---------------- Feedback ---------------- */
+
+.inlineError {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--tm-danger);
+}
+
+/* ---------------- Spinner ---------------- */
+
+.spinner {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  animation: tm-spin 0.7s linear infinite;
+}
+
+@keyframes tm-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.4s;
+  }
+  .memberRow,
+  .removeButton {
+    transition: none;
+  }
+}
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 480px) {
+  .memberRow {
+    padding: 14px 16px;
+  }
+
+  .memberName {
+    max-width: 46vw;
+  }
+}

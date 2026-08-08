@@ -1,0 +1,278 @@
+/*
+  AssignmentsTab.module.css
+  Tokens mirror LiveClassTab.module.css so the two tabs stay visually
+  consistent; declared locally on .container so this file stays
+  drop-in portable.
+*/
+
+.container {
+  --at-bg: #f3f7f5;
+  --at-surface: #ffffff;
+  --at-border: #e3e9e6;
+  --at-border-soft: #eaf0ed;
+
+  --at-text-primary: #16181b;
+  --at-text-secondary: #6b7573;
+  --at-text-tertiary: #8b9491;
+
+  --at-green: #14785c;
+  --at-green-hover: #0f6049;
+  --at-green-active: #0b4d3b;
+
+  --at-danger: #c0402f;
+  --at-danger-tint: #fbeae7;
+
+  --at-radius-lg: 16px;
+  --at-radius-md: 14px;
+  --at-radius-pill: 999px;
+
+  --at-shadow-card: 0 1px 3px rgba(16, 24, 21, 0.04), 0 1px 2px rgba(16, 24, 21, 0.03);
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--at-text-primary);
+  box-sizing: border-box;
+}
+
+.container *,
+.container *::before,
+.container *::after {
+  box-sizing: border-box;
+}
+
+/* ---------------- Announce button ---------------- */
+
+.announceButton {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: var(--at-radius-pill);
+  background: var(--at-green);
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.announceButton:hover:not(:disabled) {
+  background: var(--at-green-hover);
+}
+
+.announceButton:active:not(:disabled) {
+  background: var(--at-green-active);
+  transform: translateY(1px);
+}
+
+.announceButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.28);
+}
+
+.announceButton:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.buttonIcon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* ---------------- Assignment list ---------------- */
+
+.assignmentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.assignmentCard {
+  background: var(--at-surface);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-radius-lg);
+  box-shadow: var(--at-shadow-card);
+  padding: 20px 22px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.assignmentCard:hover {
+  border-color: #d4dcd9;
+}
+
+.assignmentHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.assignmentTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--at-text-primary);
+}
+
+.assignmentDescription {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--at-text-secondary);
+  max-width: 60ch;
+}
+
+.assignmentDeadline {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--at-text-tertiary);
+}
+
+.assignmentFooter {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--at-border-soft);
+}
+
+.assignmentSubmissions {
+  margin: 0;
+  font-size: 13px;
+  color: var(--at-text-tertiary);
+}
+
+/* ---------------- Delete control ---------------- */
+
+.deleteButton {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--at-radius-md);
+  background: transparent;
+  color: var(--at-text-tertiary);
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: var(--at-danger-tint);
+  color: var(--at-danger);
+}
+
+.deleteButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.deleteButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(192, 64, 47, 0.22);
+}
+
+.deleteButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.deleteButton[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.85;
+  color: var(--at-text-tertiary);
+}
+
+.deleteIcon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------------- Empty state ---------------- */
+
+.emptyCard {
+  border: 1px solid var(--at-border-soft);
+  background: var(--at-surface);
+  border-radius: var(--at-radius-lg);
+  box-shadow: var(--at-shadow-card);
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.emptyState {
+  margin: 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--at-text-tertiary);
+  line-height: 1.5;
+}
+
+/* ---------------- Feedback ---------------- */
+
+.inlineError {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--at-danger);
+}
+
+/* ---------------- Spinner ---------------- */
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  animation: at-spin 0.7s linear infinite;
+}
+
+@keyframes at-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.4s;
+  }
+  .announceButton,
+  .assignmentCard,
+  .deleteButton {
+    transition: none;
+  }
+}
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 600px) {
+  .announceButton {
+    align-self: stretch;
+  }
+
+  .assignmentCard {
+    padding: 16px 16px;
+  }
+
+  .assignmentDescription {
+    max-width: none;
+  }
+}

@@ -1,0 +1,79 @@
+.course-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 1.5rem 2rem;
+  background-color: #ffffff;
+  font-family: 'Inter', 'Roboto', sans-serif; /* Fallback to standard clean fonts */
+}
+
+.course-header-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: #6c757d;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  font-family: inherit;
+}
+
+.back-button:hover {
+  text-decoration: underline;
+  color: #495057;
+}
+
+.course-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.2;
+}
+
+.course-subtitle {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin: 0;
+}
+
+.course-header-right {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.25rem;
+}
+
+.invitation-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.invitation-label {
+  font-size: 0.65rem;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+.invitation-code {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #374151;
+  letter-spacing: 3px;
+}

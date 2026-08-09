@@ -4,11 +4,12 @@ import AssignmentsTab from "./features/classroom-detail/tabs/AssignmentsTab/Assi
 import LiveClassTab from "./features/classroom-detail/tabs/LiveClassTab/LiveClassTab"
 import TeacherMemberTab from "./features/classroom-detail/tabs/TeacherMemberTab/TeacherMemberTab"
 import StudyBuddy from "./features/study-buddy/study-buddy"
+import Chat from "./features/chat/chat"
+
 function App() {
-
-
   return (
     <>
+      <Chat />
       <LiveClassTab />
       <AssignmentsTab />
       <TeacherMemberTab />

@@ -1,0 +1,342 @@
+/* Create Group Modal Overlay */
+.create-group-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Modal Content Container */
+.create-group-modal-content {
+  background-color: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  width: 400px;
+  max-width: 90vw;
+  padding: 28px;
+  box-shadow: 0 20px 40px var(--shadow-color);
+  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+  color: var(--text-main);
+  font-family: inherit;
+}
+
+/* Header styling */
+.create-group-header h2 {
+  margin: 0 0 6px 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.create-group-header p {
+  margin: 0 0 20px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Input Form Field */
+.create-group-form-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 18px;
+}
+
+.field-label-text {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.create-group-text-input {
+  background-color: var(--search-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14.5px;
+  color: var(--text-main);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.create-group-text-input:focus {
+  border-color: var(--active-item-border);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+/* Pickers layout row */
+.create-group-pickers-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.picker-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.icon-selector-block {
+  flex: 1;
+}
+
+.color-selector-block {
+  width: 48px;
+  align-items: center;
+}
+
+/* Icons Selection Grid */
+.icons-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.icon-grid-item-btn {
+  background-color: var(--search-bg);
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  font-size: 20px;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.icon-grid-item-btn:hover {
+  background-color: var(--border-color);
+  transform: scale(1.08);
+}
+
+.icon-grid-item-btn.selected {
+  border-color: #10b981; /* green outline matching standard screenshot indicator */
+  background-color: var(--active-item-bg);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+}
+
+/* Colors Selection List (vertical) */
+.colors-selection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.color-list-dot-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--accent-color-dot);
+  border: 2px solid var(--sidebar-bg);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.color-list-dot-btn:hover {
+  transform: scale(1.15);
+}
+
+.color-list-dot-btn.selected {
+  box-shadow: 0 0 0 2.5px var(--accent-color-dot);
+  transform: scale(1.1);
+}
+
+/* Members Selection Checklist */
+.create-group-members-area {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 24px;
+}
+
+.selected-members-counter {
+  text-transform: none;
+  font-weight: 500;
+  color: var(--active-item-border);
+  margin-left: 4px;
+}
+
+.members-scrollable-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 6px;
+  background-color: var(--search-bg);
+}
+
+/* Member Checklist Item Row */
+.member-selection-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  background-color: var(--sidebar-bg);
+}
+
+.member-selection-row:hover {
+  background-color: var(--border-color);
+}
+
+.member-selection-row.active {
+  background-color: var(--active-item-bg);
+}
+
+/* Member Avatars & Initials */
+.member-avatar-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.member-online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 8.5px;
+  height: 8.5px;
+  border-radius: 50%;
+  border: 1.5px solid var(--sidebar-bg);
+}
+
+.member-online-dot.online {
+  background-color: #10b981;
+}
+
+.member-online-dot.offline {
+  background-color: #94a3b8;
+}
+
+.member-details-column {
+  display: flex;
+  flex-direction: column;
+  margin-left: 12px;
+  flex: 1;
+}
+
+.member-row-name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.member-row-status {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.member-row-status.online-text {
+  color: #10b981;
+}
+
+/* Custom Rounded Checkbox */
+.member-checkbox-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+}
+
+.member-checkbox-circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  background-color: var(--sidebar-bg);
+}
+
+.member-checkbox-circle.checked {
+  background-color: #0d9488;
+  border-color: #0d9488;
+}
+
+/* Footer Modal Actions */
+.create-group-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-action-button {
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cancel-button {
+  background-color: var(--sidebar-bg);
+  border: 1.5px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.cancel-button:hover {
+  background-color: var(--border-color);
+}
+
+.submit-button {
+  background-color: #0d9488;
+  color: white;
+  border: none;
+  flex: 1;
+}
+
+.submit-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.submit-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Custom Scrollbar for scrollable container */
+.members-scrollable-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.members-scrollable-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.members-scrollable-container::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}

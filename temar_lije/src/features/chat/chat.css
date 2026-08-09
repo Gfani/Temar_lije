@@ -78,7 +78,7 @@
 /* Base Layout */
 .chat-layout {
   display: flex;
-  height: 100vh;
+  height: 800px;
   width: 100%;
   font-family: var(--font-sans);
   color: var(--text-main);

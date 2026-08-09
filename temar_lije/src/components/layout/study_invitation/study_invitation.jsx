@@ -26,7 +26,7 @@ function StudyInvitation({
     return (
         <div className="study-inv-modal-overlay" onClick={onClose}>
             <div className="study-inv-modal-content" onClick={(e) => e.stopPropagation()}>
-                
+
                 {/* Top Circular Inviter Avatar with Ring & Chat Badge */}
                 <div className="study-inv-avatar-container">
                     <div className="study-inv-avatar-ring">

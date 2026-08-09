@@ -1,0 +1,223 @@
+.classmind-footer {
+    width: 100%;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* Top CTA Banner Styling */
+.footer-cta-banner {
+    background-color: #007764;
+    /* Matches ClassMind brand green */
+    padding: 48px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: #ffffff;
+}
+
+.cta-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+    font-family: inherit;
+}
+
+.cta-subtitle {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 24px 0;
+    max-width: 600px;
+    line-height: 1.5;
+}
+
+.cta-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+}
+
+.cta-btn {
+    padding: 10px 20px;
+    font-size: 14.5px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.btn-primary {
+    background-color: #ffffff;
+    color: #007764;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #f3fcf9;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.btn-secondary:hover {
+    border-color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+}
+
+/* Main Footer Styling */
+.footer-main-content {
+    padding: 60px 48px 40px 48px;
+    display: flex;
+    justify-content: space-between;
+    gap: 48px;
+}
+
+.footer-brand-section {
+    display: flex;
+    flex-direction: column;
+    max-width: 320px;
+    gap: 16px;
+}
+
+.footer-logo-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-logo-image {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+
+.footer-logo-text {
+    font-size: 19px;
+    font-weight: 700;
+    color: #121217;
+    letter-spacing: -0.3px;
+}
+
+.footer-brand-description {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #72707a;
+    margin: 0;
+    text-align: left;
+}
+
+.footer-links-section {
+    display: flex;
+    gap: 64px;
+}
+
+.footer-links-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 120px;
+}
+
+.links-col-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #121217;
+    margin: 0;
+    text-transform: capitalize;
+    text-align: left;
+}
+
+.links-col-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+}
+
+.links-col-list a {
+    font-size: 13.5px;
+    color: #72707a;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.links-col-list a:hover {
+    color: #007764;
+}
+
+/* Bottom Row Styling */
+.footer-bottom-row {
+    margin: 0 48px;
+    padding: 24px 0 32px 0;
+    border-top: 1px solid #e8e8eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: #8b8994;
+}
+
+.footer-copyright {
+    text-align: left;
+}
+
+.footer-legal-links {
+    display: flex;
+    gap: 20px;
+}
+
+.footer-legal-links a {
+    color: #8b8994;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.footer-legal-links a:hover {
+    color: #007764;
+}
+
+/* Responsive Styling */
+@media (max-width: 768px) {
+    .footer-main-content {
+        flex-direction: column;
+        padding: 40px 24px;
+        gap: 32px;
+    }
+
+    .footer-brand-section {
+        max-width: 100%;
+    }
+
+    .footer-links-section {
+        flex-wrap: wrap;
+        gap: 32px;
+    }
+
+    .footer-bottom-row {
+        margin: 0 24px;
+        padding: 24px 0;
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+    }
+
+    .footer-legal-links {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+}

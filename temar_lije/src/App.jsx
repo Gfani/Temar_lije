@@ -6,6 +6,8 @@ import TeacherMemberTab from "./features/classroom-detail/tabs/TeacherMemberTab/
 import StudyBuddy from "./features/study-buddy/study-buddy"
 import Chat from "./features/chat/chat"
 import Header from './components/common/Header/header';
+import Footer from './components/common/Footer/footer';
+
 
 
 
@@ -20,6 +22,7 @@ function App() {
       <StudyBuddy />
       <SignIn />
       <CreateAccount />
+      <Footer />
     </>
   )
 }

@@ -5,10 +5,14 @@ import LiveClassTab from "./features/classroom-detail/tabs/LiveClassTab/LiveClas
 import TeacherMemberTab from "./features/classroom-detail/tabs/TeacherMemberTab/TeacherMemberTab"
 import StudyBuddy from "./features/study-buddy/study-buddy"
 import Chat from "./features/chat/chat"
+import Header from './components/common/Header/header';
+
+
 
 function App() {
   return (
     <>
+      <Header />
       <Chat />
       <LiveClassTab />
       <AssignmentsTab />

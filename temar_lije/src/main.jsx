@@ -1,9 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import LiveClassTab from './features/classroom-detail/tabs/LiveClassTab/LiveClassTab'
+import CreateAccount from './features/auth/create_account/create_account'
+
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <LiveClassTab />
+    <CreateAccount />
   </StrictMode>,
 )

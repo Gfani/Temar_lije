@@ -7,6 +7,8 @@ import StudyBuddy from "./features/study-buddy/study-buddy"
 import Chat from "./features/chat/chat"
 import Header from './components/common/Header/header';
 import Footer from './components/common/Footer/footer';
+import MembersTab from './features/classroom-detail/MembersTab';
+
 
 
 
@@ -19,6 +21,7 @@ function App() {
       <LiveClassTab />
       <AssignmentsTab />
       <TeacherMemberTab />
+      <MembersTab/>
       <StudyBuddy />
       <SignIn />
       <CreateAccount />

@@ -1,0 +1,178 @@
+import React from 'react';
+import './landing.css'; 
+import temarLijeLogo from '../../assets/temar-lije-logo.png';
+
+export default function LandingPage({ 
+  onStartTeaching = () => {}, 
+  onJoinClass = () => {}, 
+  onSignIn = () => {} 
+}) {
+  return (
+    <div className="landing-container">
+      {/* Navbar Header */}
+      <header className="landing-header">
+        <div className="landing-logo-brand">
+          <img src={temarLijeLogo} alt="Temar Lije Logo" className="landing-brand-img" />
+          <span className="landing-brand-title">Temar Lije</span>
+        </div>
+
+        <button className="btn-signin" onClick={onSignIn}>
+          Sign in
+        </button>
+      </header>
+
+      {/* Main Hero Section */}
+      <main className="landing-hero">
+        <div className="hero-content">
+          <div className="ai-badge">
+            <span>✨</span> AI-powered smart classroom
+          </div>
+
+          <h1 className="hero-headline">
+            Teach more. Administrate less.
+          </h1>
+
+          <p className="hero-description">
+            Temar Lije puts classroom management, lesson materials and live teaching in 
+            one place — then adds AI assistants so teachers spend their time with 
+            students, not paperwork.
+          </p>
+
+          <div className="hero-actions">
+            <button className="btn-start-teaching" onClick={onStartTeaching}>
+              Start teaching
+            </button>
+            <button className="btn-join-class" onClick={onJoinClass}>
+              Join a class
+            </button>
+          </div>
+        </div>
+
+        <div className="hero-media">
+          <div className="logo-card-wrapper">
+            <img 
+              src={temarLijeLogo} 
+              alt="Temar Lije Platform Logo" 
+              className="hero-logo-img" 
+            />
+          </div>
+        </div>
+      </main>
+
+      {/* Feature Section: Built for real teaching days */}
+      <section className="features-section">
+        <h2 className="section-title">Built for real teaching days</h2>
+        
+        <div className="features-grid">
+          {/* Card 1 */}
+          <div className="feature-card">
+            <div className="feature-icon">🎓</div>
+            <h3 className="feature-card-title">Classrooms in seconds</h3>
+            <p className="feature-card-desc">
+              Create a class, share a six-character code and watch students join themselves.
+            </p>
+          </div>
+
+          {/* Card 2 */}
+          <div className="feature-card">
+            <div className="feature-icon">📄</div>
+            <h3 className="feature-card-title">Materials, organised</h3>
+            <p className="feature-card-desc">
+              Upload slides, PDFs and worksheets. Students only see the classes they belong to.
+            </p>
+          </div>
+
+          {/* Card 3 */}
+          <div className="feature-card">
+            <div className="feature-icon">📹</div>
+            <h3 className="feature-card-title">Live teaching built in</h3>
+            <p className="feature-card-desc">
+              Every classroom has its own video room with screen sharing and chat.
+            </p>
+          </div>
+
+          {/* Card 4 */}
+          <div className="feature-card">
+            <div className="feature-icon">✨</div>
+            <h3 className="feature-card-title">AI on your side</h3>
+            <p className="feature-card-desc">
+              Lesson planning, quiz generation and analytics arrive on this same foundation.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Call to Action Banner */}
+      <section className="cta-banner">
+        <h2 className="cta-title">Ready to save time and inspire your students?</h2>
+        <p className="cta-subtitle">
+          Join thousands of teachers transforming their digital classrooms today. No credit card required.
+        </p>
+        <div className="cta-actions">
+          <button className="btn-cta-primary" onClick={onStartTeaching}>
+            Sign up free
+          </button>
+          <button className="btn-cta-secondary">
+            Contact sales
+          </button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <div className="footer-top">
+          <div className="footer-brand">
+            <div className="footer-brand-header">
+              <img src={temarLijeLogo} alt="Temar Lije Logo" className="footer-logo-img" />
+              <span className="footer-brand-title">Temar Lije</span>
+            </div>
+            <p className="footer-brand-desc">
+              Making classroom management simple, delightful, and integrated with the next generation of AI support tools.
+            </p>
+          </div>
+
+          <div className="footer-links-grid">
+            <div className="footer-column">
+              <h4>Product</h4>
+              <ul>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#copilot">AI Co-pilot</a></li>
+                <li><a href="#pricing">Pricing</a></li>
+                <li><a href="#changelog">Changelog</a></li>
+              </ul>
+            </div>
+
+            <div className="footer-column">
+              <h4>Resources</h4>
+              <ul>
+                <li><a href="#guides">Teacher Guides</a></li>
+                <li><a href="#help">Help Center</a></li>
+                <li><a href="#community">Community</a></li>
+                <li><a href="#security">Security</a></li>
+              </ul>
+            </div>
+
+            <div className="footer-column">
+              <h4>Company</h4>
+              <ul>
+                <li><a href="#about">About us</a></li>
+                <li><a href="#blog">Blog</a></li>
+                <li><a href="#careers">Careers</a></li>
+                <li><a href="#contact">Contact</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <p>© 2026 Temar Lije Inc. All rights reserved.</p>
+          <div className="footer-legal">
+            <a href="#privacy">Privacy Policy</a>
+            <a href="#terms">Terms of Service</a>
+            <a href="#compliance">FERPA & COPPA Compliance</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

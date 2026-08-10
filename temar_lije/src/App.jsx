@@ -1,5 +1,5 @@
 
-import Header from './components/common/Header/header';
+import MembersTab from './features/classroom-detail/MembersTab';
 
 
 
@@ -8,7 +8,8 @@ import Header from './components/common/Header/header';
 function App() {
   return (
     <>
-      <Header />
+
+      <MembersTab />
 
     </>
   )

@@ -21,7 +21,7 @@ function App() {
       <LiveClassTab />
       <AssignmentsTab />
       <TeacherMemberTab />
-      <MembersTab/>
+      <MembersTab />
       <StudyBuddy />
       <SignIn />
       <CreateAccount />

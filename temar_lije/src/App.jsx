@@ -16,6 +16,7 @@ export default function App() {
       <LiveClassTab />
       <AssignmentsTab />
       <TeacherMemberTab />
+      <MembersTab />
       <StudyBuddy />
       <SignIn />
       <CreateAccount />

@@ -1,10 +1,16 @@
 .course-header-container {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  flex-direction: column;
   padding: 1.5rem 2rem;
   background-color: #ffffff;
   font-family: 'Inter', 'Roboto', sans-serif; /* Fallback to standard clean fonts */
+}
+
+.course-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
 }
 
 .course-header-left {
@@ -76,4 +82,38 @@
   font-weight: 700;
   color: #374151;
   letter-spacing: 3px;
+}
+
+.course-tabs-container {
+  display: flex;
+  align-items: center;
+  background-color: #f1f3f5;
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  width: max-content;
+}
+
+.course-tab {
+  background: transparent;
+  border: none;
+  font-size: 0.875rem;
+  color: #6c757d;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  margin: 0 0.125rem;
+}
+
+.course-tab:hover:not(.active) {
+  color: #495057;
+}
+
+.course-tab.active {
+  background-color: #ffffff;
+  color: #212529;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }

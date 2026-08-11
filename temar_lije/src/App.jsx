@@ -1,22 +1,17 @@
-import CreateAccount from "./features/auth/create_account/create_account"
-import SignIn from "./features/auth/signin/signin"
-import AssignmentsTab from "./features/classroom-detail/tabs/AssignmentsTab/AssignmentsTab"
-import LiveClassTab from "./features/classroom-detail/tabs/LiveClassTab/LiveClassTab"
-import TeacherMemberTab from "./features/classroom-detail/tabs/TeacherMemberTab/TeacherMemberTab"
-import StudyBuddy from "./features/study-buddy/study-buddy"
-import Chat from "./features/chat/chat"
-import Header from './components/common/Header/header';
-import Footer from './components/common/Footer/footer';
-import MembersTab from './features/classroom-detail/MembersTab';
+import React from 'react';
+import Landingpage from './features/landing/landing.jsx';
+import CreateAccount from "./features/auth/create_account/create_account";
+import SignIn from "./features/auth/signin/signin";
+import AssignmentsTab from "./features/classroom-detail/tabs/AssignmentsTab/AssignmentsTab";
+import LiveClassTab from "./features/classroom-detail/tabs/LiveClassTab/LiveClassTab";
+import TeacherMemberTab from "./features/classroom-detail/tabs/TeacherMemberTab/TeacherMemberTab";
+import StudyBuddy from "./features/study-buddy/study-buddy";
+import Chat from "./features/chat/chat";
 
-
-
-
-
-function App() {
+export default function App() {
   return (
-    <>
-      <Header />
+    <div>
+      <Landingpage />
       <Chat />
       <LiveClassTab />
       <AssignmentsTab />
@@ -25,9 +20,6 @@ function App() {
       <StudyBuddy />
       <SignIn />
       <CreateAccount />
-      <Footer />
-    </>
-  )
+    </div>
+  );
 }
-
-export default App

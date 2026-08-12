@@ -1,0 +1,219 @@
+.send-inv-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.send-inv-modal-content {
+  background-color: #ffffff;
+  border-radius: 24px;
+  width: 440px;
+  max-width: 90vw;
+  padding: 32px 28px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+  color: #111827;
+  font-family: system-ui, -apple-system, sans-serif;
+  text-align: left;
+  animation: slideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.send-inv-top-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background-color: #0d6e5b;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 14px rgba(13, 110, 91, 0.25);
+}
+
+.send-inv-modal-title {
+  margin: 0 0 6px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.send-inv-modal-subtitle {
+  margin: 0 0 20px 0;
+  font-size: 13.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Topic Banner Card */
+.send-inv-topic-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background-color: #f0fdf9;
+  border: 1px solid #ccfbf1;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+.send-inv-topic-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background-color: #e6f7f3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.send-inv-topic-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.send-inv-topic-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.send-inv-topic-name {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Students List */
+.send-inv-students-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 26px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.send-inv-student-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid #f1f5f9;
+}
+
+.send-inv-student-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.send-inv-student-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-inv-online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  border: 2px solid #ffffff;
+}
+
+.send-inv-student-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.send-inv-online-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #0d6e5b;
+  background-color: #e6f7f3;
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+/* Action Buttons */
+.send-inv-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.send-inv-btn-cancel {
+  flex: 1;
+  padding: 13px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.send-inv-btn-cancel:hover {
+  background-color: #f8fafc;
+}
+
+.send-inv-btn-submit {
+  flex: 2;
+  padding: 13px;
+  border-radius: 12px;
+  border: none;
+  background-color: #0d6e5b;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s, transform 0.1s;
+  box-shadow: 0 4px 12px rgba(13, 110, 91, 0.25);
+}
+
+.send-inv-btn-submit:hover {
+  background-color: #0b5c4c;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}

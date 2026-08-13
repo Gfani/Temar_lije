@@ -1,5 +1,4 @@
 
-=======
 import React from 'react';
 import Landingpage from './features/landing/landing.jsx';
 import CreateAccount from "./features/auth/create_account/create_account";
@@ -8,20 +7,22 @@ import AssignmentsTab from "./features/classroom-detail/tabs/AssignmentsTab/Assi
 import LiveClassTab from "./features/classroom-detail/tabs/LiveClassTab/LiveClassTab";
 import TeacherMemberTab from "./features/classroom-detail/tabs/TeacherMemberTab/TeacherMemberTab";
 import StudyBuddy from "./features/study-buddy/study-buddy";
-import Chat from "./features/chat/chat";'
-import Title from "./components/common/title/Title"
+import Chat from "./features/chat/chat";
+import Tittle from "./components/common/tittle/Tittle.jsx"
+
+import Header from "./components/common/Header/header"
 
 export default function App() {
   return (
 
     <div>
-     <Title/>
+      <Header/>
+     <Tittle/>
       <Landingpage />
       <Chat />
       <LiveClassTab />
       <AssignmentsTab />
       <TeacherMemberTab />
-      <MembersTab />
       <StudyBuddy />
       <SignIn />
       <CreateAccount />

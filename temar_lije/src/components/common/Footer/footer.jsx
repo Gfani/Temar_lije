@@ -1,4 +1,5 @@
 import React from 'react';
+import { UserPlus, Mail } from 'lucide-react';
 import './footer.css';
 import logo from '../../../assets/classmind-logo.png';
 
@@ -12,8 +13,12 @@ export default function Footer() {
                     Join thousands of teachers transforming their digital classrooms today. No credit card required.
                 </p>
                 <div className="cta-buttons">
-                    <button type="button" className="cta-btn btn-primary">Sign up free</button>
-                    <button type="button" className="cta-btn btn-secondary">Contact sales</button>
+                    <button type="button" className="cta-btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        <UserPlus size={16} /> Sign up free
+                    </button>
+                    <button type="button" className="cta-btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        <Mail size={16} /> Contact sales
+                    </button>
                 </div>
             </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LayoutGrid, Sparkles, LogOut, Plus, Users } from 'lucide-react';
 import './classrooms.css';
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
@@ -59,19 +60,14 @@ export default function Classrooms({
               className={`nav-tab ${activeTab === 'classrooms' ? 'active' : ''}`}
               onClick={() => setActiveTab('classrooms')}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-              </svg>
+              <LayoutGrid size={16} />
               Classrooms
             </button>
             <button 
               className={`nav-tab ${activeTab === 'study-buddy' ? 'active' : ''}`}
               onClick={() => setActiveTab('study-buddy')}
             >
-              <span style={{ fontSize: '1rem' }}>✨</span> Study Buddy
+              <Sparkles size={16} /> Study Buddy
             </button>
           </nav>
         </div>
@@ -86,11 +82,7 @@ export default function Classrooms({
             </div>
           </div>
           <button className="btn-logout" onClick={onLogout} title="Sign out">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
+            <LogOut size={18} />
           </button>
         </div>
       </header>
@@ -111,7 +103,7 @@ export default function Classrooms({
                 className="btn-new-classroom"
                 onClick={() => setIsModalOpen(true)}
               >
-                <span>+</span> New classroom
+                <Plus size={16} /> New classroom
               </button>
             </div>
 
@@ -122,7 +114,7 @@ export default function Classrooms({
                   No classrooms created yet
                 </p>
                 <p style={{ fontSize: '0.875rem' }}>
-                  Click <strong>"+ New classroom"</strong> above to get started.
+                  Click <strong>"<Plus size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> New classroom"</strong> above to get started.
                 </p>
               </div>
             ) : (
@@ -138,12 +130,7 @@ export default function Classrooms({
 
                     <div className="card-footer">
                       <div className="card-type">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="9" cy="7" r="4"></circle>
-                          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
+                        <Users size={14} />
                         <span>Classroom</span>
                       </div>
 
@@ -163,7 +150,9 @@ export default function Classrooms({
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#64748b' }}>
-            <h2 style={{ fontSize: '1.5rem', color: '#0f172a', marginBottom: '0.5rem' }}>✨ Study Buddy</h2>
+            <h2 style={{ fontSize: '1.5rem', color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Sparkles size={24} /> Study Buddy
+            </h2>
             <p>AI assistance and study companion features will load here.</p>
           </div>
         )}

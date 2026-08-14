@@ -1,4 +1,5 @@
 import React from 'react';
+import { MessageSquare, Check } from 'lucide-react';
 import './study_invitation.css';
 
 function StudyInvitation({
@@ -34,9 +35,7 @@ function StudyInvitation({
                             {inviterInitials}
                         </div>
                         <div className="study-inv-chat-badge">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                            </svg>
+                            <MessageSquare size={12} />
                         </div>
                     </div>
                 </div>
@@ -68,9 +67,7 @@ function StudyInvitation({
                         className="study-inv-btn-join"
                         onClick={handleJoin}
                     >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                        </svg>
+                        <Check size={16} />
                         Join Session
                     </button>
                 </div>

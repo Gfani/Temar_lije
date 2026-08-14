@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import styles from './Tittle.module.css';
 
 const TABS = [
@@ -28,7 +29,7 @@ export const ClassroomHeader = ({
     <div className={styles.headerContainer}>
       {/* Back button */}
       <button className={styles.backButton} onClick={onBack}>
-        <span className={styles.backIcon}>←</span> Classrooms
+        <ArrowLeft size={16} className={styles.backIcon} /> Classrooms
       </button>
 
       {/* Classroom Title and Subtitle */}

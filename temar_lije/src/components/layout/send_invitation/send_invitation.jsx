@@ -1,4 +1,5 @@
 import React from 'react';
+import { MessageSquare, BookOpen, Send } from 'lucide-react';
 import './send_invitation.css';
 
 function SendInvitation({
@@ -29,9 +30,7 @@ function SendInvitation({
                 
                 {/* Top Green Icon Box */}
                 <div className="send-inv-top-icon-box">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
+                    <MessageSquare size={24} />
                 </div>
 
                 {/* Header Title & Subtitle */}
@@ -43,10 +42,7 @@ function SendInvitation({
                 {/* Topic Banner Card */}
                 <div className="send-inv-topic-card">
                     <div className="send-inv-topic-icon-box">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d6e5b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                        </svg>
+                        <BookOpen size={20} color="#0d6e5b" />
                     </div>
                     <div className="send-inv-topic-info">
                         <span className="send-inv-topic-label">Topic</span>
@@ -87,10 +83,7 @@ function SendInvitation({
                         className="send-inv-btn-submit"
                         onClick={handleSend}
                     >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(45deg)', marginBottom: '-2px' }}>
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                        </svg>
+                        <Send size={16} />
                         Send Invitations
                     </button>
                 </div>

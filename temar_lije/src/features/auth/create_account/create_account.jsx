@@ -1,13 +1,7 @@
 import React, { useCallback, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import logo from '../../../assets/classmind-logo.png';
 import styles from './create_account.module.css';
-
-const SpinnerIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
-    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-  </svg>
-);
 
 const GoogleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
@@ -195,7 +189,7 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
           >
             {isSubmitting ? (
               <>
-                <SpinnerIcon className={styles.spinner} />
+                <Loader2 className={`${styles.spinner} animate-spin`} />
                 <span>Creating account…</span>
               </>
             ) : (
@@ -218,7 +212,7 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
           aria-busy={isGoogleLoading}
         >
           {isGoogleLoading ? (
-            <SpinnerIcon className={styles.spinner} />
+            <Loader2 className={`${styles.spinner} animate-spin`} />
           ) : (
             <GoogleIcon className={styles.googleIcon} />
           )}

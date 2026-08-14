@@ -1,39 +1,6 @@
 import React, { useCallback, useState } from 'react';
+import { Megaphone, Trash2, Loader2 } from 'lucide-react';
 import styles from './AssignmentsTab.module.css';
-
-/* Inline icons — no external icon library required. */
-
-const MegaphoneIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h1l.9 3.3a1 1 0 0 0 .97.75h.63a1 1 0 0 0 .96-1.27L8.6 15h1.3l7.4 3.1a.9.9 0 0 0 1.25-.83V6.73a.9.9 0 0 0-1.25-.83L9.9 9H5A1.5 1.5 0 0 0 3.5 10.5Z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-    />
-    <path d="M18.5 8.75v6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const TrashIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M4.5 7h15M9.5 7V5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7m1.5 0-.6 11.4a2 2 0 0 1-2 1.9h-5.8a2 2 0 0 1-2-1.9L6 7"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path d="M10 10.5v6M14 10.5v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const SpinnerIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
-    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-  </svg>
-);
 
 const DEFAULT_ASSIGNMENTS = [
   {
@@ -134,9 +101,9 @@ export default function AssignmentsTab({
         aria-busy={isAnnouncing}
       >
         {isAnnouncing ? (
-          <SpinnerIcon className={styles.spinner} />
+          <Loader2 className={`${styles.spinner} animate-spin`} />
         ) : (
-          <MegaphoneIcon className={styles.buttonIcon} />
+          <Megaphone className={styles.buttonIcon} />
         )}
         <span>{isAnnouncing ? 'Announcing…' : 'Announce assignment'}</span>
       </button>
@@ -173,9 +140,9 @@ export default function AssignmentsTab({
                     aria-label={`Delete ${assignment.title}`}
                   >
                     {isDeleting ? (
-                      <SpinnerIcon className={styles.spinner} />
+                      <Loader2 className={`${styles.spinner} animate-spin`} />
                     ) : (
-                      <TrashIcon className={styles.deleteIcon} />
+                      <Trash2 className={styles.deleteIcon} />
                     )}
                   </button>
                 </div>

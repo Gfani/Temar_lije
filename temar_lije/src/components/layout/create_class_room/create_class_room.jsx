@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import './create_class_room.css';
 
 export default function CreateClassRoom({ 
@@ -59,7 +60,7 @@ export default function CreateClassRoom({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
-          ✕
+          <X size={18} />
         </button>
 
         <h2 className="modal-title">Create a classroom</h2>

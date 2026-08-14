@@ -1,55 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { Video, UserPlus, Sparkles, Loader2 } from 'lucide-react';
 import styles from './LiveClassTab.module.css';
-
-/**
- * Small inline icon set (no external icon library required).
- * Kept as simple functional components so they inherit currentColor.
- */
-const VideoIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M15 8.5V7.8c0-.9 0-1.35-.16-1.72a1.9 1.9 0 0 0-.92-.92C13.55 5 13.1 5 12.2 5H5.8c-.9 0-1.35 0-1.72.16a1.9 1.9 0 0 0-.92.92C3 6.45 3 6.9 3 7.8v6.4c0 .9 0 1.35.16 1.72.15.38.4.68.92.92.37.16.82.16 1.72.16h6.4c.9 0 1.35 0 1.72-.16a1.9 1.9 0 0 0 .92-.92c.16-.37.16-.82.16-1.72v-.7l3.16 2.16c.63.44 1.47-.01 1.47-.78V7.12c0-.77-.84-1.22-1.47-.78L15 8.5Z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const UserPlusIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="9" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.5" />
-    <path
-      d="M3.5 19c.6-3.2 3-5 5.5-5s4.9 1.8 5.5 5"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-    <path d="M18.5 8v5.5M15.75 10.75h5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const SparkleIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M11 3.5c.3 2.1 1 3.6 2.1 4.7 1.1 1.1 2.6 1.8 4.7 2.1-2.1.3-3.6 1-4.7 2.1-1.1 1.1-1.8 2.6-2.1 4.7-.3-2.1-1-3.6-2.1-4.7-1.1-1.1-2.6-1.8-4.7-2.1 2.1-.3 3.6-1 4.7-2.1 1.1-1.1 1.8-2.6 2.1-4.7Z"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M18.5 15.5c.16 1 .48 1.7 1 2.24.52.53 1.24.85 2.24 1-.99.16-1.72.48-2.24 1a3.5 3.5 0 0 0-1 2.25c-.16-1-.48-1.72-1-2.25-.52-.52-1.25-.84-2.24-1 1-.15 1.72-.47 2.24-1 .52-.53.84-1.24 1-2.24Z"
-      fill="currentColor"
-    />
-  </svg>
-);
-
-const SpinnerIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
-    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-  </svg>
-);
 
 /**
  * LiveClassTab
@@ -159,7 +110,7 @@ export default function LiveClassTab({
       <section className={styles.mainCard} aria-label="Live class room">
         <div className={styles.mainCardInner}>
           <div className={styles.videoBadge}>
-            <VideoIcon className={styles.videoBadgeIcon} />
+            <Video className={styles.videoBadgeIcon} />
           </div>
           <h2 className={styles.roomTitle}>Live class room</h2>
           <p className={styles.roomDescription}>
@@ -176,7 +127,7 @@ export default function LiveClassTab({
           >
             {isJoining ? (
               <>
-                <SpinnerIcon className={styles.spinner} />
+                <Loader2 className={`${styles.spinner} animate-spin`} />
                 Joining&hellip;
               </>
             ) : (
@@ -219,9 +170,9 @@ export default function LiveClassTab({
               aria-busy={isTakingAttendance}
             >
               {isTakingAttendance ? (
-                <SpinnerIcon className={styles.spinner} />
+                <Loader2 className={`${styles.spinner} animate-spin`} />
               ) : (
-                <UserPlusIcon className={styles.buttonIcon} />
+                <UserPlus className={styles.buttonIcon} />
               )}
               <span>{isTakingAttendance ? 'Checking in…' : 'Take attendance'}</span>
             </button>
@@ -262,9 +213,9 @@ export default function LiveClassTab({
             aria-busy={isCreatingQuiz}
           >
             {isCreatingQuiz ? (
-              <SpinnerIcon className={styles.spinner} />
+              <Loader2 className={`${styles.spinner} animate-spin`} />
             ) : (
-              <SparkleIcon className={styles.buttonIcon} />
+              <Sparkles className={styles.buttonIcon} />
             )}
             <span>{isCreatingQuiz ? 'Creating…' : 'New quiz'}</span>
           </button>

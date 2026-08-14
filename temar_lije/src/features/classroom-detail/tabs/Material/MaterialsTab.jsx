@@ -4,8 +4,6 @@ import './MaterialsTab.css';
 
 export default function MaterialsTab({ onUploadMaterial }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const tabs = ['Materials', 'Live class', 'Assignments', 'Attendance', 'Quizzes', 'Members'];
-  const [activeTab, setActiveTab] = useState('Materials');
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
@@ -21,19 +19,6 @@ export default function MaterialsTab({ onUploadMaterial }) {
 
   return (
     <div className="classroom-detail-container">
-      {/* Tab Navigation */}
-      <div className="classroom-tabs-bar">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            className={`classroom-tab-pill ${tab === activeTab ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
       {/* Search & Actions Bar */}
       <div className="materials-action-row">
         <div className="materials-search-container">

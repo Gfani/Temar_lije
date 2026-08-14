@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
-import './AttendanceTab.css';
+import './tabs/Attendance/AttendanceTab.css';
 
 export default function AttendanceTab({ onTakeAttendance }) {
   const [checkInName, setCheckInName] = useState('');
-  const tabs = ['Materials', 'Live class', 'Assignments', 'Attendance', 'Quizzes', 'Members'];
-  const [activeTab, setActiveTab] = useState('Attendance');
 
   const handleInputChange = (e) => {
     setCheckInName(e.target.value);
@@ -22,19 +20,6 @@ export default function AttendanceTab({ onTakeAttendance }) {
 
   return (
     <div className="classroom-detail-container">
-      {/* Tab Navigation */}
-      <div className="classroom-tabs-bar">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            className={`classroom-tab-pill ${tab === activeTab ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
       {/* Attendance Control Panel */}
       <div className="attendance-control-card">
         <form onSubmit={handleTakeAttendance} className="attendance-action-row">

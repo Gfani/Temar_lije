@@ -5,9 +5,26 @@ import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
 import Header from '../../components/common/Header/header.jsx';
 
+const DEFAULT_CLASSROOMS = [
+  {
+    id: 1,
+    title: 'dsfddvf',
+    subject: 'xzvfdgxacds',
+    description: 'sdwr',
+    code: 'RRWC3C'
+  },
+  {
+    id: 2,
+    title: 'Flutter',
+    subject: 'Widget',
+    description: 'widget structure',
+    code: 'DB7GLU'
+  }
+];
+
 export default function Classrooms({ 
-  currentUser = { name: 'Teacher User', role: 'Teacher' }, 
-  initialClassrooms = [],
+  currentUser = { name: 'gelila', role: 'Teacher' }, 
+  initialClassrooms = DEFAULT_CLASSROOMS,
   onLogout = () => alert('Signing out...'),
   onSelectClassroom
 }) {
@@ -17,7 +34,13 @@ export default function Classrooms({
   
   const [classroomsList, setClassroomsList] = useState(() => {
     const saved = localStorage.getItem('temar_classrooms');
-    return saved ? JSON.parse(saved) : initialClassrooms;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return DEFAULT_CLASSROOMS;
   });
 
   

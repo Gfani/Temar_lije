@@ -15,9 +15,9 @@ export default function Header({
         <header className="classmind-header">
             <div className="header-left">
                 <div className="logo-container">
-    <img src={logo} alt="ClassMind-Logo" className="logo-image" />
-    <span className="logo-text">Temar Lije</span>
-</div>
+                    <img src={logo} alt="ClassMind-Logo" className="logo-image" />
+                    <span className="logo-text">ClassMind</span>
+                </div>
 
 
                 <nav className="header-nav">

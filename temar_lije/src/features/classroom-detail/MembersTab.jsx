@@ -3,9 +3,6 @@ import { Search, Moon, Plus, Users, Code, Sparkles } from 'lucide-react';
 import './tabs/membersTab.css';
 
 export default function MembersTab() {
-  const [activeTab, setActiveTab] = useState('Members');
-  const tabs = ['Materials', 'Live class', 'Assignments', 'Attendance', 'Quizzes', 'Members'];
-
   return (
     <div className="members-page-layout">
       {/* Sidebar Section */}

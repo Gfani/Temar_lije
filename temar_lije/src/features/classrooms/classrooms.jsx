@@ -3,11 +3,13 @@ import { LayoutGrid, Sparkles, LogOut, Plus, Users } from 'lucide-react';
 import './classrooms.css';
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
+import Header from '../../components/common/Header/header.jsx';
 
 export default function Classrooms({ 
   currentUser = { name: 'Teacher User', role: 'Teacher' }, 
   initialClassrooms = [],
-  onLogout = () => alert('Signing out...')
+  onLogout = () => alert('Signing out...'),
+  onSelectClassroom
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('classrooms');
@@ -48,44 +50,14 @@ export default function Classrooms({
   return (
     <div className="classrooms-container">
       {/* Top Navbar */}
-      <header className="classrooms-header">
-        <div className="header-left">
-          <div className="logo-brand">
-            <img src={temarLijeLogo} alt="Temar Lije Logo" className="brand-logo-img" />
-            <span className="brand-title">Temar Lije</span>
-          </div>
-
-          <nav className="header-nav">
-            <button 
-              className={`nav-tab ${activeTab === 'classrooms' ? 'active' : ''}`}
-              onClick={() => setActiveTab('classrooms')}
-            >
-              <LayoutGrid size={16} />
-              Classrooms
-            </button>
-            <button 
-              className={`nav-tab ${activeTab === 'study-buddy' ? 'active' : ''}`}
-              onClick={() => setActiveTab('study-buddy')}
-            >
-              <Sparkles size={16} /> Study Buddy
-            </button>
-          </nav>
-        </div>
-
-        {/* User Profile Info */}
-        <div className="header-right">
-          <div className="user-profile">
-            <div className="avatar-circle">{avatarInitial}</div>
-            <div className="user-info">
-              <span className="user-name">{currentUser.name}</span>
-              <span className="user-role-badge">{currentUser.role}</span>
-            </div>
-          </div>
-          <button className="btn-logout" onClick={onLogout} title="Sign out">
-            <LogOut size={18} />
-          </button>
-        </div>
-      </header>
+      <Header 
+        userName={currentUser.name} 
+        role={currentUser.role} 
+        userInitials={avatarInitial} 
+        currentTab={activeTab} 
+        onTabChange={setActiveTab} 
+        onLogout={onLogout} 
+      />
 
       {/* Main Content Area */}
       <main className="classrooms-main">
@@ -109,18 +81,20 @@ export default function Classrooms({
 
             {/* Empty State vs Classroom Cards */}
             {classroomsList.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#64748b' }}>
-                <p style={{ fontSize: '1.1rem', fontWeight: 500, marginBottom: '0.5rem' }}>
-                  No classrooms created yet
-                </p>
-                <p style={{ fontSize: '0.875rem' }}>
-                  Click <strong>"<Plus size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> New classroom"</strong> above to get started.
-                </p>
+              <div className="empty-state">
+                <Users size={48} className="empty-icon" />
+                <h3>No classrooms yet</h3>
+                <p>Create your first classroom to get started with live teaching and materials.</p>
               </div>
             ) : (
               <div className="classrooms-grid">
                 {classroomsList.map((classroom) => (
-                  <div className="classroom-card" key={classroom.id}>
+                  <div 
+                    className="classroom-card" 
+                    key={classroom.id}
+                    onClick={() => onSelectClassroom && onSelectClassroom(classroom)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <div>
                       <div className="card-top-bar"></div>
                       <h2 className="card-title">{classroom.title}</h2>

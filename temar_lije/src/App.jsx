@@ -1,15 +1,59 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import Landingpage from './features/landing/landing.jsx';
-
+import SignInPage from './features/auth/signin/signin.jsx';
+import CreateAccountPage from './features/auth/create_account/create_account.jsx';
+import Classrooms from './features/classrooms/classrooms.jsx';
+import ClassroomDetail from './features/classroom-detail/classroom_detail.jsx';
 
 export default function App() {
-  return (
+  // Track active screen: 'landing' | 'signin' | 'create_account' | 'classrooms' | 'classroom_detail'
+  const [currentScreen, setCurrentScreen] = useState('landing');
+  const [selectedClassroom, setSelectedClassroom] = useState(null);
 
+  return (
     <div>
-      
-      <Landingpage />
-      
+      {currentScreen === 'landing' && (
+        <Landingpage 
+          onSignIn={() => setCurrentScreen('signin')} 
+          onStartTeaching={() => setCurrentScreen('signin')}
+          onJoinClass={() => setCurrentScreen('signin')}
+        />
+      )}
+
+      {currentScreen === 'signin' && (
+        <SignInPage 
+          onSignIn={() => setCurrentScreen('classrooms')}
+          onGoogleSignIn={() => setCurrentScreen('classrooms')}
+          onBackToLanding={() => setCurrentScreen('landing')} 
+          onSwitchToCreateAccount={() => setCurrentScreen('create_account')}
+        />
+      )}
+
+      {currentScreen === 'create_account' && (
+        <CreateAccountPage 
+          onCreateAccount={() => setCurrentScreen('classrooms')}
+          onGoogleSignIn={() => setCurrentScreen('classrooms')}
+          onSwitchToSignIn={() => setCurrentScreen('signin')} 
+        />
+      )}
+
+      {currentScreen === 'classrooms' && (
+        <Classrooms 
+          onSelectClassroom={(classroom) => {
+            setSelectedClassroom(classroom);
+            setCurrentScreen('classroom_detail');
+          }}
+          onLogout={() => setCurrentScreen('landing')} 
+        />
+      )}
+
+      {currentScreen === 'classroom_detail' && (
+        <ClassroomDetail 
+          classroom={selectedClassroom || { title: "Flutter", subject: "Widget · widget structure" }}
+          onBackToClassrooms={() => setCurrentScreen('classrooms')}
+          onLogout={() => setCurrentScreen('landing')}
+        />
+      )}
     </div>
   );
 }

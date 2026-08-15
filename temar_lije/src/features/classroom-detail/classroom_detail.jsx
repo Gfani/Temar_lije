@@ -4,9 +4,9 @@ import ClassroomHeader from '../../components/common/tittle/Tittle.jsx';
 import MaterialsTab from './tabs/Material/MaterialsTab.jsx';
 import LiveClassTab from './tabs/LiveClassTab/LiveClassTab.jsx';
 import AssignmentsTab from './tabs/AssignmentsTab/AssignmentsTab.jsx';
-import AttendanceTab from './AttendanceTab.jsx';
-import QuizzesTab from './tabs/QuizzesTab.jsx';
-import MembersTab from './MembersTab.jsx';
+import AttendanceTab from './tabs/Attendance/AttendanceTab.jsx';
+import QuizzesTab from './tabs/Quize/QuizzesTab.jsx';
+import MembersTab from './tabs/MemberTab/MembersTab.jsx';
 
 export default function ClassroomDetail({
   classroom = { title: "Flutter", subject: "Widget · widget structure" },

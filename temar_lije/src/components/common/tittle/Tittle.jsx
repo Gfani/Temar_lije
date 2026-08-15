@@ -18,10 +18,7 @@ export const ClassroomHeader = ({
   onTabChange,
   onBack,
 }) => {
-  const [currentTab, setCurrentTab] = useState(activeTab);
-
   const handleTabClick = (tabId) => {
-    setCurrentTab(tabId);
     if (onTabChange) onTabChange(tabId);
   };
 
@@ -42,7 +39,7 @@ export const ClassroomHeader = ({
           <button
             key={tab.id}
             className={`${styles.tabButton} ${
-              currentTab === tab.id ? styles.activeTab : ''
+              activeTab === tab.id ? styles.activeTab : ''
             }`}
             onClick={() => handleTabClick(tab.id)}
           >

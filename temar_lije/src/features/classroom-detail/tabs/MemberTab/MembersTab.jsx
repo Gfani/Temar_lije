@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Search, Moon, Plus, Users, Code, Sparkles } from 'lucide-react';
-import './tabs/membersTab.css';
+import './membersTab.css';
 
 export default function MembersTab() {
+  const [activeTab, setActiveTab] = useState('Members');
+  const tabs = ['Members', 'Study Groups'];
+
   return (
     <div className="members-page-layout">
       {/* Sidebar Section */}
@@ -225,6 +228,22 @@ export default function MembersTab() {
                   </div>
                 </div>
               </section>
+            </div>
+          )}
+
+          {activeTab === 'Study Groups' && (
+            <div className="members-tab-view">
+              <div className="study-group-banner">
+                <div className="banner-left">
+                  <div className="banner-icon-circle">
+                    <Sparkles size={20} />
+                  </div>
+                  <div className="banner-text">
+                    <h3 className="banner-title">Widget Kings 👑</h3>
+                    <p className="banner-desc">4 members • Active peer study group for Flutter assignments.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

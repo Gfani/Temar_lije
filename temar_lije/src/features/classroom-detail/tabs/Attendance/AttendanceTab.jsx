@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
-import './tabs/Attendance/AttendanceTab.css';
+import './AttendanceTab.css';
 
 export default function AttendanceTab({ onTakeAttendance }) {
   const [checkInName, setCheckInName] = useState('');

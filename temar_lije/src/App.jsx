@@ -1,31 +1,59 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import Landingpage from './features/landing/landing.jsx';
-import CreateAccount from "./features/auth/create_account/create_account";
-import SignIn from "./features/auth/signin/signin";
-import AssignmentsTab from "./features/classroom-detail/tabs/AssignmentsTab/AssignmentsTab";
-import LiveClassTab from "./features/classroom-detail/tabs/LiveClassTab/LiveClassTab";
-import TeacherMemberTab from "./features/classroom-detail/tabs/TeacherMemberTab/TeacherMemberTab";
-import StudyBuddy from "./features/study-buddy/study-buddy";
-import Chat from "./features/chat/chat";
-import Tittle from "./components/common/tittle/Tittle.jsx"
-
-import Header from "./components/common/Header/header"
+import SignInPage from './features/auth/signin/signin.jsx';
+import CreateAccountPage from './features/auth/create_account/create_account.jsx';
+import Classrooms from './features/classrooms/classrooms.jsx';
+import ClassroomDetail from './features/classroom-detail/classroom_detail.jsx';
 
 export default function App() {
-  return (
+  // Track active screen: 'landing' | 'signin' | 'create_account' | 'classrooms' | 'classroom_detail'
+  const [currentScreen, setCurrentScreen] = useState('landing');
+  const [selectedClassroom, setSelectedClassroom] = useState(null);
 
+  return (
     <div>
-      <Header/>
-     <Tittle/>
-      <Landingpage />
-      <Chat />
-      <LiveClassTab />
-      <AssignmentsTab />
-      <TeacherMemberTab />
-      <StudyBuddy />
-      <SignIn />
-      <CreateAccount />
+      {currentScreen === 'landing' && (
+        <Landingpage 
+          onSignIn={() => setCurrentScreen('signin')} 
+          onStartTeaching={() => setCurrentScreen('signin')}
+          onJoinClass={() => setCurrentScreen('signin')}
+        />
+      )}
+
+      {currentScreen === 'signin' && (
+        <SignInPage 
+          onSignIn={() => setCurrentScreen('classrooms')}
+          onGoogleSignIn={() => setCurrentScreen('classrooms')}
+          onBackToLanding={() => setCurrentScreen('landing')} 
+          onSwitchToCreateAccount={() => setCurrentScreen('create_account')}
+        />
+      )}
+
+      {currentScreen === 'create_account' && (
+        <CreateAccountPage 
+          onCreateAccount={() => setCurrentScreen('classrooms')}
+          onGoogleSignIn={() => setCurrentScreen('classrooms')}
+          onSwitchToSignIn={() => setCurrentScreen('signin')} 
+        />
+      )}
+
+      {currentScreen === 'classrooms' && (
+        <Classrooms 
+          onSelectClassroom={(classroom) => {
+            setSelectedClassroom(classroom);
+            setCurrentScreen('classroom_detail');
+          }}
+          onLogout={() => setCurrentScreen('landing')} 
+        />
+      )}
+
+      {currentScreen === 'classroom_detail' && (
+        <ClassroomDetail 
+          classroom={selectedClassroom || { title: "Flutter", subject: "Widget · widget structure" }}
+          onBackToClassrooms={() => setCurrentScreen('classrooms')}
+          onLogout={() => setCurrentScreen('landing')}
+        />
+      )}
     </div>
   );
 }

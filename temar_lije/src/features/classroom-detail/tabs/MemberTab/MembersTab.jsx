@@ -1,57 +1,10 @@
 import React, { useState } from 'react';
-import './tabs/membersTab.css';
-
-// --- Inline SVG Icons to avoid external dependencies ---
-
-const SearchIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8" />
-    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-  </svg>
-);
-
-const MoonIcon = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-  </svg>
-);
-
-const PlusIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
-);
-
-const ButterflyIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-    <path d="M12 21a1.5 1.5 0 0 1-1.5-1.5v-8a1.5 1.5 0 0 1 3 0v8a1.5 1.5 0 0 1-1.5 1.5z" fill="#2d3748" />
-    <path d="M10.5 6.5a3.5 3.5 0 0 0-3.5 3.5c0 2.5 2 4.5 3.5 4.5V6.5z" fill="#f43f5e" />
-    <path d="M13.5 6.5a3.5 3.5 0 0 1 3.5 3.5c0 2.5-2 4.5-3.5 4.5V6.5z" fill="#fb7185" />
-  </svg>
-);
-
-const ReactIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" strokeWidth="2" fill="none">
-    <ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(30 12 12)" />
-    <ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(90 12 12)" />
-    <ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(150 12 12)" />
-    <circle cx="12" cy="12" r="2" fill="currentColor" />
-  </svg>
-);
-
-const UsersIcon = () => (
-  <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-  </svg>
-);
+import { Search, Moon, Plus, Users, Code, Sparkles } from 'lucide-react';
+import './membersTab.css';
 
 export default function MembersTab() {
   const [activeTab, setActiveTab] = useState('Members');
-  const tabs = ['Materials', 'Live class', 'Assignments', 'Attendance', 'Quizzes', 'Members'];
+  const tabs = ['Members', 'Study Groups'];
 
   return (
     <div className="members-page-layout">
@@ -68,13 +21,13 @@ export default function MembersTab() {
             </div>
           </div>
           <button type="button" className="theme-toggle-btn">
-            <MoonIcon />
+            <Moon size={18} />
           </button>
         </div>
 
         <div className="sidebar-search">
           <div className="search-input-wrapper">
-            <SearchIcon />
+            <Search size={16} />
             <input type="text" placeholder="Search..." />
           </div>
         </div>
@@ -83,7 +36,7 @@ export default function MembersTab() {
           <div className="section-header">CLASSROOMS</div>
           <div className="sidebar-item active">
             <div className="item-icon green-bg">
-              <ButterflyIcon />
+              <Code size={18} />
             </div>
             <div className="item-content">
               <div className="item-title-row">
@@ -96,7 +49,7 @@ export default function MembersTab() {
 
           <div className="sidebar-item">
             <div className="item-icon purple-bg">
-              <ReactIcon />
+              <Code size={18} />
             </div>
             <div className="item-content">
               <div className="item-title-row">
@@ -110,11 +63,11 @@ export default function MembersTab() {
         <div className="sidebar-section">
           <div className="section-header">
             <span>STUDY GROUPS</span>
-            <button type="button" className="add-group-btn"><PlusIcon /></button>
+            <button type="button" className="add-group-btn"><Plus size={16} /></button>
           </div>
           <div className="sidebar-item">
             <div className="item-icon purple-bg">
-              <ButterflyIcon />
+              <Sparkles size={18} />
             </div>
             <div className="item-content">
               <div className="item-title-row">
@@ -132,7 +85,7 @@ export default function MembersTab() {
         {/* Classroom Title Header */}
         <header className="classroom-header-bar">
           <div className="classroom-header-icon">
-            <ButterflyIcon />
+            <Code size={20} />
           </div>
           <div className="classroom-header-info">
             <h1 className="classroom-title-text">Flutter</h1>
@@ -162,14 +115,16 @@ export default function MembersTab() {
               <div className="study-group-banner">
                 <div className="banner-left">
                   <div className="banner-icon-circle">
-                    <UsersIcon />
+                    <Users size={20} />
                   </div>
                   <div className="banner-text">
                     <h3 className="banner-title">Start a Study Group</h3>
                     <p className="banner-desc">Create a private group chat for assignments, projects, or peer study.</p>
                   </div>
                 </div>
-                <button type="button" className="new-group-action-btn">+ New Group</button>
+                <button type="button" className="new-group-action-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <Plus size={16} /> New Group
+                </button>
               </div>
 
               {/* Teachers Section */}
@@ -273,6 +228,22 @@ export default function MembersTab() {
                   </div>
                 </div>
               </section>
+            </div>
+          )}
+
+          {activeTab === 'Study Groups' && (
+            <div className="members-tab-view">
+              <div className="study-group-banner">
+                <div className="banner-left">
+                  <div className="banner-icon-circle">
+                    <Sparkles size={20} />
+                  </div>
+                  <div className="banner-text">
+                    <h3 className="banner-title">Widget Kings 👑</h3>
+                    <p className="banner-desc">4 members • Active peer study group for Flutter assignments.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

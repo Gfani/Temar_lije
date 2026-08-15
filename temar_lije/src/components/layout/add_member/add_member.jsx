@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { Users, Copy, Check, X } from 'lucide-react';
 import './add_member.css';
 
 function AddMember({ isOpen, onClose, groupName, groupIcon, groupColor, inviteLink, onCopy }) {
-    if (!isOpen) return null;
-
     const [copied, setCopied] = useState(false);
+
+    if (!isOpen) return null;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(inviteLink)
@@ -29,7 +30,7 @@ function AddMember({ isOpen, onClose, groupName, groupIcon, groupColor, inviteLi
                     className="add-member-group-avatar" 
                     style={{ backgroundColor: groupColor || 'var(--active-item-border)' }}
                 >
-                    {groupIcon || '👥'}
+                    {groupIcon || <Users size={24} />}
                 </div>
 
                 {/* Group Title details */}
@@ -52,8 +53,9 @@ function AddMember({ isOpen, onClose, groupName, groupIcon, groupColor, inviteLi
                         type="button" 
                         className={`add-member-copy-btn ${copied ? 'copied' : ''}`}
                         onClick={handleCopy}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                     >
-                        {copied ? 'Copied!' : 'Copy Link'}
+                        {copied ? <><Check size={16} /> Copied!</> : <><Copy size={16} /> Copy Link</>}
                     </button>
                 </div>
 
@@ -61,8 +63,13 @@ function AddMember({ isOpen, onClose, groupName, groupIcon, groupColor, inviteLi
                 <p className="add-member-footer-note">Anyone with this link can join the group</p>
 
                 {/* Close modal button */}
-                <button type="button" className="add-member-close-btn" onClick={onClose}>
-                    Close
+                <button 
+                    type="button" 
+                    className="add-member-close-btn" 
+                    onClick={onClose}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                    <X size={16} /> Close
                 </button>
 
             </div>

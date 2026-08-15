@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Check } from 'lucide-react';
 import './create_group.css';
 
 const ICONS = ['🦋', '⚛️', '🌲', '🎯', '🚀', '🔥', '💡', '🧪', '🎨', '⚡', '📚', '🏆'];
@@ -18,12 +19,12 @@ const MOCK_MEMBERS = [
 ];
 
 function CreateGroup({ isOpen, onClose, onCreate }) {
-    if (!isOpen) return null;
-
     const [groupName, setGroupName] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('📚');
     const [selectedColor, setSelectedColor] = useState('#06b6d4');
     const [selectedMembers, setSelectedMembers] = useState(['at', 'mh', 'yb']);
+
+    if (!isOpen) return null;
 
     const handleToggleMember = (id) => {
         setSelectedMembers(prev =>
@@ -128,9 +129,7 @@ function CreateGroup({ isOpen, onClose, onCreate }) {
                                     <div className="member-checkbox-container">
                                         <div className={`member-checkbox-circle ${isChecked ? 'checked' : ''}`}>
                                             {isChecked && (
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                                    <polyline points="20 6 9 17 4 12" />
-                                                </svg>
+                                                <Check size={10} strokeWidth={4} color="white" />
                                             )}
                                         </div>
                                     </div>

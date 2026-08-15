@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare } from 'lucide-react';
 import './chat.css';
 import CreateGroup from '../../components/layout/create_group/create_group';
 import AddMember from '../../components/layout/add_member/add_member';
@@ -418,7 +419,7 @@ function Chat() {
                     } else {
                         newMessage.type = 'document';
                         newMessage.fileName = file.name;
-                        newMessage.fileSize = formatBytes(file.size),
+                        newMessage.fileSize = formatBytes(file.size);
                         newMessage.fileIcon = getFileIcon(file.name);
                         newMessage.fileDataUrl = isImage ? e.target.result : null;
                     }
@@ -1026,23 +1027,9 @@ function Chat() {
                             title="Toggle theme"
                         >
                             {darkMode ? (
-                                // Sun Icon
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="5"></circle>
-                                    <line x1="12" y1="1" x2="12" y2="3"></line>
-                                    <line x1="12" y1="21" x2="12" y2="23"></line>
-                                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                                    <line x1="1" y1="12" x2="3" y2="12"></line>
-                                    <line x1="21" y1="12" x2="23" y2="12"></line>
-                                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                                </svg>
+                                <Sun size={18} />
                             ) : (
-                                // Moon Icon
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                                </svg>
+                                <Moon size={18} />
                             )}
                         </button>
 
@@ -1052,9 +1039,7 @@ function Chat() {
                             aria-label="Close Sidebar"
                             title="Close Sidebar"
                         >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M18 6L6 18M6 6l12 12" />
-                            </svg>
+                            <X size={18} />
                         </button>
                     </div>
                 </div>
@@ -1063,7 +1048,7 @@ function Chat() {
                 <div className="search-bar-container">
                     <div className="search-wrapper">
                         <span className="search-icon">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
+                            <Search size={16} />
                         </span>
                         <input
                             type="text"
@@ -1091,7 +1076,7 @@ function Chat() {
                                         style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', fontSize: '18px', padding: '4px', display: 'flex', alignItems: 'center' }}
                                         title="Back to Chats"
                                     >
-                                        ←
+                                        <ArrowLeft size={18} />
                                     </button>
                                     <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                                         <div style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-main)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -1106,7 +1091,7 @@ function Chat() {
                                         onClick={() => setShowCreateTopicModal(true)}
                                         title="Create Topic"
                                     >
-                                        +
+                                        <Plus size={16} />
                                     </button>
                                 </div>
 
@@ -1164,7 +1149,7 @@ function Chat() {
                                     title="Create Classroom"
                                     onClick={() => setShowAddModal({ open: true, type: 'classroom' })}
                                 >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                                    <Plus size={16} />
                                 </button>
                             </div>
 
@@ -1180,7 +1165,7 @@ function Chat() {
                                 >
                                     <div className="item-avatar classroom">
                                         {/* Classroom Icon */}
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+                                        <BookOpen size={20} />
                                     </div>
                                     <div className="item-text-container">
                                         <div className="item-title-row">
@@ -1200,7 +1185,7 @@ function Chat() {
                                     title="Create Study Group"
                                     onClick={() => setShowAddModal({ open: true, type: 'group' })}
                                 >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                                    <Plus size={16} />
                                 </button>
                             </div>
 
@@ -1262,9 +1247,7 @@ function Chat() {
                             aria-label="Open Sidebar"
                             title="Open Sidebar"
                         >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
+                            <Menu size={20} />
                         </button>
                         <div
                             className="header-avatar"
@@ -1327,14 +1310,11 @@ function Chat() {
 
                         {!activeItem.isClassroom && (
                             <button className="invite-btn" title="Create Study Topic" onClick={() => setShowCreateTopicModal(true)} style={{ marginRight: '8px' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                                </svg>
+                                <BookOpen size={18} />
                             </button>
                         )}
                         <button className="invite-btn" title="Copy Invite Link" onClick={() => setShowAddMemberModal(true)}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+                            <Link size={18} />
                         </button>
                     </div>
                 </div>
@@ -1382,9 +1362,9 @@ function Chat() {
                                                     className="reaction-bar-btn"
                                                     onClick={() => handleStartEdit(msg)}
                                                     title="Edit message"
-                                                    style={{ borderLeft: '1px solid var(--border-color)', borderRadius: 0, paddingLeft: '6px', marginLeft: '2px' }}
+                                                    style={{ borderLeft: '1px solid var(--border-color)', borderRadius: 0, paddingLeft: '6px', marginLeft: '2px', display: 'inline-flex', alignItems: 'center' }}
                                                 >
-                                                    ✏️
+                                                    <Pencil size={14} />
                                                 </button>
                                             )}
 
@@ -1393,8 +1373,9 @@ function Chat() {
                                                 className="reaction-bar-btn"
                                                 onClick={() => handleDeleteMessage(msg.id)}
                                                 title="Delete message"
+                                                style={{ display: 'inline-flex', alignItems: 'center' }}
                                             >
-                                                🗑️
+                                                <Trash2 size={14} />
                                             </button>
                                         </div>
 
@@ -1495,11 +1476,7 @@ function Chat() {
                                                 {msg.time}
                                                 {!msg.incoming && (
                                                     <span className="checkmark-icon">
-                                                        {/* Double Checkmark */}
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={darkMode ? "#3b82f6" : "#ffffff"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                            <path d="M2 12l5.25 5 11-11" />
-                                                            <path d="M8 12l4.25 4 8-8" />
-                                                        </svg>
+                                                        <CheckCheck size={14} color={darkMode ? "#3b82f6" : "#ffffff"} />
                                                     </span>
                                                 )}
                                             </span>
@@ -1526,7 +1503,9 @@ function Chat() {
                         })
                     ) : (
                         <div className="empty-state">
-                            <div className="empty-state-icon">💬</div>
+                            <div className="empty-state-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <MessageSquare size={36} color="var(--active-item-border)" />
+                            </div>
                             <div className="empty-state-title">No messages yet</div>
                             <div className="empty-state-desc">Send a message to start the conversation in this channel!</div>
                         </div>
@@ -1539,7 +1518,7 @@ function Chat() {
                     <div className="image-preview-container">
                         <div className="preview-thumbnail-wrapper">
                             <img src={attachedImage} alt="Preview" className="preview-thumbnail" />
-                            <button className="remove-preview-btn" onClick={() => setAttachedImage(null)}>✕</button>
+                            <button className="remove-preview-btn" onClick={() => setAttachedImage(null)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
                         </div>
                     </div>
                 )}
@@ -1555,8 +1534,9 @@ function Chat() {
                             className="close-banner-btn"
                             onClick={() => setReplyingTo(null)}
                             title="Cancel reply"
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                         >
-                            ✕
+                            <X size={14} />
                         </button>
                     </div>
                 )}
@@ -1565,7 +1545,7 @@ function Chat() {
                 {editingMessageId && (
                     <div className="image-preview-container" style={{ justifyContent: 'space-between', padding: '8px 24px', backgroundColor: 'var(--search-bg)' }}>
                         <span style={{ fontSize: '12px', color: 'var(--active-item-border)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            ✏️ Editing message...
+                            <Pencil size={14} /> Editing message...
                         </span>
                         <button
                             onClick={() => {
@@ -1613,9 +1593,7 @@ function Chat() {
 
                         {/* Attachment Button */}
                         <button className="input-action-btn" title="Attach files" onClick={triggerFileSelect}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(45deg)' }}>
-                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                            </svg>
+                            <Paperclip size={20} />
                         </button>
 
                         {/* Message input */}
@@ -1634,12 +1612,7 @@ function Chat() {
                             title="Add emoji"
                             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                         >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                                <line x1="9" y1="9" x2="9.01" y2="9" />
-                                <line x1="15" y1="9" x2="15.01" y2="9" />
-                            </svg>
+                            <Smile size={20} />
                         </button>
 
                         {/* Send Button */}
@@ -1650,16 +1623,9 @@ function Chat() {
                             title={editingMessageId ? "Update Message" : "Send Message"}
                         >
                             {editingMessageId ? (
-                                // Checkmark icon for Update
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--active-item-border)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12" />
-                                </svg>
+                                <Check size={18} color="var(--active-item-border)" />
                             ) : (
-                                // Paper airplane icon for Send
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="22" y1="2" x2="11" y2="13" />
-                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                </svg>
+                                <Send size={18} />
                             )}
                         </button>
                     </div>
@@ -1764,8 +1730,9 @@ function Chat() {
                             setReplyingTo(contextMenu.message);
                             setContextMenu({ visible: false, x: 0, y: 0, message: null });
                         }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
-                        💬 Reply
+                        <Reply size={16} /> Reply
                     </button>
                     <button
                         className="context-menu-item"
@@ -1773,8 +1740,9 @@ function Chat() {
                             setForwardingMessage(contextMenu.message);
                             setContextMenu({ visible: false, x: 0, y: 0, message: null });
                         }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
-                        ➡️ Forward
+                        <Forward size={16} /> Forward
                     </button>
                     {contextMenu.message?.text && (
                         <button
@@ -1783,8 +1751,9 @@ function Chat() {
                                 handleCopyMessageText(contextMenu.message);
                                 setContextMenu({ visible: false, x: 0, y: 0, message: null });
                             }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                         >
-                            📋 Copy Text
+                            <Copy size={16} /> Copy Text
                         </button>
                     )}
                     {!contextMenu.message?.incoming && (
@@ -1794,8 +1763,9 @@ function Chat() {
                                 handleStartEdit(contextMenu.message);
                                 setContextMenu({ visible: false, x: 0, y: 0, message: null });
                             }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                         >
-                            ✏️ Edit
+                            <Pencil size={16} /> Edit
                         </button>
                     )}
                     <button
@@ -1804,8 +1774,9 @@ function Chat() {
                             alert(`Message Details:\n\nSender: ${contextMenu.message?.sender}\nTime: ${contextMenu.message?.time}\nID: ${contextMenu.message?.id}`);
                             setContextMenu({ visible: false, x: 0, y: 0, message: null });
                         }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
-                        ℹ️ Details
+                        <Info size={16} /> Details
                     </button>
                     <button
                         className="context-menu-item danger-text"
@@ -1813,8 +1784,9 @@ function Chat() {
                             handleDeleteMessage(contextMenu.message?.id);
                             setContextMenu({ visible: false, x: 0, y: 0, message: null });
                         }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
-                        🗑️ Delete
+                        <Trash2 size={16} /> Delete
                     </button>
                 </div>
             )}
@@ -1911,7 +1883,7 @@ function Chat() {
                                         onClick={handleCopyInvite}
                                         title="Copy Link"
                                     >
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>
+                                        <Copy size={16} />
                                     </button>
                                 </div>
                             </div>
@@ -1928,7 +1900,7 @@ function Chat() {
                                     style={{ padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', height: 'auto', background: 'var(--active-item-bg)', color: 'var(--active-item-border)', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
                                     onClick={() => setIsAddingMember(!isAddingMember)}
                                 >
-                                    {isAddingMember ? '✕ Close' : '➕ Add Member'}
+                                    {isAddingMember ? <><X size={14} /> Close</> : <><UserPlus size={14} /> Add Member</>}
                                 </button>
                             </div>
 
@@ -1959,7 +1931,7 @@ function Chat() {
                                                         <div className="member-details-column" style={{ marginLeft: '10px' }}>
                                                             <span style={{ fontSize: '13px', fontWeight: '600' }}>{user.name}</span>
                                                         </div>
-                                                        <span style={{ fontSize: '11px', color: 'var(--active-item-border)', fontWeight: '600' }}>Add ➕</span>
+                                                        <span style={{ fontSize: '11px', color: 'var(--active-item-border)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>Add <Plus size={12} /></span>
                                                     </div>
                                                 );
                                             })}
@@ -2186,7 +2158,7 @@ function Chat() {
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                                 onClick={() => handleSendPendingFiles('document')}
                             >
-                                📄 Send as Documents
+                                <FileText size={16} /> Send as Documents
                             </button>
 
                             {pendingFiles.some(f => f.type.startsWith('image/')) && (
@@ -2195,7 +2167,7 @@ function Chat() {
                                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#0d9488' }}
                                     onClick={() => handleSendPendingFiles('compressed')}
                                 >
-                                    🖼️ Send Compressed
+                                    <Image size={16} /> Send Compressed
                                 </button>
                             )}
 
@@ -2205,7 +2177,7 @@ function Chat() {
                                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#8b5cf6' }}
                                     onClick={() => handleSendPendingFiles('grouped')}
                                 >
-                                    📦 Send Grouped (As Album)
+                                    <FolderArchive size={16} /> Send Grouped (As Album)
                                 </button>
                             )}
 

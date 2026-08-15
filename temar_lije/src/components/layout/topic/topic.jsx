@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 import './topic.css';
 
 const DEFAULT_SUGGESTIONS = [
@@ -10,9 +11,9 @@ const DEFAULT_SUGGESTIONS = [
 ];
 
 function Topic({ isOpen, onClose, userProfiles = {}, invitedMembers = ['at', 'yb'], onCreate }) {
-    if (!isOpen) return null;
-
     const [topicName, setTopicName] = useState('StatefulWidget Lifecycle');
+
+    if (!isOpen) return null;
 
     const handleSuggestionClick = (suggestion) => {
         setTopicName(suggestion);
@@ -105,8 +106,9 @@ function Topic({ isOpen, onClose, userProfiles = {}, invitedMembers = ['at', 'yb
                         <button
                             type="submit"
                             className="topic-btn-submit"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                         >
-                            Next: Review Invitations →
+                            Next: Review Invitations <ArrowRight size={16} />
                         </button>
                     </div>
                 </form>

@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
+import { Sparkles, GraduationCap, FileText, Video, LogIn, Users, UserPlus, Mail } from 'lucide-react';
 import './landing.css'; 
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
+import heroClassroom from '../../assets/hero-classroom.png';
 
 export default function LandingPage({ 
   onStartTeaching = () => {}, 
@@ -37,16 +39,16 @@ export default function LandingPage({
           <span className="landing-brand-title">Temar Lije</span>
         </div>
 
-        <button className="btn-signin" onClick={onSignIn}>
-          Sign in
+        <button className="btn-signin" onClick={onSignIn} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <LogIn size={16} /> Sign in
         </button>
       </header>
 
       {/* Main Hero Section */}
       <main className="landing-hero">
         <div className="hero-content">
-          <div className="ai-badge">
-            <span>✨</span> AI-powered smart classroom
+          <div className="ai-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={16} /> AI-powered smart classroom
           </div>
 
           <h1 className="hero-headline">
@@ -60,16 +62,18 @@ export default function LandingPage({
           </p>
 
           <div className="hero-actions">
-            <button className="btn-start-teaching" onClick={onStartTeaching}>
-              Start teaching
+            <button className="btn-start-teaching" onClick={onStartTeaching} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <GraduationCap size={18} /> Start teaching
             </button>
-            <button className="btn-join-class" onClick={onJoinClass}>
-              Join a class
+            <button className="btn-join-class" onClick={onJoinClass} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Users size={18} /> Join a class
             </button>
           </div>
         </div>
 
-       
+        <div className="hero-media">
+          <img src={heroClassroom} alt="Classroom learning with teacher" className="hero-classroom-img" />
+        </div>
       </main>
 
       {/* Feature Section: Built for real teaching days */}
@@ -79,7 +83,7 @@ export default function LandingPage({
         <div className="features-grid">
           {/* Card 1 */}
           <div className="feature-card">
-            <div className="feature-icon-badge">🎓</div>
+            <div className="feature-icon-badge"><GraduationCap size={24} /></div>
             <h3 className="feature-card-title">Classrooms in seconds</h3>
             <p className="feature-card-desc">
               Create a class, share a six-character code and watch students join themselves.
@@ -88,7 +92,7 @@ export default function LandingPage({
 
           {/* Card 2 */}
           <div className="feature-card">
-            <div className="feature-icon-badge">📄</div>
+            <div className="feature-icon-badge"><FileText size={24} /></div>
             <h3 className="feature-card-title">Materials, organised</h3>
             <p className="feature-card-desc">
               Upload slides, PDFs and worksheets. Students only see the classes they belong to.
@@ -97,7 +101,7 @@ export default function LandingPage({
 
           {/* Card 3 */}
           <div className="feature-card">
-            <div className="feature-icon-badge">📹</div>
+            <div className="feature-icon-badge"><Video size={24} /></div>
             <h3 className="feature-card-title">Live teaching built in</h3>
             <p className="feature-card-desc">
               Every classroom has its own video room with screen sharing and chat.
@@ -106,7 +110,7 @@ export default function LandingPage({
 
           {/* Card 4 */}
           <div className="feature-card">
-            <div className="feature-icon-badge">✨</div>
+            <div className="feature-icon-badge"><Sparkles size={24} /></div>
             <h3 className="feature-card-title">AI on your side</h3>
             <p className="feature-card-desc">
               Lesson planning, quiz generation and analytics arrive on this same foundation.
@@ -122,11 +126,11 @@ export default function LandingPage({
           Join thousands of teachers transforming their digital classrooms today. No credit card required.
         </p>
         <div className="cta-actions">
-          <button className="btn-cta-primary" onClick={onStartTeaching}>
-            Sign up free
+          <button className="btn-cta-primary" onClick={onStartTeaching} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <UserPlus size={18} /> Sign up free
           </button>
-          <button className="btn-cta-secondary">
-            Contact sales
+          <button className="btn-cta-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Mail size={18} /> Contact sales
           </button>
         </div>
       </section>

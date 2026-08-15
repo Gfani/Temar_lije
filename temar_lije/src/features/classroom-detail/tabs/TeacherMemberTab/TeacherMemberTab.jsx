@@ -1,26 +1,6 @@
 import React, { useCallback, useState } from 'react';
+import { User, Loader2 } from 'lucide-react';
 import styles from './TeacherMemberTab.module.css';
-
-/* Inline icons — no external icon library required. */
-
-const UserIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="8.25" r="3.25" stroke="currentColor" strokeWidth="1.5" />
-    <path
-      d="M4.75 19c.85-3.6 3.7-5.75 7.25-5.75s6.4 2.15 7.25 5.75"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
-const SpinnerIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
-    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-  </svg>
-);
 
 const DEFAULT_MEMBERS = [
   { id: 'seed-fiema', name: 'Fiema Yaregal', joinedAt: '2026-08-06' },
@@ -91,7 +71,7 @@ export default function TeacherMemberTab({ initialMembers = DEFAULT_MEMBERS, onR
               <li key={member.id} className={styles.memberRow}>
                 <div className={styles.memberInfo}>
                   <span className={styles.avatar}>
-                    <UserIcon className={styles.avatarIcon} />
+                    <User className={styles.avatarIcon} />
                   </span>
                   <div className={styles.memberText}>
                     <span className={styles.memberName}>{member.name}</span>
@@ -109,7 +89,7 @@ export default function TeacherMemberTab({ initialMembers = DEFAULT_MEMBERS, onR
                 >
                   {isRemoving ? (
                     <>
-                      <SpinnerIcon className={styles.spinner} />
+                      <Loader2 className={`${styles.spinner} animate-spin`} />
                       <span>Removing…</span>
                     </>
                   ) : (

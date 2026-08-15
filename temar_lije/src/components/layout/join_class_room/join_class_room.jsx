@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { X } from 'lucide-react';
 import './join_class.css';
 
 /**
@@ -35,7 +36,7 @@ export default function JoinClassRoom({ isOpen, onClose, onJoin }) {
     <div className="join-modal-overlay" onClick={onClose}>
       <div className="join-modal-container" onClick={(e) => e.stopPropagation()}>
         <button className="join-modal-close-btn" onClick={onClose} aria-label="Close modal">
-          &times;
+          <X size={18} />
         </button>
         <h2 className="join-modal-title">Join a classroom</h2>
         <p className="join-modal-subtitle">Enter the six-character code from your teacher.</p>

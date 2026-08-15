@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import styles from './Tittle.module.css';
 
 const TABS = [
@@ -17,10 +18,7 @@ export const ClassroomHeader = ({
   onTabChange,
   onBack,
 }) => {
-  const [currentTab, setCurrentTab] = useState(activeTab);
-
   const handleTabClick = (tabId) => {
-    setCurrentTab(tabId);
     if (onTabChange) onTabChange(tabId);
   };
 
@@ -28,7 +26,7 @@ export const ClassroomHeader = ({
     <div className={styles.headerContainer}>
       {/* Back button */}
       <button className={styles.backButton} onClick={onBack}>
-        <span className={styles.backIcon}>←</span> Classrooms
+        <ArrowLeft size={16} className={styles.backIcon} /> Classrooms
       </button>
 
       {/* Classroom Title and Subtitle */}
@@ -41,7 +39,7 @@ export const ClassroomHeader = ({
           <button
             key={tab.id}
             className={`${styles.tabButton} ${
-              currentTab === tab.id ? styles.activeTab : ''
+              activeTab === tab.id ? styles.activeTab : ''
             }`}
             onClick={() => handleTabClick(tab.id)}
           >

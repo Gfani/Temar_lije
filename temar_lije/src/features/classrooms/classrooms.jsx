@@ -4,11 +4,12 @@ import './classrooms.css';
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
 import Header from '../../components/common/Header/header.jsx';
+import StudyBuddy from '../study-buddy/study-buddy.jsx';
 
 const DEFAULT_CLASSROOMS = [
   {
     id: 1,
-    title: 'dsfddvf',
+    title: 'React',
     subject: 'xzvfdgxacds',
     description: 'sdwr',
     code: 'RRWC3C'
@@ -146,12 +147,7 @@ export default function Classrooms({
             )}
           </>
         ) : (
-          <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#64748b' }}>
-            <h2 style={{ fontSize: '1.5rem', color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <Sparkles size={24} /> Study Buddy
-            </h2>
-            <p>AI assistance and study companion features will load here.</p>
-          </div>
+          <StudyBuddy />
         )}
       </main>
 

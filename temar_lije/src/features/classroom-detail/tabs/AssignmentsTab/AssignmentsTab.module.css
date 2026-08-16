@@ -43,50 +43,152 @@
   box-sizing: border-box;
 }
 
-/* ---------------- Announce button ---------------- */
+/* ---------------- Announce Form Card ---------------- */
 
-.announceButton {
+.announceFormCard {
+  background: var(--at-surface);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-radius-lg);
+  box-shadow: var(--at-shadow-card);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.titleInput {
+  width: 100%;
+  height: 46px;
+  padding: 0 16px;
+  border-radius: var(--at-radius-md);
+  border: 1px solid var(--at-border);
+  background: var(--at-surface);
+  color: var(--at-text-primary);
+  font-size: 14.5px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.titleInput:hover {
+  border-color: #d4dcd9;
+}
+
+.titleInput:focus {
+  border-color: var(--at-green);
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.14);
+}
+
+.descriptionInput {
+  width: 100%;
+  min-height: 90px;
+  padding: 12px 16px;
+  border-radius: var(--at-radius-md);
+  border: 1px solid var(--at-border);
+  background: var(--at-surface);
+  color: var(--at-text-primary);
+  font-size: 14.5px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.descriptionInput:hover {
+  border-color: #d4dcd9;
+}
+
+.descriptionInput:focus {
+  border-color: var(--at-green);
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.14);
+}
+
+.formBottomRow {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.deadlineGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8faf9;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-radius-pill);
+  padding: 6px 16px;
+  width: fit-content;
+}
+
+.deadlineLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--at-text-secondary);
+}
+
+.dateInput {
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: var(--at-text-primary);
+  outline: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.actionButtonsRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.btnAnnounce {
   appearance: none;
   border: none;
   cursor: pointer;
-  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
   height: 40px;
-  padding: 0 18px;
+  padding: 0 22px;
   border-radius: var(--at-radius-pill);
   background: var(--at-green);
   color: #ffffff;
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
-  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
-.announceButton:hover:not(:disabled) {
+.btnAnnounce:hover:not(:disabled) {
   background: var(--at-green-hover);
 }
 
-.announceButton:active:not(:disabled) {
+.btnAnnounce:active:not(:disabled) {
   background: var(--at-green-active);
   transform: translateY(1px);
 }
 
-.announceButton:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.28);
+.btnCancel {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--at-text-secondary);
+  font-size: 14.5px;
+  font-weight: 500;
+  padding: 0 14px;
+  height: 40px;
+  border-radius: var(--at-radius-pill);
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
-.announceButton:disabled {
-  cursor: progress;
-  opacity: 0.85;
-}
-
-.buttonIcon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
+.btnCancel:hover {
+  color: var(--at-text-primary);
+  background: #f1f5f9;
 }
 
 /* ---------------- Assignment list ---------------- */

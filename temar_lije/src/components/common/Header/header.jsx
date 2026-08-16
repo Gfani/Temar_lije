@@ -16,7 +16,7 @@ export default function Header({
             <div className="header-left">
                 <div className="logo-container">
                     <img src={logo} alt="ClassMind-Logo" className="logo-image" />
-                    <span className="logo-text">ClassMind</span>
+                    <span className="logo-text">Temar Lije</span>
                 </div>
 
 

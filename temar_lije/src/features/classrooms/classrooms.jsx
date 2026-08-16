@@ -3,6 +3,7 @@ import { LayoutGrid, Sparkles, LogOut, Plus, Users } from 'lucide-react';
 import './classrooms.css';
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
+import JoinClassRoom from '../../components/layout/join_class_room/join_class_room.jsx';
 import Header from '../../components/common/Header/header.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
 
@@ -24,15 +25,17 @@ const DEFAULT_CLASSROOMS = [
 ];
 
 export default function Classrooms({ 
-  currentUser = { name: 'gelila', role: 'Teacher' }, 
+  currentUser = { name: 'Gelila Sintayehu', role: 'Student' }, 
   initialClassrooms = DEFAULT_CLASSROOMS,
   onLogout = () => alert('Signing out...'),
   onSelectClassroom
 }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('classrooms');
 
-  
+  const isTeacher = currentUser?.role?.toLowerCase() === 'teacher';
+
   const [classroomsList, setClassroomsList] = useState(() => {
     const saved = localStorage.getItem('temar_classrooms');
     if (saved) {
@@ -44,7 +47,6 @@ export default function Classrooms({
     return DEFAULT_CLASSROOMS;
   });
 
-  
   useEffect(() => {
     localStorage.setItem('temar_classrooms', JSON.stringify(classroomsList));
   }, [classroomsList]);
@@ -63,6 +65,16 @@ export default function Classrooms({
     };
 
     setClassroomsList((prev) => [...prev, newClass]);
+  };
+
+  const handleJoinClassroom = (code) => {
+    const existing = classroomsList.find(c => c.code.toUpperCase() === code.toUpperCase());
+    if (existing) {
+      alert(`Successfully joined "${existing.title}" classroom!`);
+    } else {
+      alert(`Joined classroom with code: ${code}`);
+    }
+    setIsJoinModalOpen(false);
   };
 
   const handleCopyCode = (e, code) => {
@@ -91,16 +103,27 @@ export default function Classrooms({
               <div>
                 <h1 className="page-title">Your classrooms</h1>
                 <p className="page-subtitle">
-                  Create a classroom, share the invitation code and upload lesson materials.
+                  {isTeacher 
+                    ? 'Create a classroom, share the invitation code and upload lesson materials.'
+                    : 'View your enrolled classrooms and access lesson materials.'}
                 </p>
               </div>
 
-              <button 
-                className="btn-new-classroom"
-                onClick={() => setIsModalOpen(true)}
-              >
-                <Plus size={16} /> New classroom
-              </button>
+              {isTeacher ? (
+                <button 
+                  className="btn-new-classroom"
+                  onClick={() => setIsCreateModalOpen(true)}
+                >
+                  <Plus size={16} /> New classroom
+                </button>
+              ) : (
+                <button 
+                  className="btn-new-classroom"
+                  onClick={() => setIsJoinModalOpen(true)}
+                >
+                  <Plus size={16} /> Join classroom
+                </button>
+              )}
             </div>
 
             {/* Empty State vs Classroom Cards */}
@@ -108,7 +131,11 @@ export default function Classrooms({
               <div className="empty-state">
                 <Users size={48} className="empty-icon" />
                 <h3>No classrooms yet</h3>
-                <p>Create your first classroom to get started with live teaching and materials.</p>
+                <p>
+                  {isTeacher 
+                    ? 'Create your first classroom to get started with live teaching and materials.'
+                    : 'Join your first classroom using an invitation code from your teacher.'}
+                </p>
               </div>
             ) : (
               <div className="classrooms-grid">
@@ -132,14 +159,16 @@ export default function Classrooms({
                         <span>Classroom</span>
                       </div>
 
-                      <span 
-                        className="card-code" 
-                        onClick={(e) => handleCopyCode(e, classroom.code)}
-                        title="Click to copy code"
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {classroom.code}
-                      </span>
+                      {isTeacher && (
+                        <span 
+                          className="card-code" 
+                          onClick={(e) => handleCopyCode(e, classroom.code)}
+                          title="Click to copy code"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {classroom.code}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -151,11 +180,17 @@ export default function Classrooms({
         )}
       </main>
 
-      {/* Modal Popup */}
+      {/* Modal Popups */}
       <CreateClassRoom 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        isOpen={isCreateModalOpen} 
+        onClose={() => setIsCreateModalOpen(false)} 
         onCreate={handleCreateClassroom}
+      />
+
+      <JoinClassRoom
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+        onJoin={handleJoinClassroom}
       />
     </div>
   );

@@ -33,6 +33,7 @@ const GoogleIcon = ({ className }) => (
  * disabled/loading treatment and surface errors inline.
  */
 export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccount }) {
+  const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,7 +50,7 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
       setFormError('');
       try {
         if (onSignIn) {
-          await onSignIn({ email, password });
+          await onSignIn({ email, password, role });
         } else {
           await new Promise((resolve) => setTimeout(resolve, 900));
         }
@@ -59,7 +60,7 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
         setIsSubmitting(false);
       }
     },
-    [busy, email, password, onSignIn]
+    [busy, email, password, role, onSignIn]
   );
 
   const handleGoogleSignIn = useCallback(async () => {
@@ -68,7 +69,7 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
     setFormError('');
     try {
       if (onGoogleSignIn) {
-        await onGoogleSignIn();
+        await onGoogleSignIn(role);
       } else {
         await new Promise((resolve) => setTimeout(resolve, 900));
       }
@@ -77,7 +78,7 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
     } finally {
       setIsGoogleLoading(false);
     }
-  }, [busy, onGoogleSignIn]);
+  }, [busy, role, onGoogleSignIn]);
 
   return (
     <div className={styles.page}>

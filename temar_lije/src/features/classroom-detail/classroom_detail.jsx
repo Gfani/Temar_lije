@@ -7,6 +7,7 @@ import AssignmentsTab from './tabs/AssignmentsTab/AssignmentsTab.jsx';
 import AttendanceTab from './tabs/Attendance/AttendanceTab.jsx';
 import QuizzesTab from './tabs/Quize/QuizzesTab.jsx';
 import MembersTab from './tabs/MemberTab/MembersTab.jsx';
+import TeacherMemberTab from './tabs/TeacherMemberTab/TeacherMemberTab.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
 
 export default function ClassroomDetail({
@@ -19,6 +20,7 @@ export default function ClassroomDetail({
   const [activeDetailTab, setActiveDetailTab] = useState('materials');
 
   const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'GS';
+  const isTeacher = currentUser?.role?.toLowerCase() === 'teacher';
 
   const handleHeaderTabChange = (tab) => {
     if (tab === 'classrooms' && currentNavTab === 'classrooms') {
@@ -51,6 +53,8 @@ export default function ClassroomDetail({
             title={classroom.title}
             subject={classroom.subject}
             activeTab={activeDetailTab}
+            invitationCode={classroom.code || "DB7GLU"}
+            isTeacher={isTeacher}
             onTabChange={setActiveDetailTab}
             onBack={onBackToClassrooms}
           />
@@ -59,10 +63,12 @@ export default function ClassroomDetail({
           <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
             {activeDetailTab === 'materials' && <MaterialsTab />}
             {activeDetailTab === 'live-class' && <LiveClassTab />}
-            {activeDetailTab === 'assignments' && <AssignmentsTab />}
+            {activeDetailTab === 'assignments' && <AssignmentsTab isTeacher={isTeacher} />}
             {activeDetailTab === 'attendance' && <AttendanceTab />}
             {activeDetailTab === 'quizzes' && <QuizzesTab />}
-            {activeDetailTab === 'members' && <MembersTab />}
+            {activeDetailTab === 'members' && (
+              isTeacher ? <TeacherMemberTab /> : <MembersTab />
+            )}
           </main>
         </>
       )}

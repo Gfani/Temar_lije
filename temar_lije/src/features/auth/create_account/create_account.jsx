@@ -72,7 +72,7 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
     setFormError('');
     try {
       if (onGoogleSignIn) {
-        await onGoogleSignIn(role);
+        await onGoogleSignIn();
       } else {
         await new Promise((resolve) => setTimeout(resolve, 900));
       }
@@ -81,7 +81,7 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
     } finally {
       setIsGoogleLoading(false);
     }
-  }, [busy, role, onGoogleSignIn]);
+  }, [busy, onGoogleSignIn]);
 
   return (
     <div className={styles.page}>

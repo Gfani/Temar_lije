@@ -7,20 +7,20 @@ import AssignmentsTab from './tabs/AssignmentsTab/AssignmentsTab.jsx';
 import AttendanceTab from './tabs/Attendance/AttendanceTab.jsx';
 import QuizzesTab from './tabs/Quize/QuizzesTab.jsx';
 import MembersTab from './tabs/MemberTab/MembersTab.jsx';
-import TeacherMemberTab from './tabs/TeacherMemberTab/TeacherMemberTab.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
 
 export default function ClassroomDetail({
   classroom = { title: "Flutter", subject: "Widget · widget structure" },
   currentUser = { name: "Gelila Sintayehu", role: "Student" },
   onBackToClassrooms,
-  onLogout
+  onLogout,
+  darkMode,
+  setDarkMode
 }) {
   const [currentNavTab, setCurrentNavTab] = useState('classrooms');
   const [activeDetailTab, setActiveDetailTab] = useState('materials');
 
   const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'GS';
-  const isTeacher = currentUser?.role?.toLowerCase() === 'teacher';
 
   const handleHeaderTabChange = (tab) => {
     if (tab === 'classrooms' && currentNavTab === 'classrooms') {
@@ -31,7 +31,14 @@ export default function ClassroomDetail({
   };
 
   return (
-    <div className="classroom-detail-page" style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+    <div 
+      className="classroom-detail-page" 
+      style={{ 
+        minHeight: '100vh', 
+        backgroundColor: darkMode ? '#121824' : '#f9fafb',
+        color: darkMode ? '#f8fafc' : '#111827'
+      }}
+    >
       {/* Top Header */}
       <Header
         userName={currentUser.name}
@@ -40,6 +47,8 @@ export default function ClassroomDetail({
         currentTab={currentNavTab}
         onTabChange={handleHeaderTabChange}
         onLogout={onLogout}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
       />
 
       {currentNavTab === 'study-buddy' ? (
@@ -53,8 +62,6 @@ export default function ClassroomDetail({
             title={classroom.title}
             subject={classroom.subject}
             activeTab={activeDetailTab}
-            invitationCode={classroom.code || "DB7GLU"}
-            isTeacher={isTeacher}
             onTabChange={setActiveDetailTab}
             onBack={onBackToClassrooms}
           />
@@ -63,12 +70,10 @@ export default function ClassroomDetail({
           <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
             {activeDetailTab === 'materials' && <MaterialsTab />}
             {activeDetailTab === 'live-class' && <LiveClassTab />}
-            {activeDetailTab === 'assignments' && <AssignmentsTab isTeacher={isTeacher} />}
+            {activeDetailTab === 'assignments' && <AssignmentsTab />}
             {activeDetailTab === 'attendance' && <AttendanceTab />}
             {activeDetailTab === 'quizzes' && <QuizzesTab />}
-            {activeDetailTab === 'members' && (
-              isTeacher ? <TeacherMemberTab /> : <MembersTab />
-            )}
+            {activeDetailTab === 'members' && <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} />}
           </main>
         </>
       )}

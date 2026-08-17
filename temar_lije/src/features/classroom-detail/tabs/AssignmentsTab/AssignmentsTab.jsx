@@ -1,12 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { Calendar, Trash2, Loader2 } from 'lucide-react';
+import { Megaphone, Trash2, Loader2 } from 'lucide-react';
 import styles from './AssignmentsTab.module.css';
 
 const DEFAULT_ASSIGNMENTS = [
   {
     id: 'seed-weather-app',
-    title: 'weather App',
-    description: 'create flutter folder and and build a weather app using live weather API',
+    title: 'Weather App',
+    description: 'Create Flutter folder and build a weather app using a live weather API',
     deadline: null,
     submissionCount: 0,
   },
@@ -24,60 +24,51 @@ function formatSubmissions(count) {
   return `${count} submission${count === 1 ? '' : 's'}`;
 }
 
+/**
+ * AssignmentsTab
+ * Renders the "Assignments" tab panel of a classroom: an "Announce
+ * assignment" action and the list of posted assignments, each with a
+ * delete control. Fully self-contained state — wire the callbacks
+ * below to real API calls when integrating.
+ */
 export default function AssignmentsTab({
   initialAssignments = DEFAULT_ASSIGNMENTS,
-  isTeacher = true,
   onAnnounceAssignment,
   onDeleteAssignment,
 }) {
   const [assignments, setAssignments] = useState(initialAssignments);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [deadline, setDeadline] = useState('');
   const [isAnnouncing, setIsAnnouncing] = useState(false);
   const [announceError, setAnnounceError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState('');
 
-  const handleAnnounceSubmit = useCallback(
-    async (e) => {
-      e?.preventDefault();
-      if (isAnnouncing) return;
-      if (!title.trim() && !description.trim()) return;
-
-      setIsAnnouncing(true);
-      setAnnounceError('');
-      try {
-        const newAssignment = {
-          id: `${Date.now()}`,
-          title: title.trim() || 'Untitled assignment',
-          description: description.trim() || '',
-          deadline: deadline || null,
-          submissionCount: 0,
-        };
-        if (onAnnounceAssignment) {
-          await onAnnounceAssignment(newAssignment);
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-        setAssignments((prev) => [newAssignment, ...prev]);
-        setTitle('');
-        setDescription('');
-        setDeadline('');
-      } catch (err) {
-        setAnnounceError('Could not announce the assignment. Try again.');
-      } finally {
-        setIsAnnouncing(false);
+  const handleAnnounceAssignment = useCallback(async () => {
+    if (isAnnouncing) return;
+    setIsAnnouncing(true);
+    setAnnounceError('');
+    try {
+      let assignment;
+      if (onAnnounceAssignment) {
+        assignment = await onAnnounceAssignment();
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 900));
       }
-    },
-    [isAnnouncing, title, description, deadline, onAnnounceAssignment]
-  );
-
-  const handleCancel = () => {
-    setTitle('');
-    setDescription('');
-    setDeadline('');
-  };
+      setAssignments((prev) => [
+        assignment ?? {
+          id: `${Date.now()}`,
+          title: 'Untitled assignment',
+          description: 'Add a description for this assignment.',
+          deadline: null,
+          submissionCount: 0,
+        },
+        ...prev,
+      ]);
+    } catch (err) {
+      setAnnounceError('Could not announce the assignment. Try again.');
+    } finally {
+      setIsAnnouncing(false);
+    }
+  }, [isAnnouncing, onAnnounceAssignment]);
 
   const handleDeleteAssignment = useCallback(
     async (id) => {
@@ -88,7 +79,7 @@ export default function AssignmentsTab({
         if (onDeleteAssignment) {
           await onDeleteAssignment(id);
         } else {
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 700));
         }
         setAssignments((prev) => prev.filter((a) => a.id !== id));
       } catch (err) {
@@ -102,67 +93,20 @@ export default function AssignmentsTab({
 
   return (
     <div className={styles.container}>
-      {isTeacher && (
-        <form className={styles.announceFormCard} onSubmit={handleAnnounceSubmit}>
-          <input
-            type="text"
-            className={styles.titleInput}
-            placeholder="Assignment title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={isAnnouncing}
-          />
-
-          <textarea
-            className={styles.descriptionInput}
-            placeholder="What should students do?"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={isAnnouncing}
-          />
-
-          <div className={styles.formBottomRow}>
-            <div className={styles.deadlineGroup}>
-              <span className={styles.deadlineLabel}>
-                <Calendar size={15} /> Deadline
-              </span>
-              <input
-                type="datetime-local"
-                className={styles.dateInput}
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                disabled={isAnnouncing}
-              />
-            </div>
-
-            <div className={styles.actionButtonsRow}>
-              <button
-                type="submit"
-                className={styles.btnAnnounce}
-                disabled={isAnnouncing || (!title.trim() && !description.trim())}
-              >
-                {isAnnouncing ? (
-                  <>
-                    <Loader2 className={`${styles.spinner} animate-spin`} />
-                    <span>Announcing…</span>
-                  </>
-                ) : (
-                  <span>Announce</span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                className={styles.btnCancel}
-                onClick={handleCancel}
-                disabled={isAnnouncing}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
+      <button
+        type="button"
+        className={styles.announceButton}
+        onClick={handleAnnounceAssignment}
+        disabled={isAnnouncing}
+        aria-busy={isAnnouncing}
+      >
+        {isAnnouncing ? (
+          <Loader2 className={`${styles.spinner} animate-spin`} />
+        ) : (
+          <Megaphone className={styles.buttonIcon} />
+        )}
+        <span>{isAnnouncing ? 'Announcing…' : 'Announce assignment'}</span>
+      </button>
 
       {announceError && (
         <p className={styles.inlineError} role="alert">
@@ -187,22 +131,20 @@ export default function AssignmentsTab({
               <li key={assignment.id} className={styles.assignmentCard}>
                 <div className={styles.assignmentHeader}>
                   <h3 className={styles.assignmentTitle}>{assignment.title}</h3>
-                  {isTeacher && (
-                    <button
-                      type="button"
-                      className={styles.deleteButton}
-                      onClick={() => handleDeleteAssignment(assignment.id)}
-                      disabled={deletingId !== null}
-                      aria-busy={isDeleting}
-                      aria-label={`Delete ${assignment.title}`}
-                    >
-                      {isDeleting ? (
-                        <Loader2 className={`${styles.spinner} animate-spin`} />
-                      ) : (
-                        <Trash2 className={styles.deleteIcon} />
-                      )}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className={styles.deleteButton}
+                    onClick={() => handleDeleteAssignment(assignment.id)}
+                    disabled={deletingId !== null}
+                    aria-busy={isDeleting}
+                    aria-label={`Delete ${assignment.title}`}
+                  >
+                    {isDeleting ? (
+                      <Loader2 className={`${styles.spinner} animate-spin`} />
+                    ) : (
+                      <Trash2 className={styles.deleteIcon} />
+                    )}
+                  </button>
                 </div>
 
                 <p className={styles.assignmentDescription}>{assignment.description}</p>

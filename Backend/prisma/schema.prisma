@@ -1,20 +1,28 @@
-datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
-}
+// Prisma Schema for Temar Lije Backend
 
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
 model User {
-  id        String          @id
-  name      String
-  initials  String
-  avatarBg  String
-  
-  members   GroupMember[]
-  messages  Message[]
+  id          String             @id @default(uuid())
+  email       String?            @unique
+  name        String
+  role        String             @default("STUDENT") // STUDENT, TEACHER, ADMIN
+  initials    String?            @default("U")
+  avatarBg    String?            @default("#3b82f6")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @default(now()) @updatedAt
+  attendances Attendance[]
+  enrollments ClassroomStudent[]
+  classes     Classroom[]        @relation("TeacherClasses")
+  members     GroupMember[]
+  messages    Message[]
 }
 
 model StudyGroup {
@@ -57,4 +65,55 @@ model Message {
   
   groupId       String
   group         StudyGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Classroom {
+  id          String             @id @default(uuid())
+  name        String
+  code        String             @unique
+  teacherId   String
+  teacher     User               @relation("TeacherClasses", fields: [teacherId], references: [id])
+  startTime   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  students    ClassroomStudent[]
+  attendances Attendance[]
+  liveClasses LiveClass[]
+}
+
+model ClassroomStudent {
+  id        String    @id @default(uuid())
+  classId   String
+  studentId String
+  classroom Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime  @default(now())
+
+  @@unique([classId, studentId])
+}
+
+model Attendance {
+  id          String    @id @default(uuid())
+  classId     String
+  studentId   String
+  status      String    // PRESENT, LATE, ABSENT
+  ipAddress   String?
+  checkInTime DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  classroom   Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student     User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+}
+
+model LiveClass {
+  id        String    @id @default(uuid())
+  classId   String
+  status    String    @default("ACTIVE") // ACTIVE, ENDED
+  startTime DateTime  @default(now())
+  endTime   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  classroom Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
 }

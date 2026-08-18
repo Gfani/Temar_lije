@@ -23,5 +23,6 @@
     "noFallthroughCasesInSwitch": false,
     "allowJs": true,
     "checkJs": false
-  }
+  },
+  "include": ["src/**/*"]
 }

@@ -29,6 +29,8 @@ model User {
   attendances                 Attendance[]
   enrollments                 ClassroomStudent[]
   classes                     Classroom[]        @relation("TeacherClasses")
+  quizzesCreated              Quiz[]             @relation("TeacherQuizzes")
+  quizSubmissions             QuizSubmission[]
 }
 
 model Classroom {
@@ -43,6 +45,7 @@ model Classroom {
   students    ClassroomStudent[]
   attendances Attendance[]
   liveClasses LiveClass[]
+  quizzes     Quiz[]
 }
 
 model ClassroomStudent {
@@ -80,4 +83,69 @@ model LiveClass {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   classroom Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
+}
+
+model Quiz {
+  id            String          @id @default(uuid())
+  title         String
+  description   String?
+  classroomId   String
+  classroom     Classroom       @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  createdById   String
+  createdBy     User            @relation("TeacherQuizzes", fields: [createdById], references: [id])
+  isPublished   Boolean         @default(false)
+  dueDate       DateTime?
+  questions     Question[]
+  submissions   QuizSubmission[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Question {
+  id        String           @id @default(uuid())
+  quizId    String
+  quiz      Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type      String           // MULTIPLE_CHOICE, TRUE_FALSE
+  text      String
+  points    Int              @default(1)
+  order     Int
+  options   QuestionOption[]
+  answers   Answer[]
+}
+
+model QuestionOption {
+  id          String    @id @default(uuid())
+  questionId  String
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text        String
+  isCorrect   Boolean   @default(false)
+  answers     Answer[]
+}
+
+model QuizSubmission {
+  id          String    @id @default(uuid())
+  quizId      String
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  score       Int       @default(0)
+  maxScore    Int       @default(0)
+  submittedAt DateTime  @default(now())
+  answers     Answer[]
+
+  @@unique([quizId, studentId])
+}
+
+model Answer {
+  id                String          @id @default(uuid())
+  submissionId      String
+  submission        QuizSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId  String?
+  selectedOption    QuestionOption? @relation(fields: [selectedOptionId], references: [id])
+  isCorrect         Boolean         @default(false)
+  pointsAwarded     Int             @default(0)
+
+  @@unique([submissionId, questionId])
 }

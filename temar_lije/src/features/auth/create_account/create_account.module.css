@@ -1,42 +1,40 @@
 /*
   create_account.module.css
-  Shares the same shell and design tokens as signin.module.css:
-  soft mint-to-cream background, max-width 440px card, pill role toggle,
-  and pill primary action buttons.
+  Shares the same tokens/shell as signin.module.css (gradient page
+  background, brand row, card, segmented tabs, form, Google button)
+  plus the Student/Teacher role toggle specific to this page.
 */
 
 .page {
-  --au-bg-start: #e5f5f0;
-  --au-bg-end: #fbf7ed;
+  --au-bg-start: #e7f3ee;
+  --au-bg-end: #faf6ec;
   --au-surface: #ffffff;
-  --au-border: #e2e8f0;
-  --au-border-input: #cbd5e1;
+  --au-border: #e3e9e6;
+  --au-border-soft: #eaf0ed;
 
-  --au-text-primary: #0f172a;
-  --au-text-secondary: #64748b;
-  --au-text-tertiary: #94a3b8;
+  --au-text-primary: #16181b;
+  --au-text-secondary: #6b7573;
+  --au-text-tertiary: #8b9491;
 
-  --au-teal: #009688;
-  --au-teal-hover: #00897b;
-  --au-teal-active: #00796b;
-  --au-green-tint: #d8f2e7;
-  --au-green-dark: #0f766e;
+  --au-green: #14785c;
+  --au-green-hover: #0f6049;
+  --au-green-active: #0b4d3b;
+  --au-green-tint: #dbeee7;
 
-  --au-danger: #dc2626;
+  --au-danger: #c0402f;
 
-  --au-radius-card: 20px;
-  --au-radius-input: 12px;
+  --au-radius-lg: 22px;
+  --au-radius-md: 12px;
   --au-radius-pill: 999px;
 
-  --au-shadow-card: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
+  --au-shadow-card: 0 10px 30px rgba(16, 24, 21, 0.08), 0 2px 8px rgba(16, 24, 21, 0.04);
 
   min-height: 100vh;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
+  padding: 56px 20px 60px;
   background: linear-gradient(135deg, var(--au-bg-start) 0%, var(--au-bg-end) 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--au-text-primary);
@@ -53,23 +51,23 @@
 
 .brandRow {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 28px;
+  gap: 10px;
+  margin-bottom: 32px;
 }
 
 .brandLogo {
-  width: 38px;
-  height: 38px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   object-fit: cover;
 }
 
 .brandName {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--au-text-primary);
 }
 
@@ -77,12 +75,12 @@
 
 .card {
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   background: var(--au-surface);
-  border: 1px solid var(--au-border);
-  border-radius: var(--au-radius-card);
+  border: 1px solid var(--au-border-soft);
+  border-radius: var(--au-radius-lg);
   box-shadow: var(--au-shadow-card);
-  padding: 26px 30px 32px;
+  padding: 26px 28px 30px;
 }
 
 /* ---------------- Segmented tabs ---------------- */
@@ -92,9 +90,9 @@
   align-items: center;
   gap: 4px;
   padding: 4px;
-  background: #eef4f1;
+  background: var(--au-bg-start);
   border-radius: var(--au-radius-pill);
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 
 .tabActive,
@@ -103,7 +101,7 @@
   border: none;
   cursor: pointer;
   flex: 1;
-  height: 38px;
+  height: 42px;
   border-radius: var(--au-radius-pill);
   font-size: 14.5px;
   font-weight: 600;
@@ -113,7 +111,7 @@
 .tabActive {
   background: var(--au-surface);
   color: var(--au-text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(16, 24, 21, 0.08);
 }
 
 .tabInactive {
@@ -128,7 +126,7 @@
 .tabInactive:focus-visible,
 .tabActive:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 150, 136, 0.22);
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.22);
 }
 
 /* ---------------- Form ---------------- */
@@ -139,28 +137,26 @@
 }
 
 .fieldLabel {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
-  color: #334155;
-  margin-bottom: 6px;
-  margin-top: 14px;
+  color: var(--au-text-primary);
+  margin-bottom: 8px;
 }
 
-.fieldLabel:first-child {
-  margin-top: 0;
+.fieldLabel:not(:first-child) {
+  margin-top: 18px;
 }
 
 .textInput {
   width: 100%;
-  height: 44px;
+  height: 46px;
   padding: 0 16px;
-  border-radius: var(--au-radius-input);
-  border: 1px solid var(--au-border-input);
+  border-radius: var(--au-radius-md);
+  border: 1px solid var(--au-border);
   background: var(--au-surface);
   color: var(--au-text-primary);
   font-size: 14.5px;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 .textInput::placeholder {
@@ -168,53 +164,49 @@
 }
 
 .textInput:hover:not(:disabled) {
-  border-color: #94a3b8;
+  border-color: #d4dcd9;
 }
 
-.textInput:focus {
-  border-color: var(--au-teal);
-  box-shadow: 0 0 0 3px rgba(0, 150, 136, 0.15);
+.textInput:focus-visible {
+  outline: none;
+  border-color: var(--au-green);
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.16);
 }
 
 .textInput:disabled {
   opacity: 0.7;
   cursor: not-allowed;
-  background: #f8fafc;
+  background: var(--au-bg-start);
 }
 
 /* ---------------- Role toggle ---------------- */
 
 .roleToggle {
   display: flex;
-  gap: 8px;
-  background: var(--au-surface);
-  border: 1px solid var(--au-border-input);
-  border-radius: var(--au-radius-pill);
-  padding: 3px;
-  margin-bottom: 2px;
+  gap: 10px;
 }
 
 .roleOption {
   appearance: none;
   cursor: pointer;
   flex: 1;
-  height: 38px;
-  border-radius: var(--au-radius-pill);
-  border: 1px solid transparent;
-  background: transparent;
+  height: 46px;
+  border-radius: var(--au-radius-md);
+  border: 1px solid var(--au-border);
+  background: var(--au-surface);
   color: var(--au-text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.15s ease;
+  font-size: 14.5px;
+  font-weight: 600;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .roleOption:hover:not(:disabled):not(.roleOptionActive) {
-  color: var(--au-text-primary);
+  border-color: #d4dcd9;
 }
 
 .roleOption:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 150, 136, 0.2);
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.2);
 }
 
 .roleOption:disabled {
@@ -224,15 +216,14 @@
 
 .roleOptionActive {
   background: var(--au-green-tint);
-  border: 1px solid var(--au-green-dark);
-  color: var(--au-green-dark);
-  font-weight: 600;
+  border-color: var(--au-green);
+  color: var(--au-text-primary);
 }
 
 /* ---------------- Feedback ---------------- */
 
 .inlineError {
-  margin: 12px 0 0;
+  margin: 14px 0 0;
   font-size: 12.5px;
   color: var(--au-danger);
 }
@@ -248,28 +239,28 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
-  height: 46px;
+  height: 48px;
   margin-top: 22px;
   border-radius: var(--au-radius-pill);
-  background: var(--au-teal);
+  background: var(--au-green);
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
-  transition: background-color 0.15s ease, transform 0.1s ease;
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 
 .primaryButton:hover:not(:disabled) {
-  background: var(--au-teal-hover);
+  background: var(--au-green-hover);
 }
 
 .primaryButton:active:not(:disabled) {
-  background: var(--au-teal-active);
+  background: var(--au-green-active);
   transform: translateY(1px);
 }
 
 .primaryButton:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 150, 136, 0.28);
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.28);
 }
 
 .primaryButton:disabled {
@@ -303,23 +294,23 @@
   appearance: none;
   cursor: pointer;
   width: 100%;
-  height: 46px;
+  height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border-radius: var(--au-radius-pill);
-  border: 1px solid var(--au-border-input);
-  background: #ffffff;
+  border-radius: var(--au-radius-md);
+  border: 1px solid var(--au-border);
+  background: var(--au-bg-start);
   color: var(--au-text-primary);
   font-size: 14.5px;
   font-weight: 600;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .googleButton:hover:not(:disabled) {
-  border-color: #94a3b8;
-  background: #f8fafc;
+  border-color: #d4dcd9;
+  background: var(--au-surface);
 }
 
 .googleButton:active:not(:disabled) {
@@ -328,7 +319,7 @@
 
 .googleButton:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 150, 136, 0.2);
+  box-shadow: 0 0 0 3px rgba(20, 120, 92, 0.2);
 }
 
 .googleButton:disabled {
@@ -378,10 +369,31 @@
 
 @media (max-width: 540px) {
   .page {
-    padding: 30px 16px;
+    padding: 40px 16px 48px;
   }
 
   .card {
-    padding: 22px 20px 26px;
+    padding: 22px 18px 26px;
   }
+
+  .brandName {
+    font-size: 18px;
+  }
+
+  .roleToggle {
+    gap: 8px;
+  }
+}
+
+/* Global Dark Mode rules for Create Account Page */
+:global(body.dark) .page {
+  --au-bg-start: #0f172a;
+  --au-bg-end: #121824;
+  --au-surface: #1e293b;
+  --au-border: #334155;
+  --au-border-soft: #1e293b;
+
+  --au-text-primary: #f8fafc;
+  --au-text-secondary: #94a3b8;
+  --au-text-tertiary: #64748b;
 }

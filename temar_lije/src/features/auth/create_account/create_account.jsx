@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Loader2, Check, X, Eye, EyeOff } from 'lucide-react';
 import logo from '../../../assets/classmind-logo.png';
 import styles from './create_account.module.css';
+import { authApi } from '../../../lib/api';
 
 const GoogleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
@@ -100,22 +101,18 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
     [busy, fullName, role, email, password, passedCount, onCreateAccount]
   );
 
-  const handleGoogleSignIn = useCallback(async () => {
+  const handleGoogleSignIn = useCallback(() => {
     if (busy) return;
     setIsGoogleLoading(true);
     setFormError('');
-    try {
-      if (onGoogleSignIn) {
-        await onGoogleSignIn();
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 900));
-      }
-    } catch (err) {
-      setFormError('Google sign-in failed. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
+    if (onGoogleSignIn) {
+      onGoogleSignIn({ role });
+    } else {
+      // Full-page browser navigation to Google consent screen (attaching selected role)
+      const targetRole = (role || 'student').toUpperCase();
+      window.location.href = authApi.getGoogleAuthUrl({ role: targetRole });
     }
-  }, [busy, onGoogleSignIn]);
+  }, [busy, role, onGoogleSignIn]);
 
   return (
     <div className={styles.page}>

@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 /**
  * Custom error class containing API response status and error message
@@ -17,7 +18,7 @@ export class ApiError extends Error {
  */
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
@@ -40,7 +41,7 @@ async function request(endpoint, options = {}) {
     throw new ApiError(
       'Unable to connect to the server. Please ensure the backend is running.',
       0,
-      null
+      null,
     );
   }
 
@@ -101,6 +102,17 @@ export const authApi = {
         password,
       },
     });
+  },
+
+  /**
+   * Get Google OAuth kickoff URL
+   * @param {{ role?: string }} [options]
+   */
+  getGoogleAuthUrl({ role } = {}) {
+    if (role && (role.toUpperCase() === 'TEACHER' || role.toUpperCase() === 'STUDENT')) {
+      return `${API_BASE_URL}/auth/google?role=${role.toUpperCase()}`;
+    }
+    return `${API_BASE_URL}/auth/google`;
   },
 
   /**

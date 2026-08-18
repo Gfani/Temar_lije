@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { Loader2, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import logo from '../../../assets/classmind-logo.png';
 import styles from './signin.module.css';
+import { authApi } from '../../../lib/api';
 
 const GoogleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
@@ -52,6 +53,15 @@ export default function SignIn({
     }
   }, [noticeMessage]);
 
+  // Read error query parameters if redirected back from OAuth failure
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'oauth_failed') {
+      const message = params.get('message') || 'Google sign-in failed. Please try again.';
+      setFormError(decodeURIComponent(message));
+    }
+  }, []);
+
   const busy = isSubmitting || isGoogleLoading;
 
   const isEmailValid = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -93,20 +103,15 @@ export default function SignIn({
     [busy, email, password, onSignIn]
   );
 
-  const handleGoogleSignIn = useCallback(async () => {
+  const handleGoogleSignIn = useCallback(() => {
     if (busy) return;
     setIsGoogleLoading(true);
     setFormError('');
-    try {
-      if (onGoogleSignIn) {
-        await onGoogleSignIn();
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 900));
-      }
-    } catch (err) {
-      setFormError('Google sign-in failed. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
+    if (onGoogleSignIn) {
+      onGoogleSignIn();
+    } else {
+      // Full-page browser navigation to Google consent screen (no role param for sign-in)
+      window.location.href = authApi.getGoogleAuthUrl();
     }
   }, [busy, onGoogleSignIn]);
 

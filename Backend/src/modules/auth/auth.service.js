@@ -156,6 +156,105 @@ class AuthService {
     };
   }
 
+  /**
+   * Finds or creates a user from a verified Google profile, then
+   * issues the same access+refresh pair as password login. Three
+   * distinct paths, in order:
+   *
+   * @param {{googleId: string, email: string, fullName: string, emailVerified: boolean}} googleProfile
+   * @param {'STUDENT'|'TEACHER'|null} requestedRole - decoded from the
+   * signed OAuth state, meaningful only for brand-new accounts. An
+   * existing user's role is never altered by this parameter — role
+   * is set once, at account creation, full stop.
+   */
+  async loginWithGoogle(googleProfile, requestedRole) {
+    const { googleId, email, fullName, emailVerified } = googleProfile;
+
+    // Path 1: returning user who already linked Google previously.
+    let user = await this.prisma.user.findUnique({ where: { googleId } });
+
+    if (!user) {
+      // Path 2: no googleId match, but an email/password account
+      // already owns this email — link rather than create a
+      // duplicate row under the same address. Linking is gated on
+      // Google itself reporting the email as verified: Google is the
+      // party asserting ownership here, so an *unverified* Google
+      // email can't be used to attach a new identity to someone
+      // else's existing password account.
+      const existingByEmail = await this.prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingByEmail) {
+        if (!emailVerified) {
+          throw new UnauthorizedException(
+            "This Google account's email is unverified and cannot be linked to an existing account",
+          );
+        }
+        user = await this.prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: { googleId, isEmailVerified: true }, // Google's verification satisfies ours too, going forward
+        });
+      } else {
+        // Path 3: genuinely new user. requestedRole is no longer
+        // attacker-editable at this point — it survived a signature
+        // check to get here — but it's still validated against the
+        // same whitelist RegisterDto enforces rather than trusted
+        // blindly, and the signin page's Google button intentionally
+        // sends no role at all, which lands here too: a stranger's
+        // email with nothing to identify them as student or teacher
+        // is a genuinely ambiguous case, rejected rather than guessed.
+        if (requestedRole !== 'STUDENT' && requestedRole !== 'TEACHER') {
+          throw new UnauthorizedException(
+            'No account found for this Google email. Please create an account first and select your role.',
+          );
+        }
+
+        user = await this.prisma.user.create({
+          data: {
+            fullName,
+            email,
+            googleId,
+            role: requestedRole,
+            isEmailVerified: emailVerified,
+            passwordHash: null, // Google-only account — see schema note on passwordHash nullability
+          },
+        });
+      }
+    }
+
+    // Successful Google auth is proof of identity via a completely
+    // different factor than password guessing — clear any
+    // accumulated lockout state rather than leaving it in place.
+    //
+    // Deliberately NOT gating this whole method behind a lockedUntil
+    // check the way login() is: lockout exists specifically to slow
+    // down password brute-forcing. Blocking an unrelated, already-
+    // secure auth method behind that same lock would punish the
+    // legitimate account owner during exactly the moment they'd want
+    // a working alternate way in.
+    if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null },
+      });
+    }
+
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    const { accessToken, refreshToken } = await this._issueTokenPair(payload);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
+    };
+  }
+
   async refreshTokens(userId, refreshToken) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
 

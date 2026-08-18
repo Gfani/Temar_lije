@@ -11,6 +11,10 @@ function MainApp() {
 
   // Track active screen: 'landing' | 'signin' | 'create_account' | 'classrooms' | 'classroom_detail'
   const [currentScreen, setCurrentScreen] = useState(() => {
+    const path = window.location.pathname;
+    const search = window.location.search;
+    if (path.includes('/oauth/callback')) return 'classrooms';
+    if (path.includes('/signin') || search.includes('error=oauth_failed')) return 'signin';
     return localStorage.getItem('temar_user') ? 'classrooms' : 'landing';
   });
   const [selectedClassroom, setSelectedClassroom] = useState(null);
@@ -25,6 +29,21 @@ function MainApp() {
       document.body.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Handle OAuth callback resolution
+  useEffect(() => {
+    if (window.location.pathname.includes('/oauth/callback')) {
+      if (!isLoading) {
+        if (isAuthenticated) {
+          setCurrentScreen('classrooms');
+          window.history.replaceState({}, '', '/');
+        } else {
+          setCurrentScreen('signin');
+          window.history.replaceState({}, '', '/signin?error=oauth_failed&message=Authentication%20failed');
+        }
+      }
+    }
+  }, [isAuthenticated, isLoading]);
 
   // Sync screen with auth state if user logs out or session expires
   useEffect(() => {
@@ -83,7 +102,6 @@ function MainApp() {
       {currentScreen === 'signin' && (
         <SignInPage 
           onSignIn={handleSignIn}
-          onGoogleSignIn={() => setCurrentScreen('classrooms')}
           onBackToLanding={() => setCurrentScreen('landing')} 
           onSwitchToCreateAccount={() => {
             setAuthNotice('');
@@ -97,7 +115,6 @@ function MainApp() {
       {currentScreen === 'create_account' && (
         <CreateAccountPage 
           onCreateAccount={handleCreateAccount}
-          onGoogleSignIn={() => setCurrentScreen('classrooms')}
           onSwitchToSignIn={() => {
             setAuthNotice('');
             setCurrentScreen('signin');

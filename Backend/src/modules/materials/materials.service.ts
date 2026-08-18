@@ -34,16 +34,21 @@ export class MaterialsService {
 
     const uId = uploadedById || classroom.createdById;
 
-    return await this.databaseService.material.create({
+    const result = await this.databaseService.material.create({
       data: {
         title,
         fileUrl: filePath,
-        fileType: fileType || 'PDF',
-        fileSizeBytes: fileSizeBytes || null,
+        fileType: (fileType as any) || 'PDF',
+        fileSizeBytes: fileSizeBytes ? BigInt(fileSizeBytes) : null,
         classroomId: classId,
         uploadedById: uId,
       },
     });
+
+    return {
+      ...result,
+      fileSizeBytes: result.fileSizeBytes ? Number(result.fileSizeBytes) : null,
+    };
   }
 
   /**
@@ -54,10 +59,15 @@ export class MaterialsService {
       throw new BadRequestException('classId parameter is required');
     }
 
-    return await this.databaseService.material.findMany({
+    const list = await this.databaseService.material.findMany({
       where: { classroomId: classId },
       orderBy: { createdAt: 'desc' },
     });
+
+    return list.map((item) => ({
+      ...item,
+      fileSizeBytes: item.fileSizeBytes ? Number(item.fileSizeBytes) : null,
+    }));
   }
 }
 

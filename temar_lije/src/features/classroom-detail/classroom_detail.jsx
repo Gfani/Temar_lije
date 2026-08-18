@@ -61,10 +61,28 @@ export default function ClassroomDetail({
 
           {/* Detail Tab Contents */}
           <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
-            {activeDetailTab === 'materials' && <MaterialsTab />}
-            {activeDetailTab === 'live-class' && <LiveClassTab />}
-            {activeDetailTab === 'assignments' && <AssignmentsTab isTeacher={isTeacher} />}
-            {activeDetailTab === 'attendance' && <AttendanceTab />}
+            {activeDetailTab === 'materials' && (
+              <MaterialsTab classId={classroom.id || '66666666-6666-4666-8666-666666666666'} />
+            )}
+            {activeDetailTab === 'live-class' && (
+              <LiveClassTab
+                classId={classroom.id || '66666666-6666-4666-8666-666666666666'}
+                studentId={currentUser.id || '33333333-3333-4333-8333-333333333333'}
+              />
+            )}
+            {activeDetailTab === 'assignments' && (
+              <AssignmentsTab
+                classId={classroom.id || '66666666-6666-4666-8666-666666666666'}
+                isTeacher={isTeacher}
+                currentUserId={currentUser.id || '33333333-3333-4333-8333-333333333333'}
+              />
+            )}
+            {activeDetailTab === 'attendance' && (
+              <AttendanceTab
+                classId={classroom.id || '66666666-6666-4666-8666-666666666666'}
+                studentId={currentUser.id || '33333333-3333-4333-8333-333333333333'}
+              />
+            )}
             {activeDetailTab === 'quizzes' && <QuizzesTab />}
             {activeDetailTab === 'members' && (
               isTeacher ? <TeacherMemberTab /> : <MembersTab />

@@ -1,21 +1,24 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Video, UserPlus, Sparkles, Loader2 } from 'lucide-react';
+import { Video, UserPlus, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { startLiveSession, endLiveSession, getLiveToken, recordCheckIn } from '../../../../services/apiClient';
 import styles from './LiveClassTab.module.css';
 
 /**
  * LiveClassTab
  * Renders the "Live class" tab panel of a classroom: the meeting-room
- * entry card on the left, and the Attendance + Live quiz utilities on
- * the right. Fully self-contained state — wire the callbacks below to
- * real API calls when integrating.
+ * entry card on the left, and the Attendance + Live quiz utilities on the right.
  */
 export default function LiveClassTab({
+  classId = '66666666-6666-4666-8666-666666666666',
+  studentId = '33333333-3333-4333-8333-333333333333',
   onJoinLiveClass,
   onTakeAttendance,
   onCreateQuiz,
 }) {
   // ---- Join live class ----
   const [isJoining, setIsJoining] = useState(false);
+  const [isLiveActive, setIsLiveActive] = useState(false);
+  const [sessionToken, setSessionToken] = useState(null);
   const [joinError, setJoinError] = useState('');
 
   // ---- Attendance ----
@@ -38,14 +41,28 @@ export default function LiveClassTab({
       if (onJoinLiveClass) {
         await onJoinLiveClass();
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 1100));
+        // Call backend live-class APIs
+        await startLiveSession(classId);
+        const tokenRes = await getLiveToken(classId, studentId);
+        setSessionToken(tokenRes?.token);
+        setIsLiveActive(true);
       }
     } catch (err) {
-      setJoinError('Could not join the room. Try again.');
+      setJoinError(err.message || 'Could not join the room. Try again.');
     } finally {
       setIsJoining(false);
     }
-  }, [isJoining, onJoinLiveClass]);
+  }, [isJoining, onJoinLiveClass, classId, studentId]);
+
+  const handleEndLiveClass = useCallback(async () => {
+    try {
+      await endLiveSession(classId);
+      setIsLiveActive(false);
+      setSessionToken(null);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [classId]);
 
   const handleTakeAttendance = useCallback(async () => {
     if (isTakingAttendance) return;
@@ -56,12 +73,12 @@ export default function LiveClassTab({
       if (onTakeAttendance) {
         await onTakeAttendance(name);
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await recordCheckIn(classId, studentId);
       }
       setCheckIns((prev) => [
         {
           id: `${Date.now()}`,
-          name: name || 'Anonymous',
+          name: name || 'Student Check-in',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
         ...prev,
@@ -69,11 +86,11 @@ export default function LiveClassTab({
       setCheckInName('');
       nameInputRef.current?.focus();
     } catch (err) {
-      setAttendanceError('Check-in failed. Please try again.');
+      setAttendanceError(err.message || 'Check-in failed. Please try again.');
     } finally {
       setIsTakingAttendance(false);
     }
-  }, [checkInName, isTakingAttendance, onTakeAttendance]);
+  }, [checkInName, isTakingAttendance, onTakeAttendance, classId, studentId]);
 
   const handleCreateQuiz = useCallback(async () => {
     if (isCreatingQuiz) return;
@@ -118,22 +135,63 @@ export default function LiveClassTab({
             meeting room. Everyone with the classroom open joins the same room.
           </p>
 
-          <button
-            type="button"
-            className={styles.joinButton}
-            onClick={handleJoinLiveClass}
-            disabled={isJoining}
-            aria-busy={isJoining}
-          >
-            {isJoining ? (
-              <>
-                <Loader2 className={`${styles.spinner} animate-spin`} />
-                Joining&hellip;
-              </>
-            ) : (
-              'Join live class'
-            )}
-          </button>
+          {isLiveActive ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: '#047857',
+                  backgroundColor: '#ecfdf5',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                }}
+              >
+                <CheckCircle2 size={16} /> Live Class Session Active
+              </div>
+              {sessionToken && (
+                <code
+                  style={{
+                    fontSize: '11px',
+                    color: '#6b7573',
+                    background: '#f3f7f5',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  Token: {sessionToken.substring(0, 32)}...
+                </code>
+              )}
+              <button
+                type="button"
+                className={styles.joinButton}
+                onClick={handleEndLiveClass}
+                style={{ backgroundColor: '#dc2626' }}
+              >
+                End Live Session
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={styles.joinButton}
+              onClick={handleJoinLiveClass}
+              disabled={isJoining}
+              aria-busy={isJoining}
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className={`${styles.spinner} animate-spin`} />
+                  Joining&hellip;
+                </>
+              ) : (
+                'Join live class'
+              )}
+            </button>
+          )}
 
           {joinError && (
             <p className={styles.inlineError} role="alert">

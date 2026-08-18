@@ -34,12 +34,25 @@ export class MaterialsController {
     }
 
     const filePath = `/uploads/materials/${file.filename}`;
+    const mimetype = (file.mimetype || '').toLowerCase();
+    const ext = (file.originalname || '').toLowerCase();
+
+    let fileType = 'DOCUMENT';
+    if (mimetype.includes('pdf') || ext.endsWith('.pdf')) {
+      fileType = 'PDF';
+    } else if (mimetype.includes('image') || ext.match(/\.(png|jpe?g|gif|webp|svg)$/)) {
+      fileType = 'IMAGE';
+    } else if (mimetype.includes('presentation') || mimetype.includes('powerpoint') || ext.match(/\.(ppt|pptx)$/)) {
+      fileType = 'SLIDES';
+    }
 
     return await this.materialsService.uploadMaterial({
       title,
       description,
       filePath,
       classId,
+      fileType,
+      fileSizeBytes: file.size,
     });
   }
 

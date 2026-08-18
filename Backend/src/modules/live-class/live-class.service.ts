@@ -84,5 +84,24 @@ export class LiveClassService {
       attendanceReport,
     };
   }
+
+  /**
+   * Checks if an active session exists for a classroom.
+   */
+  async getActiveSession(classId: string) {
+    if (!classId) {
+      throw new BadRequestException('classId is required');
+    }
+
+    const session = await this.databaseService.attendanceSession.findFirst({
+      where: { classroomId: classId, isActive: true },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    return {
+      isActive: Boolean(session),
+      session: session || null,
+    };
+  }
 }
 

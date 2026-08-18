@@ -27,33 +27,19 @@ export const createMulterOptions = (subfolder: string) => {
       },
     }),
     fileFilter: (req: any, file: any, cb: any) => {
-      const allowedMimeTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/zip',
-        'application/x-zip-compressed',
-        'application/x-zip',
-        'application/octet-stream',
-        'image/png',
-        'image/jpeg',
-        'image/jpg',
-        'text/plain',
-      ];
-
-      const allowedExtensions = /\.(pdf|doc|docx|zip|png|jpg|jpeg|txt)$/i;
+      const allowedExtensions = /\.(pdf|doc|docx|ppt|pptx|xls|xlsx|zip|rar|png|jpg|jpeg|gif|webp|svg|txt)$/i;
 
       const extMatch = file.originalname ? allowedExtensions.test(file.originalname) : false;
       const mimeMatch = file.mimetype
-        ? allowedMimeTypes.includes(file.mimetype.toLowerCase()) ||
-          /^image\/(png|jpeg|jpg)$/i.test(file.mimetype) ||
-          /^application\/(pdf|zip|x-zip|x-zip-compressed|msword|vnd\.openxmlformats-officedocument)/i.test(file.mimetype)
+        ? /^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/i.test(file.mimetype) ||
+          /^application\/(pdf|zip|x-zip|x-zip-compressed|x-rar|msword|vnd\.ms-|vnd\.openxmlformats-officedocument|octet-stream)/i.test(file.mimetype) ||
+          /^text\//i.test(file.mimetype)
         : false;
 
-      if (extMatch || mimeMatch) {
+      if (extMatch || mimeMatch || !file.mimetype) {
         cb(null, true);
       } else {
-        cb(new BadRequestException('Only PDF, document, zip, and image files are allowed'), false);
+        cb(new BadRequestException('Only PDF, documents, slides, zip, and image files are allowed'), false);
       }
     },
     limits: {

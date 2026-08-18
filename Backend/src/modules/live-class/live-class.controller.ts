@@ -41,6 +41,15 @@ export class LiveClassController {
   }
 
   /**
+   * GET /live-class/:classId/active
+   * Endpoint to check if a live session is currently active.
+   */
+  @Get(':classId/active')
+  async getActiveSession(@Param('classId') classId: string) {
+    return this.liveClassService.getActiveSession(classId);
+  }
+
+  /**
    * GET /live-class/:classId/token
    * Student/Teacher endpoint to fetch session connection token.
    *

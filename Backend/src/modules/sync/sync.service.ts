@@ -34,7 +34,7 @@ export class SyncService {
         deviceHubId,
         entityName,
         entityId,
-        action: action.toString(),
+        action: action as any,
         payload: payloadString,
         syncedAt: new Date(),
       },

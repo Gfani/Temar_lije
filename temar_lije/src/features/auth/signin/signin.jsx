@@ -54,7 +54,7 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
           await new Promise((resolve) => setTimeout(resolve, 900));
         }
       } catch (err) {
-        setFormError('Could not sign in. Check your email and password and try again.');
+        setFormError(err?.message || 'Could not sign in. Check your email and password and try again.');
       } finally {
         setIsSubmitting(false);
       }

@@ -58,7 +58,7 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
           await new Promise((resolve) => setTimeout(resolve, 900));
         }
       } catch (err) {
-        setFormError('Could not create your account. Please try again.');
+        setFormError(err?.message || 'Could not create your account. Please try again.');
       } finally {
         setIsSubmitting(false);
       }

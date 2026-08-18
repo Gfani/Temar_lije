@@ -33,8 +33,7 @@ export class AssignmentsController {
 
     return await this.assignmentsService.createAssignment({
       title,
-      description,
-      guidePath,
+      description: description ? `${description}${guidePath ? `\nGuide: ${guidePath}` : ''}` : guidePath,
       deadline,
       classId,
     });

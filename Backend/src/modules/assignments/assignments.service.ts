@@ -11,19 +11,22 @@ export class AssignmentsService {
   async createAssignment(data: {
     title: string;
     description?: string;
-    guidePath?: string;
-    deadline: string | Date;
+    deadline?: string | Date;
+    dueDate?: string | Date;
+    totalPoints?: number;
     classId: string;
+    createdById?: string;
   }) {
-    const { title, description, guidePath, deadline, classId } = data;
+    const { title, description, deadline, dueDate, totalPoints, classId, createdById } = data;
+    const targetDueDate = dueDate || deadline;
 
-    if (!title || !classId || !deadline) {
-      throw new BadRequestException('title, classId, and deadline are required');
+    if (!title || !classId || !targetDueDate) {
+      throw new BadRequestException('title, classId, and due date/deadline are required');
     }
 
-    const parsedDeadline = new Date(deadline);
-    if (isNaN(parsedDeadline.getTime())) {
-      throw new BadRequestException('Invalid deadline date format');
+    const parsedDueDate = new Date(targetDueDate);
+    if (isNaN(parsedDueDate.getTime())) {
+      throw new BadRequestException('Invalid due date format');
     }
 
     // Verify classroom exists
@@ -35,13 +38,16 @@ export class AssignmentsService {
       throw new NotFoundException(`Classroom with ID ${classId} not found`);
     }
 
+    const creatorId = createdById || classroom.createdById;
+
     return await this.databaseService.assignment.create({
       data: {
         title,
         description: description || null,
-        guidePath: guidePath || null,
-        deadline: parsedDeadline,
-        classId,
+        dueDate: parsedDueDate,
+        totalPoints: totalPoints || 100,
+        classroomId: classId,
+        createdById: creatorId,
       },
     });
   }
@@ -57,17 +63,17 @@ export class AssignmentsService {
     const now = new Date();
 
     const assignments = await this.databaseService.assignment.findMany({
-      where: { classId },
+      where: { classroomId: classId },
       include: {
         _count: {
           select: { submissions: true },
         },
       },
-      orderBy: { deadline: 'asc' },
+      orderBy: { dueDate: 'asc' },
     });
 
-    const active = assignments.filter((a) => new Date(a.deadline) >= now);
-    const past = assignments.filter((a) => new Date(a.deadline) < now);
+    const active = assignments.filter((a) => a.dueDate && new Date(a.dueDate) >= now);
+    const past = assignments.filter((a) => a.dueDate && new Date(a.dueDate) < now);
 
     return {
       all: assignments,
@@ -85,20 +91,23 @@ export class AssignmentsService {
       studentId: string;
       pdfPath?: string;
       linkUrl?: string;
+      submissionText?: string;
+      fileUrl?: string;
     },
   ) {
-    const { studentId, pdfPath, linkUrl } = data;
+    const { studentId, pdfPath, linkUrl, submissionText, fileUrl } = data;
+    const file = fileUrl || pdfPath || linkUrl;
 
     if (!assignmentId || !studentId) {
       throw new BadRequestException('assignmentId and studentId are required');
     }
 
-    // Validate that at least a file or link URL is provided
-    if (!pdfPath && (!linkUrl || !linkUrl.trim())) {
-      throw new BadRequestException('At least a file upload or a link URL must be provided');
+    // Validate that at least a file or text submission is provided
+    if (!file && (!submissionText || !submissionText.trim())) {
+      throw new BadRequestException('At least a file upload or text submission must be provided');
     }
 
-    // Fetch assignment to verify existence and check deadline
+    // Fetch assignment to verify existence and check due date
     const assignment = await this.databaseService.assignment.findUnique({
       where: { id: assignmentId },
     });
@@ -107,22 +116,22 @@ export class AssignmentsService {
       throw new NotFoundException(`Assignment with ID ${assignmentId} not found`);
     }
 
-    // Strict deadline validation
+    // Strict deadline validation if dueDate exists
     const now = new Date();
-    if (now > new Date(assignment.deadline)) {
+    if (assignment.dueDate && now > new Date(assignment.dueDate)) {
       throw new BadRequestException('Assignment deadline has passed. Submissions are closed.');
     }
 
-    return await this.databaseService.submission.create({
+    return await this.databaseService.assignmentSubmission.create({
       data: {
         assignmentId,
         studentId,
-        pdfPath: pdfPath || null,
-        linkUrl: linkUrl ? linkUrl.trim() : null,
+        fileUrl: file || null,
+        submissionText: submissionText ? submissionText.trim() : null,
       },
       include: {
         student: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, fullName: true, email: true },
         },
       },
     });
@@ -144,14 +153,15 @@ export class AssignmentsService {
       throw new NotFoundException(`Assignment with ID ${assignmentId} not found`);
     }
 
-    return await this.databaseService.submission.findMany({
+    return await this.databaseService.assignmentSubmission.findMany({
       where: { assignmentId },
       include: {
         student: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, fullName: true, email: true },
         },
       },
       orderBy: { submittedAt: 'desc' },
     });
   }
 }
+

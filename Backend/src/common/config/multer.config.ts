@@ -27,11 +27,30 @@ export const createMulterOptions = (subfolder: string) => {
       },
     }),
     fileFilter: (req: any, file: any, cb: any) => {
-      // Validate common document/pdf types
-      if (
-        file.mimetype.match(/\/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document|plain|zip|png|jpeg|jpg)$/i) ||
-        file.originalname.match(/\.(pdf|doc|docx|txt|zip|png|jpg|jpeg)$/i)
-      ) {
+      const allowedMimeTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/zip',
+        'application/x-zip-compressed',
+        'application/x-zip',
+        'application/octet-stream',
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'text/plain',
+      ];
+
+      const allowedExtensions = /\.(pdf|doc|docx|zip|png|jpg|jpeg|txt)$/i;
+
+      const extMatch = file.originalname ? allowedExtensions.test(file.originalname) : false;
+      const mimeMatch = file.mimetype
+        ? allowedMimeTypes.includes(file.mimetype.toLowerCase()) ||
+          /^image\/(png|jpeg|jpg)$/i.test(file.mimetype) ||
+          /^application\/(pdf|zip|x-zip|x-zip-compressed|msword|vnd\.openxmlformats-officedocument)/i.test(file.mimetype)
+        : false;
+
+      if (extMatch || mimeMatch) {
         cb(null, true);
       } else {
         cb(new BadRequestException('Only PDF, document, zip, and image files are allowed'), false);

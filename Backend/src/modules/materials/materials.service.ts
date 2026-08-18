@@ -7,16 +7,17 @@ export class MaterialsService {
 
   /**
    * Creates a new course material record linked to a classroom and file path.
-   *
-   * @param data Material metadata including title, description, classId, and relative filePath
    */
   async uploadMaterial(data: {
     title: string;
     description?: string;
     filePath: string;
     classId: string;
+    uploadedById?: string;
+    fileType?: string;
+    fileSizeBytes?: number;
   }) {
-    const { title, description, filePath, classId } = data;
+    const { title, filePath, classId, uploadedById, fileType, fileSizeBytes } = data;
 
     if (!title || !classId || !filePath) {
       throw new BadRequestException('title, classId, and file are required');
@@ -31,20 +32,22 @@ export class MaterialsService {
       throw new NotFoundException(`Classroom with ID ${classId} not found`);
     }
 
+    const uId = uploadedById || classroom.createdById;
+
     return await this.databaseService.material.create({
       data: {
         title,
-        description: description || null,
-        filePath,
-        classId,
+        fileUrl: filePath,
+        fileType: fileType || 'PDF',
+        fileSizeBytes: fileSizeBytes || null,
+        classroomId: classId,
+        uploadedById: uId,
       },
     });
   }
 
   /**
    * Retrieves all course materials for a specific class dashboard.
-   *
-   * @param classId Classroom ID
    */
   async getMaterialsByClass(classId: string) {
     if (!classId) {
@@ -52,8 +55,9 @@ export class MaterialsService {
     }
 
     return await this.databaseService.material.findMany({
-      where: { classId },
-      orderBy: { uploadedAt: 'desc' },
+      where: { classroomId: classId },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }
+

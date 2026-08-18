@@ -1,10 +1,14 @@
-const { Injectable, Dependencies, UnauthorizedException } = require('@nestjs/common');
+const {
+  Injectable,
+  Dependencies,
+  UnauthorizedException,
+} = require('@nestjs/common');
 const { PassportStrategy } = require('@nestjs/passport');
 const { Strategy } = require('passport-jwt');
 const { ConfigService } = require('@nestjs/config');
 
 function cookieExtractor(req) {
-  return req?.cookies?.refreshToken || null;
+  return req?.cookies?.refreshToken || req?.headers?.['x-refresh-token'] || null;
 }
 
 @Injectable()
@@ -24,7 +28,13 @@ class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token missing');
     }
-    return { userId: payload.sub, refreshToken };
+    return {
+      id: payload.sub,
+      userId: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      refreshToken,
+    };
   }
 }
 

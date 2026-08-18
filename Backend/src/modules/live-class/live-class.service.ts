@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { AttendanceService } from '../attendance/attendance.service';
 
@@ -22,7 +26,9 @@ export class LiveClassService {
    */
   generateSessionToken(classId, userId, role = 'STUDENT') {
     if (!classId || !userId) {
-      throw new BadRequestException('classId and userId are required to generate a session token');
+      throw new BadRequestException(
+        'classId and userId are required to generate a session token',
+      );
     }
 
     // Mock access token structure encoding classroom, user, role, and expiration
@@ -46,7 +52,9 @@ export class LiveClassService {
    */
   async startSession(classId) {
     if (!classId) {
-      throw new BadRequestException('classId is required to start a live session');
+      throw new BadRequestException(
+        'classId is required to start a live session',
+      );
     }
 
     const now = new Date();
@@ -81,7 +89,9 @@ export class LiveClassService {
    */
   async endSession(classId) {
     if (!classId) {
-      throw new BadRequestException('classId is required to end a live session');
+      throw new BadRequestException(
+        'classId is required to end a live session',
+      );
     }
 
     const now = new Date();
@@ -96,7 +106,8 @@ export class LiveClassService {
     });
 
     // Generate final attendance summary report
-    const attendanceReport = await this.attendanceService.getAttendanceReport(classId);
+    const attendanceReport =
+      await this.attendanceService.getAttendanceReport(classId);
 
     return {
       message: 'Live session ended successfully',

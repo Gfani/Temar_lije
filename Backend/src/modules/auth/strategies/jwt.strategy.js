@@ -1,4 +1,8 @@
-const { Injectable, Dependencies, UnauthorizedException } = require('@nestjs/common');
+const {
+  Injectable,
+  Dependencies,
+  UnauthorizedException,
+} = require('@nestjs/common');
 const { PassportStrategy } = require('@nestjs/passport');
 const { Strategy, ExtractJwt } = require('passport-jwt');
 const { ConfigService } = require('@nestjs/config');

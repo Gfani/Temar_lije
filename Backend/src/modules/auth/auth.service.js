@@ -90,7 +90,7 @@ class AuthService {
           role: dto.role,
         },
       });
-    } catch (err) {
+    } catch {
       throw new ConflictException('An account with this email already exists');
     }
 
@@ -100,15 +100,24 @@ class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
     };
   }
 
   async login(dto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
 
     if (user?.lockedUntil && user.lockedUntil > new Date()) {
-      const minutesRemaining = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      const minutesRemaining = Math.ceil(
+        (user.lockedUntil.getTime() - Date.now()) / 60000,
+      );
       throw new UnauthorizedException(
         `Account temporarily locked due to repeated failed attempts. Try again in ${minutesRemaining} minute(s).`,
       );
@@ -138,7 +147,12 @@ class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
     };
   }
 
@@ -149,7 +163,10 @@ class AuthService {
       throw new UnauthorizedException('Session expired, please log in again');
     }
 
-    const incomingHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const incomingHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
 
     const storedHashBuffer = Buffer.from(user.refreshTokenHash, 'hex');
     const incomingHashBuffer = Buffer.from(incomingHash, 'hex');
@@ -167,12 +184,18 @@ class AuthService {
     }
 
     const payload = { sub: user.id, email: user.email, role: user.role };
-    const { accessToken, refreshToken: newRefreshToken } = await this._issueTokenPair(payload);
+    const { accessToken, refreshToken: newRefreshToken } =
+      await this._issueTokenPair(payload);
 
     return {
       accessToken,
       refreshToken: newRefreshToken,
-      user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
     };
   }
 

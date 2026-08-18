@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -7,7 +9,14 @@ import { LiveClassModule } from './modules/live-class/live-class.module';
 import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AttendanceModule, LiveClassModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
+    DatabaseModule,
+    AuthModule,
+    AttendanceModule,
+    LiveClassModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

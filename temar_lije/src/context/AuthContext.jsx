@@ -37,28 +37,33 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Try silent refresh on initial mount if refreshToken cookie exists
+  // Try silent refresh on initial mount if refreshToken cookie might exist or returning from OAuth
   useEffect(() => {
     let isMounted = true;
 
     async function initAuth() {
-      try {
-        const result = await authApi.refresh();
-        if (isMounted && result) {
-          handleAuthSuccess(result);
+      const hasStoredToken = !!localStorage.getItem(TOKEN_STORAGE_KEY);
+      const isOauthCallback = window.location.pathname.includes('/oauth/callback');
+
+      // Only invoke refresh if user previously had a session or returning from OAuth redirect
+      if (hasStoredToken || isOauthCallback) {
+        try {
+          const result = await authApi.refresh();
+          if (isMounted && result) {
+            handleAuthSuccess(result);
+          }
+        } catch (_) {
+          if (isMounted) {
+            setUser(null);
+            setAccessToken(null);
+            localStorage.removeItem(USER_STORAGE_KEY);
+            localStorage.removeItem(TOKEN_STORAGE_KEY);
+          }
         }
-      } catch (_) {
-        // If refresh fails and there was no valid token, clear state
-        if (isMounted && !localStorage.getItem(TOKEN_STORAGE_KEY)) {
-          setUser(null);
-          setAccessToken(null);
-          localStorage.removeItem(USER_STORAGE_KEY);
-          localStorage.removeItem(TOKEN_STORAGE_KEY);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+      }
+
+      if (isMounted) {
+        setIsLoading(false);
       }
     }
 

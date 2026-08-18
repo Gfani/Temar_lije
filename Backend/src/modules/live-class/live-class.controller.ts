@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  Query,
+  BadRequestException,
+} from '@nestjs/common';
 import { LiveClassService } from './live-class.service';
 
 /**

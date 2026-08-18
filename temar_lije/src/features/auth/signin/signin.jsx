@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useCallback, useState, useEffect } from 'react';
+import { Loader2, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import logo from '../../../assets/classmind-logo.png';
 import styles from './signin.module.css';
 
@@ -24,29 +24,55 @@ const GoogleIcon = ({ className }) => (
   </svg>
 );
 
-/**
- * SignIn
- * Auth page for existing users. The Sign in / Create account segmented
- * control at the top is for navigating between the two auth pages —
- * wire onSwitchToCreateAccount to your router. Form submission and
- * Google auth are exposed as async callbacks; both show native
- * disabled/loading treatment and surface errors inline.
- */
-export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccount }) {
-  const [email, setEmail] = useState('');
+export default function SignIn({
+  onSignIn,
+  onGoogleSignIn,
+  onSwitchToCreateAccount,
+  initialEmail = '',
+  noticeMessage = '',
+}) {
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [successNotice, setSuccessNotice] = useState(noticeMessage);
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
+
+  useEffect(() => {
+    if (noticeMessage) {
+      setSuccessNotice(noticeMessage);
+    }
+  }, [noticeMessage]);
 
   const busy = isSubmitting || isGoogleLoading;
+
+  const isEmailValid = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSubmit = useCallback(
     async (event) => {
       event.preventDefault();
       if (busy) return;
-      setIsSubmitting(true);
       setFormError('');
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setFormError('Please enter a valid email address.');
+        return;
+      }
+
+      if (!password) {
+        setFormError('Please enter your password.');
+        return;
+      }
+
+      setIsSubmitting(true);
       try {
         if (onSignIn) {
           await onSignIn({ email, password });
@@ -54,7 +80,12 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
           await new Promise((resolve) => setTimeout(resolve, 900));
         }
       } catch (err) {
-        setFormError('Could not sign in. Check your email and password and try again.');
+        const msg = err?.message || '';
+        if (msg.toLowerCase().includes('invalid credentials')) {
+          setFormError('Incorrect email or password. Please verify your credentials and try again.');
+        } else {
+          setFormError(msg || 'Could not sign in. Check your email and password and try again.');
+        }
       } finally {
         setIsSubmitting(false);
       }
@@ -102,7 +133,14 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
           </button>
         </div>
 
-        <form className={styles.form} onSubmit={handleSubmit} noValidate={false}>
+        {successNotice && (
+          <div className={styles.inlineSuccess}>
+            <CheckCircle size={18} />
+            <span>{successNotice}</span>
+          </div>
+        )}
+
+        <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <label className={styles.fieldLabel} htmlFor="signin-email">
             Email
           </label>
@@ -110,26 +148,49 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
             id="signin-email"
             type="email"
             required
+            placeholder="amina@example.com"
             className={styles.textInput}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (formError) setFormError('');
+            }}
+            onBlur={() => setEmailTouched(true)}
             disabled={busy}
             autoComplete="email"
           />
+          {emailTouched && !isEmailValid && (
+            <span className={styles.fieldError}>Please enter a valid email format.</span>
+          )}
 
           <label className={styles.fieldLabel} htmlFor="signin-password">
             Password
           </label>
-          <input
-            id="signin-password"
-            type="password"
-            required
-            className={styles.textInput}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-            autoComplete="current-password"
-          />
+          <div className={styles.inputWrapper}>
+            <input
+              id="signin-password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              placeholder="••••••••"
+              className={styles.textInput}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (formError) setFormError('');
+              }}
+              disabled={busy}
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className={styles.togglePasswordBtn}
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
 
           {formError && (
             <p className={styles.inlineError} role="alert">

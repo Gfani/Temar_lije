@@ -42,21 +42,31 @@ export class AttendanceGateway {
       // Extract client IP address from socket connection headers or handshake address
       const xForwardedFor = client.handshake?.headers?.['x-forwarded-for'];
       const rawIp = xForwardedFor
-        ? (Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor.split(',')[0]).trim()
+        ? (Array.isArray(xForwardedFor)
+            ? xForwardedFor[0]
+            : xForwardedFor.split(',')[0]
+          ).trim()
         : client.handshake?.address || client.conn?.remoteAddress || '';
 
       // Join the socket room for this class
       client.join(classId);
 
       // Record student check-in
-      const record = await this.attendanceService.recordCheckIn(classId, studentId, rawIp);
+      const record = await this.attendanceService.recordCheckIn(
+        classId,
+        studentId,
+        rawIp,
+      );
 
       // Broadcast updated attendance record to all sockets in the classroom room
       this.server.to(classId).emit('attendanceUpdated', record);
 
       return { status: 'success', record };
     } catch (error) {
-      const errorMessage = error?.response?.message || error?.message || 'Attendance check-in failed';
+      const errorMessage =
+        error?.response?.message ||
+        error?.message ||
+        'Attendance check-in failed';
       throw new WsException(errorMessage);
     }
   }

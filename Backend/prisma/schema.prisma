@@ -1,0 +1,60 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String          @id
+  name      String
+  initials  String
+  avatarBg  String
+  
+  members   GroupMember[]
+  messages  Message[]
+}
+
+model StudyGroup {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  icon        String?       @default("📚")
+  color       String?       @default("#6366f1")
+  createdAt   DateTime      @default(now())
+  
+  messages    Message[]
+  members     GroupMember[]
+}
+
+model GroupMember {
+  userId  String
+  groupId String
+  role    String     @default("MEMBER")
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group   StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+}
+
+model Message {
+  id            String      @id @default(uuid())
+  text          String?
+  image         String?
+  type          String      @default("text")
+  fileName      String?
+  fileSize      String?
+  fileIcon      String?
+  replyToId     String?
+  forwardedFrom String?
+  isPinned      Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  
+  senderId      String
+  sender        User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  
+  groupId       String
+  group         StudyGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}

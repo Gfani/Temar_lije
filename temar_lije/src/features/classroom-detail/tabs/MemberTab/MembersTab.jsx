@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Moon, Plus, Users, Code, Sparkles, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Moon, Plus, Users, Code, Sparkles, ArrowLeft, Trash2 } from 'lucide-react';
 import './membersTab.css';
 import Chat from '../../../chat/chat.jsx';
 
@@ -7,12 +7,49 @@ export default function MembersTab({ darkMode, setDarkMode }) {
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [studyGroups, setStudyGroups] = useState([
-    { id: 'widget-kings', name: 'Widget Kings 👑', subtitle: 'Abebe: Deadline Sunday midni...', isClassroom: false, time: '2:54 PM', members: ['gs', 'at', 'yb'], icon: '🦋', color: '#6366f1' },
-    { id: 'vd', name: 'vd', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '💻', color: '#0d9488' },
-    { id: 'packages', name: 'packages', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '📚', color: '#06b6d4' }
-  ]);
+  const [studyGroups, setStudyGroups] = useState([]);
   const tabs = ['Members', 'Study Groups'];
+
+  useEffect(() => {
+    fetch('http://localhost:3000/chat/groups')
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data)) {
+          const mainGroups = data.filter(g => {
+            const isTopic = data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`));
+            return !isTopic;
+          });
+          const mappedGroups = mainGroups.map(g => ({
+            id: g.id,
+            name: g.name,
+            subtitle: g.description || 'No messages yet',
+            isClassroom: false,
+            time: '',
+            icon: g.icon || '👥',
+            color: g.color || '#8b5cf6',
+            members: g.members?.map(m => m.userId) || []
+          }));
+          setStudyGroups(mappedGroups);
+        }
+      })
+      .catch(err => console.error('Failed to load study groups in MembersTab:', err));
+  }, []);
+
+  const handleDeleteGroup = (groupId, e) => {
+    if (e) e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this study group?')) {
+      fetch(`http://localhost:3000/chat/groups/${groupId}`, {
+        method: 'DELETE'
+      })
+      .then(() => {
+        setStudyGroups(prev => prev.filter(g => g.id !== groupId));
+        if (selectedGroupId === groupId) {
+          setSelectedGroupId(null);
+        }
+      })
+      .catch(err => console.error('Failed to delete group in MembersTab:', err));
+    }
+  };
 
   return (
     <div className={`members-page-layout ${darkMode ? 'dark' : ''}`}>
@@ -92,18 +129,37 @@ export default function MembersTab({ darkMode, setDarkMode }) {
               key={group.id}
               className={`sidebar-item ${selectedGroupId === group.id ? 'active' : ''}`}
               onClick={() => setSelectedGroupId(group.id)}
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <div className="item-icon purple-bg" style={{ backgroundColor: group.color || '#8b5cf6' }}>
                 {group.icon ? <span style={{ fontSize: '18px' }}>{group.icon}</span> : <Sparkles size={18} />}
               </div>
-              <div className="item-content">
+              <div className="item-content" style={{ flex: 1 }}>
                 <div className="item-title-row">
                   <span className="item-title">{group.name}</span>
                   <span className="item-time">{group.time}</span>
                 </div>
                 <p className="item-subtitle">{group.subtitle}</p>
               </div>
+              <button
+                className="delete-group-btn"
+                onClick={(e) => handleDeleteGroup(group.id, e)}
+                title="Delete study group"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  marginLeft: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Trash2 size={15} />
+              </button>
             </div>
           ))}
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare } from 'lucide-react';
+import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare, Phone, Mic, MicOff, Volume2, LogOut, Pin, PinOff, Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
 import './chat.css';
+import { io } from 'socket.io-client';
 import CreateGroup from '../../components/layout/create_group/create_group';
 import AddMember from '../../components/layout/add_member/add_member';
 import Topic from '../../components/layout/topic/topic';
@@ -40,6 +41,27 @@ function Chat({
     const [inputValue, setInputValue] = useState('');
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+    // In-Chat Message Search States
+    const [showInChatSearch, setShowInChatSearch] = useState(false);
+    const [inChatSearchQuery, setInChatSearchQuery] = useState('');
+    const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+
+    // Audio Voice Note Recording States
+    const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
+    const [activeAudioPlayingId, setActiveAudioPlayingId] = useState(null);
+    const [activeAudioProgress, setActiveAudioProgress] = useState({});
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const recordingTimerRef = useRef(null);
+    const audioPlayerRefs = useRef({});
+
+    // Voice Chat Real Microphone Stream
+    const voiceAudioContextRef = useRef(null);
+    const voiceStreamRef = useRef(null);
+    const voiceAnalyserRef = useRef(null);
+    const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
+
     // Rich Interactive States
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [attachedImage, setAttachedImage] = useState(null);
@@ -66,6 +88,404 @@ function Chat({
     const [activeTopicId, setActiveTopicId] = useState('general');
     const [selectedGroupIdForTopics, setSelectedGroupIdForTopics] = useState(null);
 
+    const [invitationData, setInvitationData] = useState({
+        isOpen: false,
+        inviterName: '',
+        inviterInitials: '',
+        topicName: '',
+        categoryName: '',
+        groupId: ''
+    });
+
+    const [groupMemberRoles, setGroupMemberRoles] = useState({});
+
+    const handleToggleAdminRole = (memberId) => {
+        const currentRole = groupMemberRoles[`${activeId}-${memberId}`] || 'MEMBER';
+        const newRole = currentRole === 'ADMIN' ? 'MEMBER' : 'ADMIN';
+        
+        fetch(`http://localhost:3000/chat/groups/${activeId}/members/${memberId}/role`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: newRole })
+        })
+        .then(res => {
+            if (res.ok) {
+                setGroupMemberRoles(prev => ({
+                    ...prev,
+                    [`${activeId}-${memberId}`]: newRole
+                }));
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                setToastMessage(`${USER_PROFILES[memberId]?.name} is now a ${newRole.toLowerCase()}!`);
+                toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+            }
+        })
+        .catch(err => console.error('Failed to update member role:', err));
+    };
+
+    const simSpeakerIntervalRef = useRef(null);
+
+    const startVoiceAudioCapture = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            voiceStreamRef.current = stream;
+            const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtxClass) {
+                const audioCtx = new AudioCtxClass();
+                voiceAudioContextRef.current = audioCtx;
+                const source = audioCtx.createMediaStreamSource(stream);
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                voiceAnalyserRef.current = analyser;
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const checkAudioLevel = () => {
+                    if (!voiceAnalyserRef.current) return;
+                    voiceAnalyserRef.current.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                    const avg = sum / dataArray.length;
+                    setLocalIsSpeaking(avg > 16);
+                    requestAnimationFrame(checkAudioLevel);
+                };
+                requestAnimationFrame(checkAudioLevel);
+            }
+        } catch (err) {
+            console.warn('Voice chat mic access:', err);
+        }
+    };
+
+    const stopVoiceAudioCapture = () => {
+        if (voiceStreamRef.current) {
+            voiceStreamRef.current.getTracks().forEach(track => track.stop());
+            voiceStreamRef.current = null;
+        }
+        if (voiceAudioContextRef.current) {
+            voiceAudioContextRef.current.close().catch(() => {});
+            voiceAudioContextRef.current = null;
+        }
+        voiceAnalyserRef.current = null;
+        setLocalIsSpeaking(false);
+    };
+
+    const handleToggleVoiceChat = () => {
+        if (voiceCallStatus === 'connected') {
+            return;
+        }
+
+        setVoiceCallStatus('connecting');
+        startVoiceAudioCapture();
+
+        setTimeout(() => {
+            setVoiceCallStatus('connected');
+            setLocalMuted(false);
+
+            const initialChat = {
+                groupId: activeId,
+                participants: [
+                    { userId: 'gs', username: 'Gelila Sintayehu', initials: 'GS', avatarBg: '#3b82f6', muted: false, speaking: false }
+                ]
+            };
+            setActiveVoiceChat(initialChat);
+
+            if (socketRef.current) {
+                socketRef.current.emit('joinVoiceChat', {
+                    groupId: activeId,
+                    userId: 'gs',
+                    username: 'Gelila Sintayehu',
+                    initials: 'GS',
+                    avatarBg: '#3b82f6'
+                });
+            }
+
+            // Simulate peer users joining the call to showcase real-time voice chat indicators
+            setTimeout(() => {
+                const userAT = USER_PROFILES['at'];
+                if (socketRef.current) {
+                    socketRef.current.emit('joinVoiceChat', {
+                        groupId: activeId,
+                        userId: 'at',
+                        username: userAT.name,
+                        initials: userAT.initials,
+                        avatarBg: userAT.avatarBg
+                    });
+                }
+            }, 1500);
+
+            setTimeout(() => {
+                const userYB = USER_PROFILES['yb'];
+                if (socketRef.current) {
+                    socketRef.current.emit('joinVoiceChat', {
+                        groupId: activeId,
+                        userId: 'yb',
+                        username: userYB.name,
+                        initials: userYB.initials,
+                        avatarBg: userYB.avatarBg
+                    });
+                }
+            }, 3000);
+
+            // Periodically refresh participant speaking states
+            simSpeakerIntervalRef.current = setInterval(() => {
+                setActiveVoiceChat(prev => {
+                    if (!prev) return null;
+                    return {
+                        ...prev,
+                        participants: prev.participants.map(p => {
+                            if (p.userId === 'gs') {
+                                return { ...p, speaking: !localMuted && (localIsSpeaking || Math.random() > 0.7) };
+                            }
+                            return { ...p, speaking: !p.muted && Math.random() > 0.5 };
+                        })
+                    };
+                });
+            }, 800);
+
+        }, 800);
+    };
+
+    const handleLeaveVoiceChat = () => {
+        stopVoiceAudioCapture();
+        if (simSpeakerIntervalRef.current) {
+            clearInterval(simSpeakerIntervalRef.current);
+            simSpeakerIntervalRef.current = null;
+        }
+
+        if (socketRef.current && activeVoiceChat) {
+            socketRef.current.emit('leaveVoiceChat', {
+                groupId: activeVoiceChat.groupId,
+                userId: 'gs'
+            });
+        }
+
+        setVoiceCallStatus(null);
+        setActiveVoiceChat(null);
+    };
+
+    const handleToggleLocalMute = () => {
+        const nextMuted = !localMuted;
+        setLocalMuted(nextMuted);
+
+        if (voiceStreamRef.current) {
+            voiceStreamRef.current.getAudioTracks().forEach(track => {
+                track.enabled = !nextMuted;
+            });
+        }
+
+        if (socketRef.current && activeVoiceChat) {
+            socketRef.current.emit('toggleMuteVoice', {
+                groupId: activeVoiceChat.groupId,
+                userId: 'gs',
+                muted: nextMuted
+            });
+        }
+    };
+
+    const [activeVoiceChat, setActiveVoiceChat] = useState(null); 
+    const [localMuted, setLocalMuted] = useState(false);
+    const [voiceCallStatus, setVoiceCallStatus] = useState(null);
+
+    // Audio Voice Note Recording Handlers
+    const handleStartVoiceRecording = async () => {
+        try {
+            let stream = null;
+            const isVoiceChatActive = voiceStreamRef.current && voiceCallStatus === 'connected';
+
+            if (isVoiceChatActive) {
+                stream = voiceStreamRef.current;
+            } else {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+            }
+
+            audioChunksRef.current = [];
+
+            let options = { audioBitsPerSecond: 128000 };
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                options.mimeType = 'audio/webm;codecs=opus';
+            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                options.mimeType = 'audio/webm';
+            }
+
+            const mediaRecorder = new MediaRecorder(stream, options);
+            mediaRecorderRef.current = mediaRecorder;
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) {
+                    audioChunksRef.current.push(e.data);
+                }
+            };
+
+            mediaRecorder.start(1000); // Flush buffer chunks every second for reliability
+            setIsRecordingVoice(true);
+            setRecordingDuration(0);
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingDuration(prev => prev + 1);
+            }, 1000);
+        } catch (err) {
+            console.error('Failed to start audio recording:', err);
+            alert('Microphone access is required to record voice notes.');
+        }
+    };
+
+    const handleCancelVoiceRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            const isSharedStream = voiceStreamRef.current && voiceCallStatus === 'connected';
+            if (!isSharedStream) {
+                mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+            }
+            mediaRecorderRef.current.stop();
+        }
+        clearInterval(recordingTimerRef.current);
+        setIsRecordingVoice(false);
+        setRecordingDuration(0);
+        audioChunksRef.current = [];
+    };
+
+    const handleSendVoiceRecording = async () => {
+        if (!mediaRecorderRef.current || !isRecordingVoice) return;
+        const duration = recordingDuration;
+        clearInterval(recordingTimerRef.current);
+        setIsRecordingVoice(false);
+        setRecordingDuration(0);
+
+        mediaRecorderRef.current.onstop = async () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            const isSharedStream = voiceStreamRef.current && voiceCallStatus === 'connected';
+            if (!isSharedStream) {
+                mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+            }
+
+            const formData = new FormData();
+            formData.append('file', audioBlob, `voice-note-${Date.now()}.webm`);
+
+            let audioUrl = '';
+            try {
+                const res = await fetch('http://localhost:3000/chat/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                audioUrl = data.url;
+            } catch (err) {
+                console.error('Failed to upload voice note:', err);
+                audioUrl = URL.createObjectURL(audioBlob);
+            }
+
+            const isClassroom = classrooms.some(c => c.id === activeId);
+            const roomId = isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+            const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const newMsg = {
+                id: `optimistic-voice-${Date.now()}`,
+                senderId: 'gs',
+                sender: 'Gelila Sintayehu',
+                initials: 'GS',
+                avatarClass: 'gs',
+                time: timeString,
+                incoming: false,
+                type: 'audio',
+                audioUrl: audioUrl,
+                text: audioUrl,
+                fileName: `Voice message (${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')})`,
+                fileSize: formatBytes(audioBlob.size),
+                fileIcon: '🎙️',
+                duration: duration,
+                isPinned: false
+            };
+
+            setMessagesByGroup(prev => ({
+                ...prev,
+                [roomId]: [...(prev[roomId] || []), newMsg]
+            }));
+
+            if (socketRef.current) {
+                socketRef.current.emit('sendMessage', {
+                    roomId,
+                    senderId: 'gs',
+                    text: audioUrl,
+                    type: 'audio',
+                    fileName: newMsg.fileName,
+                    fileSize: newMsg.fileSize,
+                    fileIcon: '🎙️'
+                });
+            }
+        };
+
+        mediaRecorderRef.current.stop();
+    };
+
+    // Toggle Pin Message Handler
+    const handleTogglePinMessage = (msg) => {
+        if (!msg) return;
+        const newPinned = !msg.isPinned;
+        fetch(`http://localhost:3000/chat/messages/${msg.id}/pin`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isPinned: newPinned })
+        })
+        .then(res => res.json())
+        .then(() => {
+            setMessagesByGroup(prev => {
+                const isClassroom = classrooms.some(c => c.id === activeId);
+                const currentKey = isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+                const current = prev[currentKey] || [];
+                return {
+                    ...prev,
+                    [currentKey]: current.map(m => (m.id === msg.id ? { ...m, isPinned: newPinned } : m))
+                };
+            });
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+            setToastMessage(newPinned ? 'Message pinned to top!' : 'Message unpinned');
+            toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2500);
+        })
+        .catch(err => console.error('Failed to pin message:', err));
+    };
+
+    // Smooth Scroll Jump to Message
+    const handleJumpToMessage = (msgId) => {
+        const elem = document.getElementById(`msg-bubble-${msgId}`);
+        if (elem) {
+            elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            elem.classList.remove('msg-highlight-flash');
+            void elem.offsetWidth;
+            elem.classList.add('msg-highlight-flash');
+            setTimeout(() => elem.classList.remove('msg-highlight-flash'), 2600);
+        }
+    };
+
+    // Mock list of Classrooms
+    const [classrooms, setClassrooms] = useState([
+        { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM' },
+        { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '' }
+    ]);
+
+    // Study Groups
+    const [localStudyGroups, setLocalStudyGroups] = useState([
+        { id: 'widget-kings', name: 'Widget Kings 👑', subtitle: 'Abebe: Deadline Sunday midni...', isClassroom: false, time: '2:54 PM', members: ['gs', 'at', 'yb'], icon: '🦋', color: '#6366f1' },
+        { id: 'vd', name: 'vd', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '💻', color: '#0d9488' },
+        { id: 'packages', name: 'packages', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '📚', color: '#06b6d4' }
+    ]);
+    const studyGroups = propStudyGroups !== undefined ? propStudyGroups : localStudyGroups;
+    const setStudyGroups = propSetStudyGroups !== undefined ? propSetStudyGroups : setLocalStudyGroups;
+
+    // Messages log by group/classroom ID
+    const [messagesByGroup, setMessagesByGroup] = useState({});
+
+    // Refs
+    const socketRef = useRef(null);
+    const studyGroupsRef = useRef(studyGroups);
+
+    // Keep studyGroupsRef in sync with studyGroups
+    useEffect(() => {
+        studyGroupsRef.current = studyGroups;
+    }, [studyGroups]);
+
     const [topicsByGroup, setTopicsByGroup] = useState({
         'widget-kings': [
             { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'You: Perfect, that leaves me UI patch and...', time: 'Mon' },
@@ -83,166 +503,341 @@ function Chat({
         ]
     });
 
+    // Initialize socket connection and load groups
+    useEffect(() => {
+        socketRef.current = io('http://localhost:3000');
+
+        socketRef.current.on('newMessage', (msg) => {
+            const mappedMsg = {
+                id: msg.id,
+                sender: msg.senderId === 'gs' ? 'Gelila Sintayehu' : (msg.sender?.name || msg.senderId),
+                initials: msg.senderId === 'gs' ? 'GS' : (msg.sender?.initials || '??'),
+                avatarClass: msg.senderId === 'gs' ? 'gs' : 'at',
+                avatarBg: msg.sender?.avatarBg || '#8b5cf6',
+                text: msg.text,
+                image: msg.image,
+                time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                incoming: msg.senderId !== 'gs',
+                reactions: [],
+                type: msg.type,
+                fileName: msg.fileName,
+                fileSize: msg.fileSize,
+                fileIcon: msg.fileIcon,
+                isPinned: msg.isPinned || false,
+                audioUrl: msg.type === 'audio' ? (msg.audioUrl || msg.text) : undefined,
+                replyTo: msg.replyTo || undefined
+            };
+
+            setMessagesByGroup(prev => {
+                const key = msg.groupId;
+                const existing = prev[key] || [];
+                // If we already have this server-confirmed id, skip
+                if (existing.some(m => m.id === msg.id)) return prev;
+                // Replace optimistic placeholder if sender is 'gs'
+                if (msg.senderId === 'gs') {
+                    const optimisticIdx = existing.findIndex(m => m.id && m.id.startsWith('optimistic-'));
+                    if (optimisticIdx !== -1) {
+                        const updated = [...existing];
+                        updated[optimisticIdx] = mappedMsg;
+                        return { ...prev, [key]: updated };
+                    }
+                }
+                return {
+                    ...prev,
+                    [key]: [...existing, mappedMsg]
+                };
+            });
+
+            const previewText = msg.type === 'audio' ? '🎙️ Voice note' : (msg.text || (msg.image ? '📷 Photo' : 'Attachment'));
+            const senderName = msg.senderId === 'gs' ? 'You' : (msg.sender?.name || msg.senderId);
+            // Find parent group using prefix matching (safe for UUID IDs)
+            const parentGroup = studyGroupsRef.current.find(g => msg.groupId === g.id || msg.groupId.startsWith(g.id + '-'));
+            if (parentGroup) {
+                setStudyGroups(prev =>
+                    prev.map(g => (g.id === parentGroup.id ? { ...g, subtitle: `${senderName}: ${previewText}`, time: mappedMsg.time } : g))
+                );
+            }
+        });
+
+        socketRef.current.on('messagePinned', (data) => {
+            const { messageId, isPinned } = data;
+            setMessagesByGroup(prev => {
+                const updatedAll = {};
+                Object.keys(prev).forEach(key => {
+                    updatedAll[key] = (prev[key] || []).map(m => (m.id === messageId ? { ...m, isPinned } : m));
+                });
+                return updatedAll;
+            });
+        });
+
+        socketRef.current.on('groupDeleted', (data) => {
+            const { groupId } = data;
+            const parent = studyGroupsRef.current.find(m => groupId.startsWith(`${m.id}-`));
+            if (parent) {
+                const topicId = groupId.substring(parent.id.length + 1);
+                setTopicsByGroup(prev => {
+                    const existing = prev[parent.id] || [];
+                    const filtered = existing.filter(t => t.id !== topicId);
+                    return {
+                        ...prev,
+                        [parent.id]: filtered
+                    };
+                });
+                setActiveTopicId(prev => (prev === topicId ? 'general' : prev));
+            } else {
+                setStudyGroups(prev => prev.filter(g => g.id !== groupId));
+                setActiveId(prev => (prev === groupId ? 'flutter' : prev));
+            }
+        });
+
+        socketRef.current.on('groupCreated', (group) => {
+            const parent = studyGroupsRef.current.find(m => group.id.startsWith(`${m.id}-`));
+            if (parent) {
+                const topicId = group.id.substring(parent.id.length + 1);
+                setTopicsByGroup(prev => {
+                    const existing = prev[parent.id] || [];
+                    if (existing.some(t => t.id === topicId)) return prev;
+                    return {
+                        ...prev,
+                        [parent.id]: [
+                            ...existing,
+                            { id: topicId, name: group.name, icon: group.icon || '#', color: group.color || '#0d9488', subtitle: group.description || 'Topic created', time: '' }
+                        ]
+                    };
+                });
+            } else {
+                setStudyGroups(prev => {
+                    if (prev.some(g => g.id === group.id)) return prev;
+                    return [
+                        ...prev,
+                        {
+                            id: group.id,
+                            name: group.name,
+                            subtitle: group.description || 'No messages yet',
+                            isClassroom: false,
+                            time: '',
+                            icon: group.icon || '👥',
+                            color: group.color || '#8b5cf6',
+                            members: group.members?.map(m => m.userId) || []
+                        }
+                    ];
+                });
+            }
+        });
+
+        socketRef.current.on('memberRemoved', (data) => {
+            const { groupId, userId } = data;
+            if (userId === 'gs') {
+                if (activeId === groupId) {
+                    setActiveId('flutter');
+                }
+                setStudyGroups(prev => prev.filter(g => g.id !== groupId));
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                setToastMessage(`You were removed from the group.`);
+                toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 4000);
+            } else {
+                setStudyGroups(prev =>
+                    prev.map(g => {
+                        if (g.id === groupId) {
+                            return {
+                                ...g,
+                                members: (g.members || []).filter(m => m !== userId)
+                            };
+                        }
+                        return g;
+                    })
+                );
+            }
+        });
+
+        socketRef.current.on('studyInvitation', (data) => {
+            if (data.invitedMembers.includes('gs') && data.inviterId !== 'gs') {
+                setInvitationData({
+                    isOpen: true,
+                    inviterName: data.inviterName,
+                    inviterInitials: data.inviterInitials,
+                    topicName: data.topicName,
+                    categoryName: data.categoryName,
+                    groupId: data.groupId
+                });
+            }
+        });
+
+        socketRef.current.on('roleUpdated', (data) => {
+            const { groupId, userId, role } = data;
+            setGroupMemberRoles(prev => ({
+                ...prev,
+                [`${groupId}-${userId}`]: role
+            }));
+        });
+
+        socketRef.current.on('voiceChatUserJoined', (data) => {
+            const { groupId, userId, username, initials, avatarBg } = data;
+            setActiveVoiceChat(prev => {
+                const currentParticipants = prev?.groupId === groupId ? prev.participants : [];
+                if (currentParticipants.some(p => p.userId === userId)) return prev;
+                return {
+                    groupId,
+                    participants: [
+                        ...currentParticipants,
+                        { userId, username, initials, avatarBg, muted: false, speaking: false }
+                    ]
+                };
+            });
+        });
+
+        socketRef.current.on('voiceChatUserLeft', (data) => {
+            const { groupId, userId } = data;
+            setActiveVoiceChat(prev => {
+                if (!prev || prev.groupId !== groupId) return prev;
+                const updatedParticipants = prev.participants.filter(p => p.userId !== userId);
+                if (updatedParticipants.length === 0) return null;
+                return {
+                    ...prev,
+                    participants: updatedParticipants
+                };
+            });
+        });
+
+        socketRef.current.on('voiceChatUserMuteToggled', (data) => {
+            const { groupId, userId, muted } = data;
+            setActiveVoiceChat(prev => {
+                if (!prev || prev.groupId !== groupId) return prev;
+                return {
+                    ...prev,
+                    participants: prev.participants.map(p =>
+                        p.userId === userId ? { ...p, muted } : p
+                    )
+                };
+            });
+        });
+
+        // Fetch persisted study groups
+        fetch('http://localhost:3000/chat/groups')
+            .then(res => res.json())
+            .then(data => {
+                if (data && Array.isArray(data)) {
+                    const mainGroups = data.filter(g => {
+                        const isTopic = data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`));
+                        return !isTopic;
+                    });
+                    const subGroups = data.filter(g => {
+                        const isTopic = data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`));
+                        return isTopic;
+                    });
+
+                    const mappedGroups = mainGroups.map(g => ({
+                        id: g.id,
+                        name: g.name,
+                        subtitle: g.description || 'No messages yet',
+                        isClassroom: false,
+                        time: '',
+                        icon: g.icon || '👥',
+                        color: g.color || '#8b5cf6',
+                        members: g.members?.map(m => m.userId) || []
+                    }));
+                    
+                    const rolesMap = {};
+                    data.forEach(g => {
+                        g.members?.forEach(m => {
+                            rolesMap[`${g.id}-${m.userId}`] = m.role || 'MEMBER';
+                        });
+                    });
+                    setGroupMemberRoles(prev => ({ ...prev, ...rolesMap }));
+
+                    // Build topics map dynamically
+                    const tempTopicsByGroup = {};
+                    mainGroups.forEach(g => {
+                        tempTopicsByGroup[g.id] = [
+                            { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' }
+                        ];
+                    });
+
+                    subGroups.forEach(sub => {
+                        const parent = mainGroups.find(m => sub.id.startsWith(`${m.id}-`));
+                        if (parent) {
+                            const topicId = sub.id.substring(parent.id.length + 1);
+                            if (tempTopicsByGroup[parent.id]) {
+                                if (topicId !== 'general') {
+                                    if (!tempTopicsByGroup[parent.id].some(t => t.id === topicId)) {
+                                        tempTopicsByGroup[parent.id].push({
+                                            id: topicId,
+                                            name: sub.name,
+                                            icon: sub.icon || '#',
+                                            color: sub.color || '#64748b',
+                                            subtitle: sub.description || 'No messages yet',
+                                            time: ''
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    setTopicsByGroup(tempTopicsByGroup);
+                    setStudyGroups(mappedGroups);
+                }
+            })
+            .catch(err => console.error('Failed to load study groups:', err));
+
+        return () => {
+            if (socketRef.current) socketRef.current.disconnect();
+            if (simSpeakerIntervalRef.current) clearInterval(simSpeakerIntervalRef.current);
+        };
+    }, []);
+
+    // Room connection and chat history loading hook
+    useEffect(() => {
+        if (!activeId || !socketRef.current) return;
+
+        const isClassroom = classrooms.some(c => c.id === activeId);
+        const roomId = isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+
+        socketRef.current.emit('joinRoom', {
+            roomId: roomId,
+            userId: 'gs',
+            username: 'Gelila Sintayehu',
+            initials: 'GS',
+            avatarBg: '#3b82f6'
+        });
+
+        fetch(`http://localhost:3000/chat/history/${roomId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && Array.isArray(data)) {
+                    const mappedMessages = data.map(msg => ({
+                        id: msg.id,
+                        sender: msg.senderId === 'gs' ? 'Gelila Sintayehu' : (msg.sender?.name || msg.senderId),
+                        initials: msg.senderId === 'gs' ? 'GS' : (msg.sender?.initials || '??'),
+                        avatarClass: msg.senderId === 'gs' ? 'gs' : 'at',
+                        avatarBg: msg.sender?.avatarBg || '#8b5cf6',
+                        text: msg.text,
+                        image: msg.image,
+                        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        incoming: msg.senderId !== 'gs',
+                        reactions: [],
+                        type: msg.type,
+                        fileName: msg.fileName,
+                        fileSize: msg.fileSize,
+                        fileIcon: msg.fileIcon,
+                        isPinned: msg.isPinned || false,
+                        audioUrl: msg.type === 'audio' ? (msg.audioUrl || msg.text) : undefined
+                    }));
+                    
+                    setMessagesByGroup(prev => ({
+                        ...prev,
+                        [roomId]: mappedMessages
+                    }));
+                }
+            })
+            .catch(err => console.error('Failed to load chat history:', err));
+    }, [activeId, activeTopicId]);
+
     // Refs
     const conversationPaneRef = useRef(null);
     const fileInputRef = useRef(null);
     const prevActiveIdRef = useRef(activeId);
     const toastTimeoutRef = useRef(null);
-
-    // Mock list of Classrooms
-    const [classrooms, setClassrooms] = useState([
-        { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM' },
-        { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '' }
-    ]);
-
-    // Mock list of Study Groups
-    const [localStudyGroups, setLocalStudyGroups] = useState([
-        { id: 'widget-kings', name: 'Widget Kings 👑', subtitle: 'Abebe: Deadline Sunday midni...', isClassroom: false, time: '2:54 PM', members: ['gs', 'at', 'yb'], icon: '🦋', color: '#6366f1' },
-        { id: 'vd', name: 'vd', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '💻', color: '#0d9488' },
-        { id: 'packages', name: 'packages', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '📚', color: '#06b6d4' }
-    ]);
-    const studyGroups = propStudyGroups !== undefined ? propStudyGroups : localStudyGroups;
-    const setStudyGroups = propSetStudyGroups !== undefined ? propSetStudyGroups : setLocalStudyGroups;
-
-    // Messages log by group/classroom ID
-    const [messagesByGroup, setMessagesByGroup] = useState({
-        'widget-kings-general': [
-            { id: 'sys-1', type: 'system', text: 'Abebe Tadesse created the group "Widget Kings 👑"' },
-            { id: 'sys-2', type: 'system', text: 'Gelila Sintayehu joined via invite link' },
-            {
-                id: 'msg-1',
-                sender: 'Abebe Tadesse',
-                initials: 'AT',
-                avatarClass: 'at',
-                text: "Alright squad, let's divide the project. I'll handle the widget tree architecture.",
-                time: '2:14 PM',
-                incoming: true,
-                reactions: [
-                    { emoji: '💪', count: 2, userReacted: false }
-                ]
-            },
-            {
-                id: 'msg-2',
-                sender: 'Yonas Bekele',
-                initials: 'YB',
-                avatarClass: 'yb',
-                text: "I can take state management — Redux vs Provider comparison.",
-                time: '2:19 PM',
-                incoming: true,
-                reactions: [
-                    { emoji: '👍', count: 1, userReacted: false }
-                ]
-            },
-            {
-                id: 'msg-3',
-                sender: 'Gelila Sintayehu',
-                initials: 'GS',
-                avatarClass: 'gs',
-                text: "Perfect, that leaves me UI polish and animations 🎨",
-                time: '2:24 PM',
-                incoming: false,
-                reactions: [
-                    { emoji: '🔥', count: 2, userReacted: false }
-                ]
-            },
-            {
-                id: 'msg-4',
-                sender: 'Abebe Tadesse',
-                initials: 'AT',
-                avatarClass: 'at',
-                text: "Deadline Sunday midnight. Sync Saturday 10am?",
-                time: '2:54 PM',
-                incoming: true,
-                reactions: [
-                    { emoji: '✅', count: 2, userReacted: false }
-                ]
-            }
-        ],
-        'widget-kings-project': [
-            { id: 'sys-proj-1', type: 'system', text: 'Topic "Project" created' },
-            {
-                id: 'msg-proj-2',
-                sender: 'Lala G',
-                initials: 'LG',
-                avatarBg: '#d97706',
-                text: "In addition to this next to the .jsx file do not forget to create the .css file ...",
-                time: '9:18 PM',
-                incoming: true,
-                reactions: []
-            }
-        ],
-        'widget-kings-profile': [
-            { id: 'sys-prof-1', type: 'system', text: 'Topic "profile" created' },
-            {
-                id: 'msg-prof-2',
-                sender: 'Fikrte',
-                initials: 'F',
-                avatarBg: '#ea580c',
-                text: "Fikrte Gebretsadkan CTC-5776-26",
-                time: 'Fri',
-                incoming: true,
-                reactions: []
-            }
-        ],
-        'widget-kings-resources': [
-            { id: 'sys-res-1', type: 'system', text: 'Topic "Resources" created' },
-            {
-                id: 'msg-res-2',
-                sender: 'Lala G',
-                initials: 'LG',
-                avatarBg: '#d97706',
-                text: "Here is flutte11e ppt",
-                time: 'Thu',
-                incoming: true,
-                reactions: []
-            }
-        ],
-        'widget-kings-tools': [
-            { id: 'sys-tool-1', type: 'system', text: 'Topic "Tools" created' },
-            {
-                id: 'msg-tool-2',
-                sender: 'Lala G',
-                initials: 'LG',
-                avatarBg: '#d97706',
-                text: "this is base 44, used to give you the ui of the website you like check it",
-                time: 'Tue',
-                incoming: true,
-                reactions: []
-            }
-        ],
-        'widget-kings-daily-challenges': [
-            { id: 'sys-dc-1', type: 'system', text: 'Topic "Daily challenges" created' },
-            {
-                id: 'msg-dc-2',
-                sender: 'Fikrte',
-                initials: 'F',
-                avatarBg: '#ea580c',
-                text: "Daily challenge photo uploaded",
-                image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80",
-                time: '8/1/2026',
-                incoming: true,
-                reactions: []
-            }
-        ],
-        'flutter': [
-            { id: 'sys-f1', type: 'system', text: 'Flutter Classroom started' },
-            {
-                id: 'msg-f2',
-                sender: 'Samuel',
-                initials: 'S',
-                avatarClass: 'at',
-                text: "Post your lifecycle questions here. We will discuss them in the live class.",
-                time: '1:56 PM',
-                incoming: true,
-                reactions: []
-            }
-        ],
-        'react-native': [
-            { id: 'sys-rn1', type: 'system', text: 'Welcome to React Native Mobile development!' }
-        ],
-        'vd-general': [],
-        'packages-general': []
-    });
 
     // Active item and active messages key helpers
     const activeItem =
@@ -252,6 +847,26 @@ function Chat({
 
     const activeMessagesKey = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
     const activeMessages = messagesByGroup[activeMessagesKey] || messagesByGroup[activeId] || [];
+
+    const pinnedMessage = activeMessages.find(m => m.isPinned);
+
+    const matchedMessageIds = inChatSearchQuery.trim()
+        ? activeMessages.filter(m => (m.text || '').toLowerCase().includes(inChatSearchQuery.toLowerCase())).map(m => m.id)
+        : [];
+
+    const handleNextSearchMatch = () => {
+        if (matchedMessageIds.length === 0) return;
+        const nextIdx = (searchMatchIndex + 1) % matchedMessageIds.length;
+        setSearchMatchIndex(nextIdx);
+        handleJumpToMessage(matchedMessageIds[nextIdx]);
+    };
+
+    const handlePrevSearchMatch = () => {
+        if (matchedMessageIds.length === 0) return;
+        const prevIdx = (searchMatchIndex - 1 + matchedMessageIds.length) % matchedMessageIds.length;
+        setSearchMatchIndex(prevIdx);
+        handleJumpToMessage(matchedMessageIds[prevIdx]);
+    };
 
     // Scroll to bottom when active chat changes or a new message is appended
     useEffect(() => {
@@ -321,6 +936,26 @@ function Chat({
         return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
     };
 
+    // Helper to extract audio duration from file name
+    const getAudioDurationFromFileName = (fileName) => {
+        if (!fileName) return 0;
+        const match = fileName.match(/\((\d+):(\d+)\)/);
+        if (match) {
+            const minutes = parseInt(match[1], 10);
+            const seconds = parseInt(match[2], 10);
+            return minutes * 60 + seconds;
+        }
+        return 0;
+    };
+
+    // Helper to format audio playback time
+    const formatAudioTime = (seconds) => {
+        if (isNaN(seconds) || seconds === Infinity) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     // Helper to get file icon
     const getFileIcon = (filename) => {
         const ext = filename.split('.').pop().toLowerCase();
@@ -348,173 +983,154 @@ function Chat({
     };
 
     // Handle sending the files based on selected Telegram mode
-    const handleSendPendingFiles = (sendMode) => {
+    const handleSendPendingFiles = async (sendMode) => {
         const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const roomId = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
 
         if (sendMode === 'grouped') {
-            // Group all selected files as a single composite album/gallery message
-            const promises = pendingFiles.map(file => {
-                return new Promise((resolve) => {
-                    const isImage = file.type.startsWith('image/');
-                    const reader = new FileReader();
+            const promises = pendingFiles.map(async (file) => {
+                const isImage = file.type.startsWith('image/');
+                const formData = new FormData();
+                formData.append('file', file);
+                let fileUrl = null;
+                try {
+                    const res = await fetch('http://localhost:3000/chat/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    fileUrl = data.url;
+                } catch (err) {
+                    console.warn('Fallback local file read:', err);
+                }
 
-                    reader.onload = (e) => {
-                        resolve({
-                            name: file.name,
-                            size: formatBytes(file.size),
-                            icon: getFileIcon(file.name),
-                            data: e.target.result,
-                            isImage: true
-                        });
-                    };
-
-                    if (isImage) {
+                if (!fileUrl && isImage) {
+                    fileUrl = await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
                         reader.readAsDataURL(file);
-                    } else {
-                        resolve({
-                            name: file.name,
-                            size: formatBytes(file.size),
-                            icon: getFileIcon(file.name),
-                            data: null,
-                            isImage: false
-                        });
-                    }
-                });
+                    });
+                }
+
+                return {
+                    name: file.name,
+                    size: formatBytes(file.size),
+                    icon: getFileIcon(file.name),
+                    data: fileUrl,
+                    isImage: isImage
+                };
             });
 
-            Promise.all(promises).then(groupedItems => {
+            const groupedItems = await Promise.all(promises);
+            const newMessage = {
+                id: `msg-group-${Date.now()}`,
+                sender: 'Gelila Sintayehu',
+                initials: 'GS',
+                avatarClass: 'gs',
+                type: 'grouped',
+                files: groupedItems,
+                time: timeString,
+                incoming: false,
+                reactions: [],
+                isPinned: false
+            };
+
+            setMessagesByGroup(prev => ({
+                ...prev,
+                [activeMessagesKey]: [...(prev[activeMessagesKey] || []), newMessage]
+            }));
+
+            const previewText = `sent ${pendingFiles.length} grouped files`;
+            if (studyGroups.some(g => g.id === activeId)) {
+                setStudyGroups(prev =>
+                    prev.map(g => (g.id === activeId ? { ...g, subtitle: `You: ${previewText}`, time: timeString } : g))
+                );
+            }
+
+            if (socketRef.current) {
+                socketRef.current.emit('sendMessage', {
+                    roomId,
+                    senderId: 'gs',
+                    text: previewText,
+                    type: 'grouped',
+                    fileName: `${pendingFiles.length} files`
+                });
+            }
+
+        } else {
+            for (let index = 0; index < pendingFiles.length; index++) {
+                const file = pendingFiles[index];
+                const isImage = file.type.startsWith('image/');
+                const formData = new FormData();
+                formData.append('file', file);
+
+                let serverUrl = null;
+                try {
+                    const res = await fetch('http://localhost:3000/chat/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    serverUrl = data.url;
+                } catch (err) {
+                    console.warn('Fallback file upload:', err);
+                }
+
+                if (!serverUrl && isImage) {
+                    serverUrl = await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.readAsDataURL(file);
+                    });
+                }
+
                 const newMessage = {
-                    id: `msg-group-${Date.now()}`,
+                    id: `optimistic-file-${Date.now()}-${index}`,
                     sender: 'Gelila Sintayehu',
                     initials: 'GS',
                     avatarClass: 'gs',
-                    type: 'grouped',
-                    files: groupedItems,
                     time: timeString,
                     incoming: false,
-                    reactions: []
+                    reactions: [],
+                    isPinned: false
                 };
+
+                if (isImage && sendMode === 'compressed') {
+                    newMessage.image = serverUrl;
+                    newMessage.text = '';
+                } else {
+                    newMessage.type = 'document';
+                    newMessage.fileName = file.name;
+                    newMessage.fileSize = formatBytes(file.size);
+                    newMessage.fileIcon = getFileIcon(file.name);
+                    newMessage.fileDataUrl = serverUrl;
+                }
 
                 setMessagesByGroup(prev => ({
                     ...prev,
                     [activeMessagesKey]: [...(prev[activeMessagesKey] || []), newMessage]
                 }));
 
-                // Update sidebar preview
-                const previewText = `sent ${pendingFiles.length} grouped files`;
+                const previewText = newMessage.image ? '📷 Image attachment' : `📄 ${file.name}`;
                 if (studyGroups.some(g => g.id === activeId)) {
                     setStudyGroups(prev =>
                         prev.map(g => (g.id === activeId ? { ...g, subtitle: `You: ${previewText}`, time: timeString } : g))
                     );
-                    if (!activeItem.isClassroom) {
-                        setTopicsByGroup(prev => {
-                            const groupTopics = prev[activeId] || [];
-                            const updated = groupTopics.map(t => (t.id === activeTopicId ? { ...t, subtitle: `You: ${previewText}`, time: timeString } : t));
-                            return { ...prev, [activeId]: updated };
-                        });
-                    }
-                } else if (classrooms.some(c => c.id === activeId)) {
-                    setClassrooms(prev =>
-                        prev.map(c => (c.id === activeId ? { ...c, subtitle: `You: ${previewText}`, time: timeString } : c))
-                    );
                 }
-            });
 
-        } else {
-            // Send each file as an individual message (either compressed image bubble or document bubble)
-            pendingFiles.forEach((file, index) => {
-                const isImage = file.type.startsWith('image/');
-                const reader = new FileReader();
-
-                reader.onload = (e) => {
-                    const newMessage = {
-                        id: `msg-file-${Date.now()}-${index}`,
-                        sender: 'Gelila Sintayehu',
-                        initials: 'GS',
-                        avatarClass: 'gs',
-                        time: timeString,
-                        incoming: false,
-                        reactions: []
-                    };
-
-                    if (isImage && sendMode === 'compressed') {
-                        newMessage.image = e.target.result;
-                        newMessage.text = '';
-                    } else {
-                        newMessage.type = 'document';
-                        newMessage.fileName = file.name;
-                        newMessage.fileSize = formatBytes(file.size);
-                        newMessage.fileIcon = getFileIcon(file.name);
-                        newMessage.fileDataUrl = isImage ? e.target.result : null;
-                    }
-
-                    setMessagesByGroup(prev => ({
-                        ...prev,
-                        [activeMessagesKey]: [...(prev[activeMessagesKey] || []), newMessage]
-                    }));
-
-                    // Update sidebar preview
-                    const previewText = newMessage.image ? '📷 Image attachment' : `📄 ${file.name}`;
-                    if (studyGroups.some(g => g.id === activeId)) {
-                        setStudyGroups(prev =>
-                            prev.map(g => (g.id === activeId ? { ...g, subtitle: `You: ${previewText}`, time: timeString } : g))
-                        );
-                        if (!activeItem.isClassroom) {
-                            setTopicsByGroup(prev => {
-                                const groupTopics = prev[activeId] || [];
-                                const updated = groupTopics.map(t => (t.id === activeTopicId ? { ...t, subtitle: `You: ${previewText}`, time: timeString } : t));
-                                return { ...prev, [activeId]: updated };
-                            });
-                        }
-                    } else if (classrooms.some(c => c.id === activeId)) {
-                        setClassrooms(prev =>
-                            prev.map(c => (c.id === activeId ? { ...c, subtitle: `You: ${previewText}`, time: timeString } : c))
-                        );
-                    }
-                };
-
-                if (isImage) {
-                    reader.readAsDataURL(file);
-                } else {
-                    // Instantly trigger for non-images
-                    const newMessage = {
-                        id: `msg-file-${Date.now()}-${index}`,
-                        sender: 'Gelila Sintayehu',
-                        initials: 'GS',
-                        avatarClass: 'gs',
-                        time: timeString,
-                        incoming: false,
-                        reactions: [],
-                        type: 'document',
-                        fileName: file.name,
-                        fileSize: formatBytes(file.size),
-                        fileIcon: getFileIcon(file.name),
-                        fileDataUrl: null
-                    };
-                    setMessagesByGroup(prev => ({
-                        ...prev,
-                        [activeMessagesKey]: [...(prev[activeMessagesKey] || []), newMessage]
-                    }));
-
-                    const previewText = `📄 ${file.name}`;
-                    if (studyGroups.some(g => g.id === activeId)) {
-                        setStudyGroups(prev =>
-                            prev.map(g => (g.id === activeId ? { ...g, subtitle: `You: ${previewText}`, time: timeString } : g))
-                        );
-                        if (!activeItem.isClassroom) {
-                            setTopicsByGroup(prev => {
-                                const groupTopics = prev[activeId] || [];
-                                const updated = groupTopics.map(t => (t.id === activeTopicId ? { ...t, subtitle: `You: ${previewText}`, time: timeString } : t));
-                                return { ...prev, [activeId]: updated };
-                            });
-                        }
-                    } else if (classrooms.some(c => c.id === activeId)) {
-                        setClassrooms(prev =>
-                            prev.map(c => (c.id === activeId ? { ...c, subtitle: `You: ${previewText}`, time: timeString } : c))
-                        );
-                    }
+                if (socketRef.current) {
+                    socketRef.current.emit('sendMessage', {
+                        roomId,
+                        senderId: 'gs',
+                        text: newMessage.text || '',
+                        image: newMessage.image || undefined,
+                        type: newMessage.type || 'text',
+                        fileName: newMessage.fileName,
+                        fileSize: newMessage.fileSize,
+                        fileIcon: newMessage.fileIcon
+                    });
                 }
-            });
+            }
         }
 
         setShowUploadOptionModal(false);
@@ -568,54 +1184,53 @@ function Chat({
 
             setEditingMessageId(null);
         } else {
-            // Send new message
-            const newMessage = {
-                id: `msg-${Date.now()}`,
+            // Send new message via Socket.io gateway
+            // Use topic-scoped roomId so messages land in the right channel bucket
+            const roomId = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+            const optimisticId = `optimistic-${Date.now()}`;
+
+            // Optimistically add message locally so it appears immediately
+            const optimisticMsg = {
+                id: optimisticId,
                 sender: 'Gelila Sintayehu',
                 initials: 'GS',
                 avatarClass: 'gs',
+                avatarBg: '#3b82f6',
                 text: inputValue,
+                image: attachedImage || undefined,
                 time: timeString,
                 incoming: false,
-                reactions: []
+                reactions: [],
+                isPinned: false,
+                replyTo: replyingTo ? { id: replyingTo.id, sender: replyingTo.sender, text: replyingTo.text } : undefined
             };
 
-            if (attachedImage) {
-                newMessage.image = attachedImage;
-            }
-
-            // Quoted Reply Details
-            if (replyingTo) {
-                newMessage.replyTo = {
-                    id: replyingTo.id,
-                    sender: replyingTo.sender,
-                    text: replyingTo.text
-                };
-            }
-
-            // Update messages log
             setMessagesByGroup(prev => ({
                 ...prev,
-                [activeMessagesKey]: [...(prev[activeMessagesKey] || []), newMessage]
+                [roomId]: [...(prev[roomId] || []), optimisticMsg]
             }));
 
-            // Update time and preview in the sidebar
+            // Update sidebar preview immediately
             const previewText = attachedImage ? '📷 Image attachment' : inputValue;
             if (studyGroups.some(g => g.id === activeId)) {
                 setStudyGroups(prev =>
                     prev.map(g => (g.id === activeId ? { ...g, subtitle: `You: ${previewText}`, time: timeString } : g))
                 );
-                if (!activeItem.isClassroom) {
-                    setTopicsByGroup(prev => {
-                        const groupTopics = prev[activeId] || [];
-                        const updated = groupTopics.map(t => (t.id === activeTopicId ? { ...t, subtitle: `You: ${previewText}`, time: timeString } : t));
-                        return { ...prev, [activeId]: updated };
-                    });
-                }
             } else if (classrooms.some(c => c.id === activeId)) {
                 setClassrooms(prev =>
                     prev.map(c => (c.id === activeId ? { ...c, subtitle: `You: ${previewText}`, time: timeString } : c))
                 );
+            }
+
+            if (socketRef.current) {
+                socketRef.current.emit('sendMessage', {
+                    roomId,
+                    senderId: 'gs',
+                    text: inputValue,
+                    image: attachedImage || undefined,
+                    replyToId: replyingTo ? replyingTo.id : undefined,
+                    _optimisticId: optimisticId
+                });
             }
         }
 
@@ -661,6 +1276,45 @@ function Chat({
             }
             return current;
         });
+    };
+
+    // Handle deleting a study group
+    const handleDeleteGroup = (groupId, e) => {
+        if (e) e.stopPropagation();
+        if (window.confirm('Are you sure you want to delete this study group?')) {
+            fetch(`http://localhost:3000/chat/groups/${groupId}`, {
+                method: 'DELETE'
+            })
+            .catch(err => console.error('Failed to delete group:', err));
+        }
+    };
+
+    // Handle deleting a study topic channel
+    const handleDeleteTopic = (groupId, topicId, e) => {
+        if (e) e.stopPropagation();
+        if (window.confirm(`Are you sure you want to delete the topic "${topicId}"?`)) {
+            fetch(`http://localhost:3000/chat/groups/${groupId}-${topicId}`, {
+                method: 'DELETE'
+            })
+            .catch(err => console.error('Failed to delete topic:', err));
+        }
+    };
+
+    // Handle removing a member from group
+    const handleRemoveMember = (memberId) => {
+        if (window.confirm(`Are you sure you want to remove ${USER_PROFILES[memberId]?.name || memberId} from this group?`)) {
+            fetch(`http://localhost:3000/chat/groups/${activeId}/members/${memberId}`, {
+                method: 'DELETE'
+            })
+            .then(res => {
+                if (res.ok) {
+                    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                    setToastMessage(`${USER_PROFILES[memberId]?.name} removed from the group.`);
+                    toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+                }
+            })
+            .catch(err => console.error('Failed to remove member:', err));
+        }
     };
 
     // Handle starting message edit mode
@@ -788,19 +1442,33 @@ function Chat({
         }, 3000);
     };
 
-    // Render message text with clickable URL links
+    // Render message text with clickable URL links & search highlighting
     const renderMessageText = (text, isIncoming) => {
         if (!text) return null;
 
         const urlRegex = /(https?:\/\/[^\s]+|classmind\.app\/invite\/[^\s]+|localhost:\d+\/join\/[^\s]+|[^\s]+\.com[^\s]*)/gi;
         const parts = text.split(urlRegex);
 
-        if (parts.length === 1) return <div>{text}</div>;
-
-        // Dynamic link color based on incoming vs outgoing bubble legibility
         const linkColor = isIncoming
             ? (darkMode ? '#60a5fa' : '#2563eb')
             : '#ffffff';
+
+        const highlightMatches = (content) => {
+            if (!inChatSearchQuery.trim()) return content;
+            const query = inChatSearchQuery;
+            const regex = new RegExp(`(${query.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+            const subParts = content.split(regex);
+            if (subParts.length === 1) return content;
+            return subParts.map((sp, idx) =>
+                regex.test(sp) ? (
+                    <mark key={idx} className="search-matched-text">{sp}</mark>
+                ) : (
+                    sp
+                )
+            );
+        };
+
+        if (parts.length === 1) return <div>{highlightMatches(text)}</div>;
 
         return (
             <div>
@@ -832,7 +1500,7 @@ function Chat({
                             </a>
                         );
                     }
-                    return part;
+                    return <span key={index}>{highlightMatches(part)}</span>;
                 })}
             </div>
         );
@@ -959,8 +1627,9 @@ function Chat({
             }));
             setActiveId(itemId);
         } else {
+            const tempId = itemId;
             const newGroupObj = {
-                id: itemId,
+                id: tempId,
                 name: newGroupName,
                 subtitle: descText,
                 isClassroom: false,
@@ -970,17 +1639,46 @@ function Chat({
                 color: '#8b5cf6'
             };
             setStudyGroups(prev => [...prev, newGroupObj]);
-            setMessagesByGroup(prev => ({
-                ...prev,
-                [`${itemId}-general`]: [{ id: `sys-${Date.now()}`, type: 'system', text: `You created the group "${newGroupName}"` }]
-            }));
             setTopicsByGroup(prev => ({
                 ...prev,
-                [itemId]: [{ id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'You created group', time: '' }]
+                [tempId]: [{ id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' }]
             }));
-            setSelectedGroupIdForTopics(itemId);
+            setSelectedGroupIdForTopics(tempId);
             setActiveTopicId('general');
-            setActiveId(itemId);
+            setActiveId(tempId);
+
+            fetch('http://localhost:3000/chat/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: tempId,
+                    name: newGroupName,
+                    description: descText,
+                    memberIds: ['gs']
+                })
+            })
+            .then(res => res.json())
+            .then(group => {
+                // Pre-persist general topic channel
+                fetch('http://localhost:3000/chat/groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: `${tempId}-general`,
+                        name: 'General',
+                        description: 'General chat room',
+                        icon: '#',
+                        color: '#64748b',
+                        memberIds: []
+                    })
+                });
+
+                setGroupMemberRoles(prev => ({
+                    ...prev,
+                    [`${tempId}-gs`]: 'OWNER'
+                }));
+            })
+            .catch(err => console.error('Failed to persist group:', err));
         }
 
         setNewGroupName('');
@@ -1094,17 +1792,25 @@ function Chat({
                             const topics = topicsByGroup[selectedGroupIdForTopics] || [];
                             return (
                                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                                    {/* Topic Group Header */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderBottom: '1px solid var(--border-color)', marginBottom: '8px' }}>
+                                    {/* Telegram-style Group Header */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderBottom: '1px solid var(--border-color)', marginBottom: '4px' }}>
                                         <button
                                             onClick={() => setSelectedGroupIdForTopics(null)}
-                                            style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', fontSize: '18px', padding: '4px', display: 'flex', alignItems: 'center' }}
+                                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
                                             title="Back to Chats"
                                         >
-                                            <ArrowLeft size={18} />
+                                            <ArrowLeft size={17} />
                                         </button>
-                                        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                                            <div style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-main)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                        <div style={{
+                                            width: '34px', height: '34px', borderRadius: '50%',
+                                            background: activeGrp.color || '#6366f1',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '16px', flexShrink: 0
+                                        }}>
+                                            {activeGrp.icon || '👥'}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {activeGrp.name}
                                             </div>
                                             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -1114,53 +1820,101 @@ function Chat({
                                         <button
                                             className="add-group-btn"
                                             onClick={() => setShowCreateTopicModal(true)}
-                                            title="Create Topic"
+                                            title="New Topic"
                                         >
-                                            <Plus size={16} />
+                                            <Plus size={15} />
                                         </button>
                                     </div>
 
-                                    {/* List of topics */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        {topics.map(t => (
-                                            <div
-                                                key={t.id}
-                                                className={`sidebar-item ${activeTopicId === t.id ? 'active' : ''}`}
-                                                onClick={() => {
-                                                    setActiveTopicId(t.id);
-                                                    setMobileSidebarOpen(false);
-                                                }}
-                                                style={{ padding: '8px 12px', borderRadius: '12px' }}
-                                            >
+                                    {/* Section label */}
+                                    <div style={{ padding: '6px 14px 2px', fontSize: '10.5px', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                        Topics
+                                    </div>
+
+                                    {/* Telegram-style # channel list */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', padding: '0 6px' }}>
+                                        {topics.length === 0 && (
+                                            <div style={{ padding: '18px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                                                No topics yet. Create one with +
+                                            </div>
+                                        )}
+                                        {topics.map(t => {
+                                            const topicMsgs = messagesByGroup[`${selectedGroupIdForTopics}-${t.id}`] || [];
+                                            const lastMsg = topicMsgs.filter(m => m.type !== 'system').slice(-1)[0];
+                                            const lastMsgPreview = lastMsg ? (lastMsg.text || (lastMsg.image ? '📷 Photo' : '📎 File')) : 'No messages yet';
+                                            const lastMsgTime = lastMsg?.time || t.time || '';
+                                            const isActive = activeTopicId === t.id;
+                                            return (
                                                 <div
-                                                    className="item-avatar"
+                                                    key={t.id}
+                                                    onClick={() => { setActiveTopicId(t.id); setMobileSidebarOpen(false); }}
                                                     style={{
-                                                        background: t.color || '#64748b',
-                                                        width: '38px',
-                                                        height: '38px',
-                                                        fontSize: '14px',
-                                                        borderRadius: '50%',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        color: 'white',
-                                                        fontWeight: '700',
-                                                        boxShadow: 'none'
+                                                        gap: '10px',
+                                                        padding: '9px 10px',
+                                                        borderRadius: '10px',
+                                                        cursor: 'pointer',
+                                                        background: isActive ? 'var(--active-item-bg, rgba(99,102,241,0.15))' : 'transparent',
+                                                        transition: 'background 0.15s'
                                                     }}
+                                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--hover-bg, rgba(255,255,255,0.05))'; }}
+                                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                                 >
-                                                    {t.icon}
-                                                </div>
-                                                <div className="item-text-container" style={{ marginLeft: '10px' }}>
-                                                    <div className="item-title-row">
-                                                        <span className="item-title" style={{ fontSize: '13.5px', fontWeight: '700' }}>{t.name}</span>
-                                                        {t.time && <span className="item-time" style={{ fontSize: '10.5px' }}>{t.time}</span>}
+                                                    {/* # hash icon box */}
+                                                    <div style={{
+                                                        width: '36px', height: '36px', borderRadius: '10px',
+                                                        background: isActive ? (t.color || '#6366f1') : 'var(--search-bg, rgba(255,255,255,0.08))',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontSize: '15px', fontWeight: '800', color: isActive ? 'white' : 'var(--text-muted)',
+                                                        flexShrink: 0, transition: 'all 0.15s'
+                                                    }}>
+                                                        {t.id === 'general' ? '#' : t.icon || '#'}
                                                     </div>
-                                                    <span className="item-subtitle" style={{ fontSize: '12px', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', display: 'block' }}>
-                                                        {t.subtitle}
-                                                    </span>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <span style={{
+                                                                fontSize: '13px', fontWeight: isActive ? '700' : '600',
+                                                                color: isActive ? 'var(--text-main)' : 'var(--text-main)',
+                                                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                                                            }}># {t.name}</span>
+                                                            {lastMsgTime && <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', flexShrink: 0 }}>{lastMsgTime}</span>}
+                                                        </div>
+                                                        <span style={{
+                                                            fontSize: '11.5px', color: 'var(--text-muted)',
+                                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block'
+                                                        }}>{lastMsgPreview}</span>
+                                                    </div>
+                                                    {(() => {
+                                                        const myRole = groupMemberRoles[`${selectedGroupIdForTopics}-gs`] || 'OWNER';
+                                                        if (t.id !== 'general' && (myRole === 'OWNER' || myRole === 'ADMIN')) {
+                                                            return (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => handleDeleteTopic(selectedGroupIdForTopics, t.id, e)}
+                                                                    style={{
+                                                                        background: 'none',
+                                                                        border: 'none',
+                                                                        color: '#ef4444',
+                                                                        cursor: 'pointer',
+                                                                        padding: '4px',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        borderRadius: '4px',
+                                                                        flexShrink: 0
+                                                                    }}
+                                                                    title="Delete Topic"
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );
@@ -1239,13 +1993,40 @@ function Chat({
                                         >
                                             {g.icon || '👥'}
                                         </div>
-                                        <div className="item-text-container">
+                                        <div className="item-text-container" style={{ flex: 1 }}>
                                             <div className="item-title-row">
                                                 <span className="item-title">{g.name}</span>
                                                 {g.time && <span className="item-time">{g.time}</span>}
                                             </div>
                                             <span className="item-subtitle">{g.subtitle}</span>
                                         </div>
+                                        {(() => {
+                                            const gRole = groupMemberRoles[`${g.id}-gs`] || 'OWNER';
+                                            if (gRole === 'OWNER' || gRole === 'ADMIN') {
+                                                return (
+                                                    <button
+                                                        className="delete-group-btn"
+                                                        onClick={(e) => handleDeleteGroup(g.id, e)}
+                                                        title="Delete study group"
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            color: '#ef4444',
+                                                            cursor: 'pointer',
+                                                            padding: '6px',
+                                                            borderRadius: '6px',
+                                                            marginLeft: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                        }}
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </button>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
                                     </div>
                                 ))}
                             </>
@@ -1317,7 +2098,14 @@ function Chat({
                             style={{ cursor: 'pointer' }}
                             onClick={() => !activeItem.isClassroom && setShowGroupInfoModal(true)}
                         >
-                            <span className="header-title">{activeItem.name}</span>
+                            <span className="header-title">
+                                {activeItem.name}
+                                {!activeItem.isClassroom && activeTopicId && (
+                                    <span style={{ color: 'var(--active-item-border)', fontSize: '13px', marginLeft: '8px', fontWeight: '600', opacity: 0.85 }}>
+                                        # {activeTopicId}
+                                    </span>
+                                )}
+                            </span>
                             <span className="header-subtitle">
                                 {typingUser ? (
                                     <span style={{ color: 'var(--active-item-border)', fontWeight: '500' }}>
@@ -1356,6 +2144,36 @@ function Chat({
                         )}
 
                         {!activeItem.isClassroom && (
+                            <button 
+                                className={`invite-btn ${activeVoiceChat?.groupId === activeId ? 'active-voice' : ''}`} 
+                                title={activeVoiceChat?.groupId === activeId ? "Voice Chat Active" : "Start Voice Chat"} 
+                                onClick={handleToggleVoiceChat} 
+                                style={{ 
+                                    marginRight: '8px',
+                                    backgroundColor: activeVoiceChat?.groupId === activeId ? 'rgba(16, 185, 129, 0.15)' : 'var(--search-bg)',
+                                    color: activeVoiceChat?.groupId === activeId ? '#10b981' : 'var(--text-main)',
+                                    border: activeVoiceChat?.groupId === activeId ? '1px solid #10b981' : 'none'
+                                }}
+                            >
+                                <Phone size={18} />
+                            </button>
+                        )}
+                        <button
+                            className="invite-btn"
+                            title={showInChatSearch ? "Close search" : "Search in conversation"}
+                            onClick={() => {
+                                setShowInChatSearch(!showInChatSearch);
+                                if (showInChatSearch) setInChatSearchQuery('');
+                            }}
+                            style={{
+                                marginRight: '8px',
+                                backgroundColor: showInChatSearch ? 'var(--active-item-border)' : 'var(--search-bg)',
+                                color: showInChatSearch ? '#ffffff' : 'var(--text-main)'
+                            }}
+                        >
+                            <Search size={18} />
+                        </button>
+                        {!activeItem.isClassroom && (
                             <button className="invite-btn" title="Create Study Topic" onClick={() => setShowCreateTopicModal(true)} style={{ marginRight: '8px' }}>
                                 <BookOpen size={18} />
                             </button>
@@ -1365,6 +2183,297 @@ function Chat({
                         </button>
                     </div>
                 </div>
+
+                {/* In-Chat Message Search Bar */}
+                {showInChatSearch && (
+                    <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--search-bg)' }}>
+                        <div className="inchat-search-bar">
+                            <Search size={16} color="var(--text-muted)" />
+                            <input
+                                type="text"
+                                placeholder="Search in this conversation..."
+                                value={inChatSearchQuery}
+                                onChange={(e) => {
+                                    setInChatSearchQuery(e.target.value);
+                                    setSearchMatchIndex(0);
+                                }}
+                                className="inchat-search-input"
+                                autoFocus
+                            />
+                            {matchedMessageIds.length > 0 && (
+                                <span className="inchat-search-counter">
+                                    {searchMatchIndex + 1} of {matchedMessageIds.length}
+                                </span>
+                            )}
+                            {matchedMessageIds.length > 0 && (
+                                <>
+                                    <button className="inchat-search-btn" onClick={handlePrevSearchMatch} title="Previous match">
+                                        <ChevronUp size={16} />
+                                    </button>
+                                    <button className="inchat-search-btn" onClick={handleNextSearchMatch} title="Next match">
+                                        <ChevronDown size={16} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => {
+                                setShowInChatSearch(false);
+                                setInChatSearchQuery('');
+                            }}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                )}
+
+                {/* Pinned Message Banner */}
+                {pinnedMessage && (
+                    <div
+                        className="pinned-message-banner"
+                        onClick={() => handleJumpToMessage(pinnedMessage.id)}
+                        title="Click to jump to pinned message"
+                    >
+                        <div className="pinned-icon">📌</div>
+                        <div className="pinned-content">
+                            <div className="pinned-title">Pinned Message</div>
+                            <div className="pinned-snippet">{pinnedMessage.text || pinnedMessage.fileName || 'Pinned attachment'}</div>
+                        </div>
+                        {(groupMemberRoles[`${activeId}-gs`] === 'OWNER' || groupMemberRoles[`${activeId}-gs`] === 'ADMIN') && (
+                            <button
+                                className="pinned-unpin-btn"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTogglePinMessage(pinnedMessage);
+                                }}
+                                title="Unpin message"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {/* Voice Chat active panel */}
+                {voiceCallStatus !== null && activeVoiceChat?.groupId === activeId && (
+                    <div className="voice-chat-bar" style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 16px',
+                        backgroundColor: 'var(--search-bg, rgba(255,255,255,0.04))',
+                        borderBottom: '1px solid var(--border-color)',
+                        animation: 'slideDown 0.25s ease-out',
+                        flexShrink: 0
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div className="pulsing-green-dot" style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                backgroundColor: '#10b981',
+                                animation: 'pulse 1.5s infinite'
+                            }} />
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)' }}>Group Voice Chat</span>
+                                <span style={{ fontSize: '10px', color: '#10b981', fontWeight: '600' }}>
+                                    {voiceCallStatus === 'connecting' ? 'Connecting...' : 'Active call'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Call participants */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {activeVoiceChat.participants.map(p => (
+                                <div
+                                    key={p.userId}
+                                    style={{
+                                        position: 'relative',
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '50%',
+                                        backgroundColor: p.avatarBg || '#6366f1',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        color: 'white',
+                                        border: p.speaking ? '2px solid #10b981' : '1px solid transparent',
+                                        boxShadow: p.speaking ? '0 0 8px rgba(16, 185, 129, 0.5)' : 'none',
+                                        transition: 'all 0.15s'
+                                    }}
+                                    title={`${p.username || p.userId} ${p.muted ? '(Muted)' : ''}`}
+                                >
+                                    {p.initials}
+                                    {p.muted && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: '-2px',
+                                            right: '-2px',
+                                            width: '12px',
+                                            height: '12px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#ef4444',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            border: '1px solid var(--chat-pane-bg, #1e293b)'
+                                        }}>
+                                            <MicOff size={7} color="white" />
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Action controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {voiceCallStatus === 'connected' && (
+                                <button
+                                    onClick={handleToggleLocalMute}
+                                    style={{
+                                        background: localMuted ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255,255,255,0.06)',
+                                        border: 'none',
+                                        color: localMuted ? '#ef4444' : 'var(--text-main)',
+                                        padding: '6px 10px',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        fontSize: '11.5px',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    {localMuted ? <MicOff size={14} /> : <Mic size={14} />}
+                                    {localMuted ? 'Muted' : 'Mute'}
+                                </button>
+                            )}
+                            <button
+                                onClick={handleLeaveVoiceChat}
+                                style={{
+                                    background: 'rgba(239, 68, 68, 0.15)',
+                                    border: 'none',
+                                    color: '#ef4444',
+                                    padding: '6px 10px',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    fontSize: '11.5px',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                <LogOut size={14} />
+                                Leave
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Embedded horizontal topics selector (when sidebar is hidden) */}
+                {hideSidebar && !activeItem.isClassroom && (
+                    <div className="topics-horizontal-bar" style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 16px',
+                        borderBottom: '1px solid var(--border-color)',
+                        backgroundColor: 'var(--search-bg, rgba(255,255,255,0.03))',
+                        overflowX: 'auto',
+                        flexShrink: 0
+                    }}>
+                        {(topicsByGroup[activeId] || []).map(t => {
+                            const isActive = activeTopicId === t.id;
+                            const myRole = groupMemberRoles[`${activeId}-gs`] || 'OWNER';
+                            const showDelete = t.id !== 'general' && (myRole === 'OWNER' || myRole === 'ADMIN');
+                            return (
+                                <div
+                                    key={t.id}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        borderRadius: '20px',
+                                        backgroundColor: isActive ? 'var(--active-item-border, #6366f1)' : 'rgba(255,255,255,0.06)',
+                                        padding: showDelete ? '2px 4px 2px 12px' : '6px 12px',
+                                        transition: 'all 0.15s',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTopicId(t.id)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            color: isActive ? 'white' : 'var(--text-muted)',
+                                            padding: showDelete ? '4px 0' : '0',
+                                            paddingRight: showDelete ? '4px' : '0'
+                                        }}
+                                    >
+                                        <span>{t.id === 'general' ? '#' : t.icon || '#'}</span>
+                                        <span>{t.name}</span>
+                                    </button>
+                                    {showDelete && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleDeleteTopic(activeId, t.id, e)}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: isActive ? 'rgba(255,255,255,0.8)' : '#ef4444',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '18px',
+                                                height: '18px',
+                                                borderRadius: '50%',
+                                                backgroundColor: 'rgba(0,0,0,0.1)'
+                                            }}
+                                            title="Delete Topic"
+                                        >
+                                            <X size={10} />
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        <button
+                            type="button"
+                            onClick={() => setShowCreateTopicModal(true)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '50%',
+                                border: '1px dashed var(--text-muted)',
+                                background: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                flexShrink: 0
+                            }}
+                            title="Create Topic"
+                        >
+                            +
+                        </button>
+                    </div>
+                )}
 
                 {/* Conversation Message Pane */}
                 <div className="conversation-pane" ref={conversationPaneRef}>
@@ -1455,7 +2564,7 @@ function Chat({
                                                     Forwarded from {msg.forwardedFrom}
                                                 </div>
                                             )}
-                                            {msg.text && renderMessageText(msg.text, msg.incoming)}
+                                            {msg.text && msg.type !== 'audio' && renderMessageText(msg.text, msg.incoming)}
                                             {msg.image && (
                                                 <img
                                                     src={msg.image}
@@ -1519,6 +2628,79 @@ function Chat({
                                                     ))}
                                                 </div>
                                             )}
+
+                                            {/* Audio Voice Note Player bubble */}
+                                            {msg.type === 'audio' && (() => {
+                                                const audioEl = audioPlayerRefs.current[msg.id];
+                                                const curTime = audioEl ? audioEl.currentTime : 0;
+                                                let dur = audioEl ? audioEl.duration : 0;
+                                                if (!dur || dur === Infinity || isNaN(dur)) {
+                                                    dur = getAudioDurationFromFileName(msg.fileName);
+                                                }
+                                                const progressPercent = dur > 0 ? (curTime / dur) * 100 : 0;
+
+                                                return (
+                                                    <div className="audio-player-bubble">
+                                                        <button
+                                                            type="button"
+                                                            className="audio-play-btn"
+                                                            onClick={() => {
+                                                                const el = audioPlayerRefs.current[msg.id];
+                                                                if (el) {
+                                                                    if (activeAudioPlayingId === msg.id) {
+                                                                        el.pause();
+                                                                        setActiveAudioPlayingId(null);
+                                                                    } else {
+                                                                        Object.values(audioPlayerRefs.current).forEach(a => a && a.pause());
+                                                                        el.play().catch(err => console.error("Playback failed:", err));
+                                                                        setActiveAudioPlayingId(msg.id);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            title={activeAudioPlayingId === msg.id ? "Pause" : "Play Voice Message"}
+                                                        >
+                                                            {activeAudioPlayingId === msg.id ? <Pause size={18} /> : <Play size={18} style={{ marginLeft: '2px' }} />}
+                                                        </button>
+                                                        <div className="audio-info">
+                                                            <div
+                                                                className="audio-scrubber-track"
+                                                                onClick={(e) => {
+                                                                    const el = audioPlayerRefs.current[msg.id];
+                                                                    if (el) {
+                                                                        let clickDur = el.duration;
+                                                                        if (!clickDur || clickDur === Infinity || isNaN(clickDur)) {
+                                                                            clickDur = getAudioDurationFromFileName(msg.fileName);
+                                                                        }
+                                                                        if (clickDur) {
+                                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                                            const pos = (e.clientX - rect.left) / rect.width;
+                                                                            el.currentTime = pos * clickDur;
+                                                                        }
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    className="audio-scrubber-fill"
+                                                                    style={{ width: `${progressPercent}%` }}
+                                                                />
+                                                            </div>
+                                                            <div className="audio-time-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                                                <span>{formatAudioTime(curTime)} / {formatAudioTime(dur)}</span>
+                                                                <span>{msg.fileSize || 'Audio'}</span>
+                                                            </div>
+                                                            <audio
+                                                                ref={el => (audioPlayerRefs.current[msg.id] = el)}
+                                                                src={msg.audioUrl || msg.text}
+                                                                onTimeUpdate={() => {
+                                                                    setActiveAudioProgress(prev => ({ ...prev, [msg.id]: Date.now() }));
+                                                                }}
+                                                                onEnded={() => setActiveAudioPlayingId(null)}
+                                                                style={{ display: 'none' }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                             <span className="message-meta">
                                                 {msg.time}
                                                 {!msg.incoming && (
@@ -1639,42 +2821,77 @@ function Chat({
                         />
 
                         {/* Attachment Button */}
-                        <button className="input-action-btn" title="Attach files" onClick={triggerFileSelect}>
+                        <button className="input-action-btn" title="Attach files" onClick={triggerFileSelect} disabled={isRecordingVoice}>
                             <Paperclip size={20} />
                         </button>
 
-                        {/* Message input */}
-                        <textarea
-                            placeholder="Write a message..."
-                            className="message-textarea"
-                            rows="1"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                        />
+                        {isRecordingVoice ? (
+                            <div className="voice-recording-bar">
+                                <div className="rec-indicator">
+                                    <div className="rec-dot" />
+                                    <span className="rec-timer">
+                                        {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                                    </span>
+                                </div>
+                                <div className="rec-waveforms">
+                                    {[40, 70, 30, 90, 50, 80, 60, 100, 45, 65, 85, 35].map((h, i) => (
+                                        <div key={i} className="rec-wave-bar" style={{ animationDelay: `${i * 0.08}s`, height: `${h * 0.2}px` }} />
+                                    ))}
+                                </div>
+                                <button className="rec-cancel-btn" onClick={handleCancelVoiceRecording} title="Cancel recording">
+                                    <Trash2 size={18} />
+                                </button>
+                                <button className="rec-send-btn" onClick={handleSendVoiceRecording} title="Send voice message">
+                                    <Send size={16} />
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Message input */}
+                                <textarea
+                                    placeholder="Write a message..."
+                                    className="message-textarea"
+                                    rows="1"
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                />
 
-                        {/* Quick Emoji Reaction trigger */}
-                        <button
-                            className="input-action-btn"
-                            title="Add emoji"
-                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                        >
-                            <Smile size={20} />
-                        </button>
+                                {/* Quick Emoji Reaction trigger */}
+                                <button
+                                    className="input-action-btn"
+                                    title="Add emoji"
+                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                >
+                                    <Smile size={20} />
+                                </button>
 
-                        {/* Send Button */}
-                        <button
-                            className="send-btn"
-                            onClick={handleSendMessage}
-                            disabled={!inputValue.trim() && !attachedImage}
-                            title={editingMessageId ? "Update Message" : "Send Message"}
-                        >
-                            {editingMessageId ? (
-                                <Check size={18} color="var(--active-item-border)" />
-                            ) : (
-                                <Send size={18} />
-                            )}
-                        </button>
+                                {/* Send / Voice Record Button */}
+                                {inputValue.trim() || attachedImage ? (
+                                    <button
+                                        className="send-btn"
+                                        onClick={handleSendMessage}
+                                        title={editingMessageId ? "Update Message" : "Send Message"}
+                                    >
+                                        {editingMessageId ? (
+                                            <Check size={18} color="var(--active-item-border)" />
+                                        ) : (
+                                            <Send size={18} />
+                                        )}
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="input-action-btn"
+                                        title="Record voice message"
+                                        onClick={handleStartVoiceRecording}
+                                        style={{ color: 'var(--active-item-border)' }}
+                                    >
+                                        <Mic size={20} />
+                                    </button>
+                                )}
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -1688,41 +2905,131 @@ function Chat({
                     onCloseCreateGroupDirectly?.();
                 }}
                 onCreate={(groupDetails) => {
-                    const itemId = groupDetails.name.toLowerCase().replace(/\s+/g, '-');
                     const memberList = ['gs', ...groupDetails.members];
-                    const newGroupObj = {
-                        id: itemId,
-                        name: `${groupDetails.icon} ${groupDetails.name}`,
-                        subtitle: 'No messages yet',
-                        isClassroom: false,
-                        time: '',
-                        members: memberList
-                    };
+                    
+                    fetch('http://localhost:3000/chat/groups', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: groupDetails.name,
+                            description: groupDetails.topic || 'No messages yet',
+                            icon: groupDetails.icon || '👥',
+                            color: groupDetails.color || '#6366f1',
+                            memberIds: memberList
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(g => {
+                        const newGroupObj = {
+                            id: g.id,
+                            name: g.name,
+                            subtitle: g.description || 'No messages yet',
+                            isClassroom: false,
+                            time: '',
+                            icon: g.icon || '👥',
+                            color: g.color || '#6366f1',
+                            members: memberList
+                        };
 
-                    const memberNames = groupDetails.members.map(mId => USER_PROFILES[mId]?.name || mId);
-                    let joinedText = '';
-                    if (memberNames.length > 0) {
-                        if (memberNames.length === 1) {
-                            joinedText = `Gelila Sintayehu added ${memberNames[0]} to the group`;
-                        } else if (memberNames.length === 2) {
-                            joinedText = `Gelila Sintayehu added ${memberNames[0]} and ${memberNames[1]} to the group`;
-                        } else {
-                            const last = memberNames.pop();
-                            joinedText = `Gelila Sintayehu added ${memberNames.join(', ')}, and ${last} to the group`;
+                        const memberNames = groupDetails.members.map(mId => USER_PROFILES[mId]?.name || mId);
+                        let joinedText = '';
+                        if (memberNames.length > 0) {
+                            if (memberNames.length === 1) {
+                                joinedText = `Gelila Sintayehu added ${memberNames[0]} to the group`;
+                            } else if (memberNames.length === 2) {
+                                joinedText = `Gelila Sintayehu added ${memberNames[0]} and ${memberNames[1]} to the group`;
+                            } else {
+                                const last = memberNames.pop();
+                                joinedText = `Gelila Sintayehu added ${memberNames.join(', ')}, and ${last} to the group`;
+                            }
                         }
-                    }
 
-                    setStudyGroups(prev => [...prev, newGroupObj]);
-                    setMessagesByGroup(prev => ({
-                        ...prev,
-                        [itemId]: [
-                            { id: `sys-create-${Date.now()}`, type: 'system', text: `You created the study group "${groupDetails.name}"` },
-                            ...(joinedText ? [{ id: `sys-added-${Date.now()}`, type: 'system', text: joinedText }] : [])
-                        ]
-                    }));
-                    setActiveId(itemId);
-                    setShowAddModal({ open: false, type: 'group' });
-                    onCloseCreateGroupDirectly?.();
+                        // Emit WebSocket studyInvitation to all other invited members
+                        if (socketRef.current) {
+                            socketRef.current.emit('studyInvitation', {
+                                inviterId: 'gs',
+                                inviterName: 'Gelila Sintayehu',
+                                inviterInitials: 'GS',
+                                topicName: groupDetails.topic || 'StatefulWidget Lifecycle',
+                                categoryName: `${groupDetails.name} · Study Group`,
+                                invitedMembers: groupDetails.members,
+                                groupId: g.id
+                            });
+                        }
+
+                        // Auto-populate topics list inside this study group
+                        const topicId = (groupDetails.topic || 'StatefulWidget Lifecycle').toLowerCase().replace(/\s+/g, '-');
+                        
+                        // Persist general topic channel to DB
+                        fetch('http://localhost:3000/chat/groups', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: `${g.id}-general`,
+                                name: 'General',
+                                description: 'General chat room',
+                                icon: '#',
+                                color: '#64748b',
+                                memberIds: []
+                            })
+                        })
+                        .catch(err => console.error('Failed to create general topic:', err));
+
+                        // Persist initial custom topic channel to DB
+                        fetch('http://localhost:3000/chat/groups', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: `${g.id}-${topicId}`,
+                                name: groupDetails.topic || 'StatefulWidget Lifecycle',
+                                description: `Topic room for ${groupDetails.topic || 'StatefulWidget Lifecycle'}`,
+                                icon: (groupDetails.topic || 'StatefulWidget Lifecycle')[0].toUpperCase(),
+                                color: '#0d9488',
+                                memberIds: []
+                            })
+                        })
+                        .catch(err => console.error('Failed to create topic:', err));
+
+                        setTopicsByGroup(prev => ({
+                            ...prev,
+                            [g.id]: [
+                                { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General room', time: '' },
+                                { id: topicId, name: groupDetails.topic || 'StatefulWidget Lifecycle', icon: (groupDetails.topic || 'StatefulWidget Lifecycle')[0].toUpperCase(), color: '#0d9488', subtitle: 'Main topic', time: '' }
+                            ]
+                        }));
+
+                        setGroupMemberRoles(prev => {
+                            const updated = { ...prev };
+                            updated[`${g.id}-gs`] = 'OWNER';
+                            groupDetails.members.forEach(mId => {
+                                updated[`${g.id}-${mId}`] = 'MEMBER';
+                            });
+                            return updated;
+                        });
+
+                        setStudyGroups(prev => {
+                            if (prev.some(x => x.id === g.id)) return prev;
+                            return [...prev, newGroupObj];
+                        });
+                        setMessagesByGroup(prev => ({
+                            ...prev,
+                            [g.id]: [
+                                { id: `sys-create-${Date.now()}`, type: 'system', text: `You created the study group "${groupDetails.name}" with study topic "${groupDetails.topic || 'StatefulWidget Lifecycle'}"` },
+                                ...(joinedText ? [{ id: `sys-added-${Date.now()}`, type: 'system', text: joinedText }] : [])
+                            ]
+                        }));
+                        setActiveId(g.id);
+                        setSelectedGroupIdForTopics(g.id);
+                        setActiveTopicId(topicId);
+                        setShowAddModal({ open: false, type: 'group' });
+                        onCloseCreateGroupDirectly?.();
+                        // Show invitation confirmation immediately after group creation
+                        if (groupDetails.members && groupDetails.members.length > 0) {
+                            setCreatedTopicName(groupDetails.topic || groupDetails.name);
+                            setTimeout(() => setShowSendInvitationModal(true), 300);
+                        }
+                    })
+                    .catch(err => console.error('Failed to create study group:', err));
                 }}
             />
 
@@ -1784,6 +3091,17 @@ function Chat({
                         style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
                         <Reply size={16} /> Reply
+                    </button>
+                    <button
+                        className="context-menu-item"
+                        onClick={() => {
+                            handleTogglePinMessage(contextMenu.message);
+                            setContextMenu({ visible: false, x: 0, y: 0, message: null });
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        {contextMenu.message?.isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+                        {contextMenu.message?.isPinned ? 'Unpin Message' : 'Pin Message'}
                     </button>
                     <button
                         className="context-menu-item"
@@ -2012,9 +3330,61 @@ function Chat({
                                                     {user.online ? 'online' : 'offline'}
                                                 </span>
                                             </div>
-                                            <span className={`member-role-badge ${memberId === 'gs' ? 'owner' : ''}`}>
-                                                {memberId === 'gs' ? 'Owner' : 'Member'}
-                                            </span>
+                                            {(() => {
+                                                const role = groupMemberRoles[`${activeId}-${memberId}`] || (memberId === 'gs' ? 'OWNER' : 'MEMBER');
+                                                const myRole = groupMemberRoles[`${activeId}-gs`] || 'OWNER';
+                                                const roleText = role === 'OWNER' ? 'Owner' : (role === 'ADMIN' ? 'Admin' : 'Member');
+                                                const roleClass = role === 'OWNER' ? 'owner' : (role === 'ADMIN' ? 'admin' : 'member');
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span className={`member-role-badge ${roleClass}`}>
+                                                            {roleText}
+                                                        </span>
+                                                        {myRole === 'OWNER' && memberId !== 'gs' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleToggleAdminRole(memberId)}
+                                                                style={{
+                                                                    padding: '2px 6px',
+                                                                    fontSize: '10px',
+                                                                    borderRadius: '4px',
+                                                                    border: '1px solid var(--border-color)',
+                                                                    backgroundColor: role === 'ADMIN' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                                    color: role === 'ADMIN' ? '#ef4444' : '#10b981',
+                                                                    cursor: 'pointer',
+                                                                    fontWeight: '600',
+                                                                    marginRight: '4px'
+                                                                }}
+                                                            >
+                                                                {role === 'ADMIN' ? 'Demote' : 'Promote'}
+                                                            </button>
+                                                        )}
+                                                        {memberId !== 'gs' && (myRole === 'OWNER' || (myRole === 'ADMIN' && role !== 'OWNER')) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveMember(memberId)}
+                                                                style={{
+                                                                    padding: '2px 6px',
+                                                                    fontSize: '10px',
+                                                                    borderRadius: '4px',
+                                                                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                                                    color: '#ef4444',
+                                                                    cursor: 'pointer',
+                                                                    fontWeight: '600',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    gap: '2px'
+                                                                }}
+                                                                title="Remove Member"
+                                                            >
+                                                                <X size={11} /> Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     );
                                 }) : (
@@ -2253,66 +3623,79 @@ function Chat({
                 userProfiles={USER_PROFILES}
                 invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== 'gs') : ['at', 'yb']}
                 onCreate={(topicName) => {
-                    setCreatedTopicName(topicName);
-                    setShowSendInvitationModal(true);
+                    const topicId = topicName.toLowerCase().replace(/\s+/g, '-');
+                    const targetGroupKey = selectedGroupIdForTopics || activeId;
+
+                    fetch('http://localhost:3000/chat/groups', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: `${targetGroupKey}-${topicId}`,
+                            name: topicName,
+                            description: `Topic room for ${topicName}`,
+                            icon: '#',
+                            color: '#0d9488',
+                            memberIds: []
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(group => {
+                        const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        setTopicsByGroup(prev => {
+                            const currentTopics = prev[targetGroupKey] || [];
+                            if (currentTopics.some(t => t.id === topicId)) return prev;
+                            return {
+                                ...prev,
+                                [targetGroupKey]: [
+                                    ...currentTopics,
+                                    { id: topicId, name: topicName, icon: topicName[0].toUpperCase(), color: '#0d9488', subtitle: 'Topic created', time: timeString }
+                                ]
+                            };
+                        });
+                        setMessagesByGroup(prev => ({
+                            ...prev,
+                            [`${targetGroupKey}-${topicId}`]: [
+                                { id: `sys-topic-${Date.now()}`, type: 'system', text: `Topic "${topicName}" created` }
+                            ]
+                        }));
+                        setActiveTopicId(topicId);
+                        setCreatedTopicName(topicName);
+                        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                        setToastMessage(`Topic "${topicName}" created!`);
+                        toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2500);
+                    })
+                    .catch(err => console.error('Failed to persist topic:', err));
                 }}
             />
 
-            {/* Send Invitation Modal */}
+            {/* Send Invitation Modal — shown after group creation confirm */}
             <SendInvitation
                 isOpen={showSendInvitationModal}
                 onClose={() => setShowSendInvitationModal(false)}
                 topicName={createdTopicName}
-                invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== 'gs') : ['at', 'yb']}
+                invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== 'gs') : []}
                 userProfiles={USER_PROFILES}
-                onSend={(topicName) => {
-                    const topicId = topicName.toLowerCase().replace(/\s+/g, '-');
-                    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                    const targetGroupKey = selectedGroupIdForTopics || activeId;
-                    setTopicsByGroup(prev => ({
-                        ...prev,
-                        [targetGroupKey]: [
-                            ...(prev[targetGroupKey] || []),
-                            { id: topicId, name: topicName, icon: topicName[0].toUpperCase(), color: '#0d9488', subtitle: 'Topic created', time: timeString }
-                        ]
-                    }));
-
-                    setMessagesByGroup(prev => ({
-                        ...prev,
-                        [`${targetGroupKey}-${topicId}`]: [
-                            { id: `sys-topic-${Date.now()}`, type: 'system', text: `Gelila Sintayehu created the study topic: "${topicName}" and sent invitations!` }
-                        ]
-                    }));
-
-                    setActiveTopicId(topicId);
-
-                    if (toastTimeoutRef.current) {
-                        clearTimeout(toastTimeoutRef.current);
-                    }
-                    setToastMessage(`Invitations sent for topic: "${topicName}"!`);
-                    toastTimeoutRef.current = setTimeout(() => {
-                        setToastMessage(null);
-                    }, 3000);
-
-                    // Simulate receiving an incoming invitation pop out
-                    setTimeout(() => {
-                        setShowStudyInvitationModal(true);
-                    }, 1200);
+                onSend={() => {
+                    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                    setToastMessage(`Group invitations sent!`);
+                    toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
                 }}
             />
 
             {/* Incoming Study Invitation Modal */}
             <StudyInvitation
-                isOpen={showStudyInvitationModal}
-                onClose={() => setShowStudyInvitationModal(false)}
-                inviterName="Gelila Sintayehu"
-                inviterInitials="GS"
-                topicName={createdTopicName || "StatefulWidget Lifecycle"}
-                categoryName="Flutter · Widget Structure"
+                isOpen={invitationData.isOpen}
+                onClose={() => setInvitationData(prev => ({ ...prev, isOpen: false }))}
+                inviterName={invitationData.inviterName}
+                inviterInitials={invitationData.inviterInitials}
+                topicName={invitationData.topicName}
+                categoryName={invitationData.categoryName}
                 onJoin={() => {
+                    setActiveId(invitationData.groupId);
+                    setSelectedGroupIdForTopics(invitationData.groupId);
+                    setActiveTopicId('general');
                     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-                    setToastMessage(`Joined study session: "${createdTopicName || 'StatefulWidget Lifecycle'}"!`);
+                    setToastMessage(`Joined study session: "${invitationData.topicName}"!`);
                     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
                 }}
                 onDecline={() => {

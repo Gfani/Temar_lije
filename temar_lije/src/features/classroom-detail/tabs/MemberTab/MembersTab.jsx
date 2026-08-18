@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Moon, Plus, Users, Code, Sparkles, ArrowLeft, Trash2 } from 'lucide-react';
 import './membersTab.css';
 import Chat from '../../../chat/chat.jsx';
+import { API_BASE_URL } from '../../../../config/constants';
 
 export default function MembersTab({ darkMode, setDarkMode }) {
   const [activeTab, setActiveTab] = useState('Members');
@@ -11,7 +12,7 @@ export default function MembersTab({ darkMode, setDarkMode }) {
   const tabs = ['Members', 'Study Groups'];
 
   useEffect(() => {
-    fetch('http://localhost:3000/chat/groups')
+    fetch(`${API_BASE_URL}/chat/groups`)
       .then(res => res.json())
       .then(data => {
         if (data && Array.isArray(data)) {
@@ -38,7 +39,7 @@ export default function MembersTab({ darkMode, setDarkMode }) {
   const handleDeleteGroup = (groupId, e) => {
     if (e) e.stopPropagation();
     if (window.confirm('Are you sure you want to delete this study group?')) {
-      fetch(`http://localhost:3000/chat/groups/${groupId}`, {
+      fetch(`${API_BASE_URL}/chat/groups/${groupId}`, {
         method: 'DELETE'
       })
       .then(() => {

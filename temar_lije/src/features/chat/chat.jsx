@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare, Phone, Mic, MicOff, Volume2, LogOut, Pin, PinOff, Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
 import './chat.css';
 import { io } from 'socket.io-client';
+import { API_BASE_URL } from '../../config/constants';
 import CreateGroup from '../../components/layout/create_group/create_group';
 import AddMember from '../../components/layout/add_member/add_member';
 import Topic from '../../components/layout/topic/topic';
@@ -103,7 +104,7 @@ function Chat({
         const currentRole = groupMemberRoles[`${activeId}-${memberId}`] || 'MEMBER';
         const newRole = currentRole === 'ADMIN' ? 'MEMBER' : 'ADMIN';
         
-        fetch(`http://localhost:3000/chat/groups/${activeId}/members/${memberId}/role`, {
+        fetch(`${API_BASE_URL}/chat/groups/${activeId}/members/${memberId}/role`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role: newRole })
@@ -366,7 +367,7 @@ function Chat({
 
             let audioUrl = '';
             try {
-                const res = await fetch('http://localhost:3000/chat/upload', {
+                const res = await fetch(`${API_BASE_URL}/chat/upload`, {
                     method: 'POST',
                     body: formData
                 });
@@ -424,7 +425,7 @@ function Chat({
     const handleTogglePinMessage = (msg) => {
         if (!msg) return;
         const newPinned = !msg.isPinned;
-        fetch(`http://localhost:3000/chat/messages/${msg.id}/pin`, {
+        fetch(`${API_BASE_URL}/chat/messages/${msg.id}/pin`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ isPinned: newPinned })
@@ -505,7 +506,7 @@ function Chat({
 
     // Initialize socket connection and load groups
     useEffect(() => {
-        socketRef.current = io('http://localhost:3000');
+        socketRef.current = io(API_BASE_URL);
 
         socketRef.current.on('newMessage', (msg) => {
             const mappedMsg = {
@@ -713,7 +714,7 @@ function Chat({
         });
 
         // Fetch persisted study groups
-        fetch('http://localhost:3000/chat/groups')
+        fetch(`${API_BASE_URL}/chat/groups`)
             .then(res => res.json())
             .then(data => {
                 if (data && Array.isArray(data)) {
@@ -801,7 +802,7 @@ function Chat({
             avatarBg: '#3b82f6'
         });
 
-        fetch(`http://localhost:3000/chat/history/${roomId}`)
+        fetch(`${API_BASE_URL}/chat/history/${roomId}`)
             .then(res => res.json())
             .then(data => {
                 if (data && Array.isArray(data)) {
@@ -821,7 +822,8 @@ function Chat({
                         fileSize: msg.fileSize,
                         fileIcon: msg.fileIcon,
                         isPinned: msg.isPinned || false,
-                        audioUrl: msg.type === 'audio' ? (msg.audioUrl || msg.text) : undefined
+                        audioUrl: msg.type === 'audio' ? (msg.audioUrl || msg.text) : undefined,
+                        replyTo: msg.replyTo || undefined
                     }));
                     
                     setMessagesByGroup(prev => ({
@@ -994,7 +996,7 @@ function Chat({
                 formData.append('file', file);
                 let fileUrl = null;
                 try {
-                    const res = await fetch('http://localhost:3000/chat/upload', {
+                    const res = await fetch(`${API_BASE_URL}/chat/upload`, {
                         method: 'POST',
                         body: formData
                     });
@@ -1066,7 +1068,7 @@ function Chat({
 
                 let serverUrl = null;
                 try {
-                    const res = await fetch('http://localhost:3000/chat/upload', {
+                    const res = await fetch(`${API_BASE_URL}/chat/upload`, {
                         method: 'POST',
                         body: formData
                     });
@@ -1282,7 +1284,7 @@ function Chat({
     const handleDeleteGroup = (groupId, e) => {
         if (e) e.stopPropagation();
         if (window.confirm('Are you sure you want to delete this study group?')) {
-            fetch(`http://localhost:3000/chat/groups/${groupId}`, {
+            fetch(`${API_BASE_URL}/chat/groups/${groupId}`, {
                 method: 'DELETE'
             })
             .catch(err => console.error('Failed to delete group:', err));
@@ -1293,7 +1295,7 @@ function Chat({
     const handleDeleteTopic = (groupId, topicId, e) => {
         if (e) e.stopPropagation();
         if (window.confirm(`Are you sure you want to delete the topic "${topicId}"?`)) {
-            fetch(`http://localhost:3000/chat/groups/${groupId}-${topicId}`, {
+            fetch(`${API_BASE_URL}/chat/groups/${groupId}-${topicId}`, {
                 method: 'DELETE'
             })
             .catch(err => console.error('Failed to delete topic:', err));
@@ -1303,7 +1305,7 @@ function Chat({
     // Handle removing a member from group
     const handleRemoveMember = (memberId) => {
         if (window.confirm(`Are you sure you want to remove ${USER_PROFILES[memberId]?.name || memberId} from this group?`)) {
-            fetch(`http://localhost:3000/chat/groups/${activeId}/members/${memberId}`, {
+            fetch(`${API_BASE_URL}/chat/groups/${activeId}/members/${memberId}`, {
                 method: 'DELETE'
             })
             .then(res => {
@@ -1647,7 +1649,7 @@ function Chat({
             setActiveTopicId('general');
             setActiveId(tempId);
 
-            fetch('http://localhost:3000/chat/groups', {
+            fetch(`${API_BASE_URL}/chat/groups`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1660,7 +1662,7 @@ function Chat({
             .then(res => res.json())
             .then(group => {
                 // Pre-persist general topic channel
-                fetch('http://localhost:3000/chat/groups', {
+                fetch(`${API_BASE_URL}/chat/groups`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -2907,7 +2909,7 @@ function Chat({
                 onCreate={(groupDetails) => {
                     const memberList = ['gs', ...groupDetails.members];
                     
-                    fetch('http://localhost:3000/chat/groups', {
+                    fetch(`${API_BASE_URL}/chat/groups`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -2961,7 +2963,7 @@ function Chat({
                         const topicId = (groupDetails.topic || 'StatefulWidget Lifecycle').toLowerCase().replace(/\s+/g, '-');
                         
                         // Persist general topic channel to DB
-                        fetch('http://localhost:3000/chat/groups', {
+                        fetch(`${API_BASE_URL}/chat/groups`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -2976,7 +2978,7 @@ function Chat({
                         .catch(err => console.error('Failed to create general topic:', err));
 
                         // Persist initial custom topic channel to DB
-                        fetch('http://localhost:3000/chat/groups', {
+                        fetch(`${API_BASE_URL}/chat/groups`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -3626,7 +3628,7 @@ function Chat({
                     const topicId = topicName.toLowerCase().replace(/\s+/g, '-');
                     const targetGroupKey = selectedGroupIdForTopics || activeId;
 
-                    fetch('http://localhost:3000/chat/groups', {
+                    fetch(`${API_BASE_URL}/chat/groups`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

@@ -87,23 +87,28 @@ export class ChatGateway {
 
   @SubscribeMessage('joinVoiceChat')
   async handleJoinVoiceChat(
+    @ConnectedSocket() client: Socket,
     @MessageBody() data: any,
   ) {
-    this.server.emit('voiceChatUserJoined', data);
+    if (!data?.groupId) return;
+    client.join(data.groupId);
+    this.server.to(data.groupId).emit('voiceChatUserJoined', data);
   }
 
   @SubscribeMessage('leaveVoiceChat')
   async handleLeaveVoiceChat(
     @MessageBody() data: any,
   ) {
-    this.server.emit('voiceChatUserLeft', data);
+    if (!data?.groupId) return;
+    this.server.to(data.groupId).emit('voiceChatUserLeft', data);
   }
 
   @SubscribeMessage('toggleMuteVoice')
   async handleToggleMuteVoice(
     @MessageBody() data: any,
   ) {
-    this.server.emit('voiceChatUserMuteToggled', data);
+    if (!data?.groupId) return;
+    this.server.to(data.groupId).emit('voiceChatUserMuteToggled', data);
   }
 
   broadcastGroupDeleted(groupId: string) {

@@ -94,13 +94,17 @@ export class ChatService {
   }
 
   async getChatHistory(groupId: string) {
-    return this.db.message.findMany({
+    const messages = await this.db.message.findMany({
       where: { groupId },
       orderBy: { createdAt: 'asc' },
       include: {
         sender: true,
       },
     });
+
+    await this.attachReplies(messages);
+
+    return messages;
   }
 
   async saveMessage(groupId: string, senderId: string, data: any) {
@@ -146,7 +150,7 @@ export class ChatService {
 
     await this.ensureUserExists(senderId);
 
-    return this.db.message.create({
+    const savedMessage = await this.db.message.create({
       data: {
         text: data.text,
         image: data.image,
@@ -167,6 +171,37 @@ export class ChatService {
         sender: true,
       },
     });
+
+    if (savedMessage.replyToId) {
+      await this.attachReplies([savedMessage]);
+    }
+
+    return savedMessage;
+  }
+
+  private async attachReplies(messages: any[]) {
+    const replyIds = messages
+      .map((m) => m.replyToId)
+      .filter(Boolean);
+
+    if (replyIds.length === 0) return;
+
+    const replies = await this.db.message.findMany({
+      where: { id: { in: replyIds } },
+      include: { sender: true },
+    });
+    const replyMap = new Map(replies.map((r) => [r.id, r]));
+
+    for (const message of messages) {
+      const reply = replyMap.get(message.replyToId);
+      if (reply) {
+        message.replyTo = {
+          id: reply.id,
+          text: reply.text,
+          sender: reply.sender?.name || reply.senderId,
+        };
+      }
+    }
   }
 
   async togglePinMessage(messageId: string, isPinned: boolean) {

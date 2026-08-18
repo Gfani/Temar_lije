@@ -15,6 +15,8 @@ function MainApp() {
   });
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [initialEmail, setInitialEmail] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
 
   useEffect(() => {
     if (darkMode) {
@@ -33,16 +35,21 @@ function MainApp() {
 
   const handleSignIn = async ({ email, password }) => {
     await login({ email, password });
+    setAuthNotice('');
     setCurrentScreen('classrooms');
   };
 
   const handleCreateAccount = async ({ fullName, role, email, password }) => {
-    await register({ fullName, role, email, password });
-    setCurrentScreen('classrooms');
+    // Register without auto-login so user gets redirected to sign-in page
+    await register({ fullName, role, email, password, autoLogin: false });
+    setInitialEmail(email);
+    setAuthNotice('Account created successfully! Please sign in with your credentials.');
+    setCurrentScreen('signin');
   };
 
   const handleLogout = async () => {
     await logout();
+    setAuthNotice('');
     setCurrentScreen('landing');
   };
 
@@ -58,9 +65,18 @@ function MainApp() {
     <div>
       {currentScreen === 'landing' && (
         <Landingpage 
-          onSignIn={() => setCurrentScreen('signin')} 
-          onStartTeaching={() => setCurrentScreen('signin')}
-          onJoinClass={() => setCurrentScreen('signin')}
+          onSignIn={() => {
+            setAuthNotice('');
+            setCurrentScreen('signin');
+          }} 
+          onStartTeaching={() => {
+            setAuthNotice('');
+            setCurrentScreen('signin');
+          }}
+          onJoinClass={() => {
+            setAuthNotice('');
+            setCurrentScreen('signin');
+          }}
         />
       )}
 
@@ -69,7 +85,12 @@ function MainApp() {
           onSignIn={handleSignIn}
           onGoogleSignIn={() => setCurrentScreen('classrooms')}
           onBackToLanding={() => setCurrentScreen('landing')} 
-          onSwitchToCreateAccount={() => setCurrentScreen('create_account')}
+          onSwitchToCreateAccount={() => {
+            setAuthNotice('');
+            setCurrentScreen('create_account');
+          }}
+          initialEmail={initialEmail}
+          noticeMessage={authNotice}
         />
       )}
 
@@ -77,7 +98,10 @@ function MainApp() {
         <CreateAccountPage 
           onCreateAccount={handleCreateAccount}
           onGoogleSignIn={() => setCurrentScreen('classrooms')}
-          onSwitchToSignIn={() => setCurrentScreen('signin')} 
+          onSwitchToSignIn={() => {
+            setAuthNotice('');
+            setCurrentScreen('signin');
+          }} 
         />
       )}
 

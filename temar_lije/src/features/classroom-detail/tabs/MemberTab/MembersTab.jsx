@@ -1,21 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Moon, Plus, Users, Code, Sparkles, ArrowLeft, Trash2 } from 'lucide-react';
+import { Search, Plus, Users, Code, Sparkles, Trash2 } from 'lucide-react';
 import './membersTab.css';
 import Chat from '../../../chat/chat.jsx';
 import { API_BASE_URL } from '../../../../config/constants';
 import { useAuth } from '../../../../context/AuthContext';
+import CreateGroup from '../../../../components/layout/create_group/create_group.jsx';
 
-export default function MembersTab({ darkMode, setDarkMode }) {
-  const { accessToken } = useAuth();
-  const authHeaders = { Authorization: `Bearer ${accessToken}` };
+// Static classroom roster (mock — no classroom-members API exists).
+// The authenticated user is injected at render time from useAuth() and
+// keyed by id, so the (you) badge can only ever match their account.
+const ONLINE_CLASSMATES = [
+  { id: 'mock-at', name: 'Abebe Tadesse', initials: 'AT', avatarClass: 'at-bg' },
+  { id: 'mock-yb', name: 'Yonas Bekele', initials: 'YB', avatarClass: 'yb-bg' },
+  { id: 'mock-ta', name: 'Tigist Alemu', initials: 'TA', avatarClass: 'ta-bg' },
+  { id: 'mock-ht', name: 'Hana Tesfaye', initials: 'HT', avatarClass: 'ht-bg' },
+];
+
+const OFFLINE_CLASSMATES = [
+  { id: 'mock-mh', name: 'Meron Haile', initials: 'MH', avatarClass: 'mh-bg', status: 'last seen 2h ago' },
+  { id: 'mock-dg', name: 'Dawit Girma', initials: 'DG', avatarClass: 'dg-bg', status: 'last seen 1d ago' },
+];
+
+export default function MembersTab({ darkMode, setDarkMode, classroom, currentUser }) {
+  const { user, accessToken } = useAuth();
+  const classroomId = classroom?.id || classroom?.code || 'flutter';
+  const effectiveUserId = user?.id || currentUser?.id || 'gs';
+  const effectiveUserName = user?.fullName || currentUser?.name || 'Sara Gebremedhin';
+  const currentUserInitials = user?.initials
+    || currentUser?.initials
+    || (effectiveUserName || '').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase()
+    || 'U';
+
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [studyGroups, setStudyGroups] = useState([]);
   const tabs = ['Members', 'Study Groups'];
 
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/chat/groups`, { headers: authHeaders })
+  const fetchStudyGroups = () => {
+    const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+    fetch(`${API_BASE_URL}/chat/groups?classroomId=${encodeURIComponent(classroomId)}`, { headers })
       .then(res => res.json())
       .then(data => {
         if (data && Array.isArray(data)) {
@@ -29,7 +53,7 @@ export default function MembersTab({ darkMode, setDarkMode }) {
             subtitle: g.description || 'No messages yet',
             isClassroom: false,
             time: '',
-            icon: g.icon || '👥',
+            icon: g.icon || '📚',
             color: g.color || '#8b5cf6',
             members: g.members?.map(m => m.userId) || []
           }));
@@ -37,14 +61,93 @@ export default function MembersTab({ darkMode, setDarkMode }) {
         }
       })
       .catch(err => console.error('Failed to load study groups in MembersTab:', err));
-  }, []);
+  };
+
+  useEffect(() => {
+    fetchStudyGroups();
+  }, [classroomId, accessToken]);
+
+  const handleCreateGroup = (groupDetails) => {
+    const memberList = [effectiveUserId, ...(groupDetails.members || [])];
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+    };
+
+    fetch(`${API_BASE_URL}/chat/groups`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name: groupDetails.name,
+        description: groupDetails.topic || 'No messages yet',
+        icon: groupDetails.icon || '📚',
+        color: groupDetails.color || '#6366f1',
+        classroomId: classroomId,
+        memberIds: memberList
+      })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`Create group failed (${res.status})`);
+        return res.json();
+      })
+      .then(g => {
+        const newGroupObj = {
+          id: g.id,
+          name: g.name,
+          subtitle: g.description || 'No messages yet',
+          isClassroom: false,
+          time: '',
+          icon: g.icon || '📚',
+          color: g.color || '#6366f1',
+          members: memberList
+        };
+
+        // Create initial topic channels for this group
+        const topicId = (groupDetails.topic || 'StatefulWidget Lifecycle').toLowerCase().replace(/\s+/g, '-');
+        fetch(`${API_BASE_URL}/chat/groups`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            id: `${g.id}-general`,
+            name: 'General',
+            description: 'General chat room',
+            icon: '#',
+            color: '#64748b',
+            classroomId,
+            memberIds: []
+          })
+        }).catch(() => {});
+
+        fetch(`${API_BASE_URL}/chat/groups`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            id: `${g.id}-${topicId}`,
+            name: groupDetails.topic || 'StatefulWidget Lifecycle',
+            description: `Topic room for ${groupDetails.topic || 'StatefulWidget Lifecycle'}`,
+            icon: (groupDetails.topic || 'S').charAt(0).toUpperCase(),
+            color: '#0d9488',
+            classroomId,
+            memberIds: []
+          })
+        }).catch(() => {});
+
+        setStudyGroups(prev => [...prev.filter(item => item.id !== g.id), newGroupObj]);
+        setShowCreateGroup(false);
+        setSelectedGroupId(g.id);
+      })
+      .catch(err => {
+        console.error('Failed to create group in MembersTab:', err);
+      });
+  };
 
   const handleDeleteGroup = (groupId, e) => {
     if (e) e.stopPropagation();
     if (window.confirm('Are you sure you want to delete this study group?')) {
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
       fetch(`${API_BASE_URL}/chat/groups/${groupId}`, {
         method: 'DELETE',
-        headers: authHeaders
+        headers
       })
       .then(() => {
         setStudyGroups(prev => prev.filter(g => g.id !== groupId));
@@ -62,9 +165,9 @@ export default function MembersTab({ darkMode, setDarkMode }) {
       <aside className="sidebar-container">
         <div className="sidebar-profile">
           <div className="sidebar-user">
-            <div className="user-avatar-circle">GS</div>
+            <div className="user-avatar-circle">{currentUserInitials}</div>
             <div className="user-text">
-              <span className="user-name-text">Gelila Sintayehu</span>
+              <span className="user-name-text">{user?.fullName || currentUser?.name || 'You'}</span>
               <span className="user-status-text">
                 <span className="online-indicator-dot"></span> online
               </span>
@@ -91,7 +194,7 @@ export default function MembersTab({ darkMode, setDarkMode }) {
             </div>
             <div className="item-content">
               <div className="item-title-row">
-                <span className="item-title">Flutter</span>
+                <span className="item-title">{classroom?.title || 'Flutter'}</span>
                 <span className="item-time">1:56 PM</span>
               </div>
               <p className="item-subtitle">Samuel: Post your lifecycle qu...</p>
@@ -121,10 +224,8 @@ export default function MembersTab({ darkMode, setDarkMode }) {
             <button 
               type="button" 
               className="add-group-btn"
-              onClick={() => {
-                setSelectedGroupId('widget-kings');
-                setShowCreateGroup(true);
-              }}
+              onClick={() => setShowCreateGroup(true)}
+              title="Create new study group"
             >
               <Plus size={16} />
             </button>
@@ -172,19 +273,18 @@ export default function MembersTab({ darkMode, setDarkMode }) {
 
       {/* Main Content Area */}
       <main className="main-classroom-area" style={selectedGroupId !== null ? { overflow: 'hidden' } : {}}>
-        {selectedGroupId !== null ?
+        {selectedGroupId !== null ? (
           <Chat 
             hideSidebar={true} 
             activeId={selectedGroupId} 
             setActiveId={setSelectedGroupId} 
-            showCreateGroupDirectly={showCreateGroup} 
-            onCloseCreateGroupDirectly={() => setShowCreateGroup(false)}
+            classroomId={classroomId}
             studyGroups={studyGroups}
             setStudyGroups={setStudyGroups}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
           />
-         : 
+        ) : (
           <>
             {/* Classroom Title Header */}
             <header className="classroom-header-bar">
@@ -192,176 +292,151 @@ export default function MembersTab({ darkMode, setDarkMode }) {
                 <Code size={20} />
               </div>
               <div className="classroom-header-info">
-                <h1 className="classroom-title-text">Flutter</h1>
-                <p className="classroom-subtitle-text">Widget • widget structure</p>
+                <h1 className="classroom-title-text">{classroom?.title || 'Flutter'}</h1>
+                <p className="classroom-subtitle-text">{classroom?.subject || 'Widget • widget structure'}</p>
               </div>
             </header>
 
-        {/* Tab Sub-navigation */}
-        <nav className="classroom-tabs-navigation">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              className={`nav-tab-button ${tab === activeTab ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab}
-            </button>
-          ))}
-        </nav>
-
-        {/* Tab Content Area */}
-        <div className="classroom-tab-content">
-          {activeTab === 'Members' && (
-            <div className="members-tab-view">
-              {/* Start a Study Group Banner */}
-              <div className="study-group-banner">
-                <div className="banner-left">
-                  <div className="banner-icon-circle">
-                    <Users size={20} />
-                  </div>
-                  <div className="banner-text">
-                    <h3 className="banner-title">Start a Study Group</h3>
-                    <p className="banner-desc">Create a private group chat for assignments, projects, or peer study.</p>
-                  </div>
-                </div>
-                <button 
-                  type="button" 
-                  className="new-group-action-btn" 
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  onClick={() => {
-                    setSelectedGroupId('widget-kings');
-                    setShowCreateGroup(true);
-                  }}
+            {/* Tab Sub-navigation */}
+            <nav className="classroom-tabs-navigation">
+              {tabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={`nav-tab-button ${tab === activeTab ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab)}
                 >
-                  <Plus size={16} /> New Group
+                  {tab}
                 </button>
-              </div>
+              ))}
+            </nav>
 
-              {/* Teachers Section */}
-              <section className="members-section">
-                <h4 className="section-title">TEACHERS (1)</h4>
-                <div className="member-card-row">
-                  <div className="member-avatar sm-bg">SM</div>
-                  <div className="member-details">
-                    <div className="member-name-row">
-                      <span className="member-name-text">Samuel Mekonnen</span>
-                      <span className="teacher-badge-label">Teacher</span>
-                    </div>
-                    <span className="member-status-text">
-                      <span className="online-indicator-dot"></span> online now
-                    </span>
-                  </div>
-                </div>
-              </section>
-
-              {/* Students Online Section */}
-              <section className="members-section">
-                <h4 className="section-title">STUDENTS • ONLINE (5)</h4>
-                <div className="members-list-stack">
-                  <div className="member-card-row">
-                    <div className="member-avatar gs-bg">GS</div>
-                    <div className="member-details">
-                      <div className="member-name-row">
-                        <span className="member-name-text">Gelila Sintayehu</span>
-                        <span className="you-badge-label">(you)</span>
+            {/* Tab Content Area */}
+            <div className="classroom-tab-content">
+              {activeTab === 'Members' && (
+                <div className="members-tab-view">
+                  {/* Start a Study Group Banner */}
+                  <div className="study-group-banner">
+                    <div className="banner-left">
+                      <div className="banner-icon-circle">
+                        <Users size={20} />
                       </div>
-                      <span className="member-status-text">
-                        <span className="online-indicator-dot"></span> online now
-                      </span>
+                      <div className="banner-text">
+                        <h3 className="banner-title">Start a Study Group</h3>
+                        <p className="banner-desc">Create a private group chat for assignments, projects, or peer study.</p>
+                      </div>
                     </div>
+                    <button 
+                      type="button" 
+                      className="new-group-action-btn" 
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      onClick={() => setShowCreateGroup(true)}
+                    >
+                      <Plus size={16} /> New Group
+                    </button>
                   </div>
 
-                  <div className="member-card-row">
-                    <div className="member-avatar at-bg">AT</div>
-                    <div className="member-details">
-                      <span className="member-name-text">Abebe Tadesse</span>
-                      <span className="member-status-text">
-                        <span className="online-indicator-dot"></span> online now
-                      </span>
+                  {/* Teachers Section */}
+                  <section className="members-section">
+                    <h4 className="section-title">TEACHERS (1)</h4>
+                    <div className="member-card-row">
+                      <div className="member-avatar sm-bg">SM</div>
+                      <div className="member-details">
+                        <div className="member-name-row">
+                          <span className="member-name-text">Samuel Mekonnen</span>
+                          <span className="teacher-badge-label">Teacher</span>
+                        </div>
+                        <span className="member-status-text">
+                          <span className="online-indicator-dot"></span> online now
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </section>
 
-                  <div className="member-card-row">
-                    <div className="member-avatar yb-bg">YB</div>
-                    <div className="member-details">
-                      <span className="member-name-text">Yonas Bekele</span>
-                      <span className="member-status-text">
-                        <span className="online-indicator-dot"></span> online now
-                      </span>
+                  {/* Students Online Section */}
+                  <section className="members-section">
+                    <h4 className="section-title">STUDENTS • ONLINE ({ONLINE_CLASSMATES.length + 1})</h4>
+                    <div className="members-list-stack">
+                      {[
+                        {
+                          id: user?.id || 'anonymous',
+                          name: user?.fullName || currentUser?.name || 'You',
+                          initials: currentUserInitials,
+                          avatarClass: 'gs-bg',
+                        },
+                        ...ONLINE_CLASSMATES,
+                      ].map((member) => (
+                        <div className="member-card-row" key={member.id}>
+                          <div className={`member-avatar ${member.avatarClass}`}>{member.initials}</div>
+                          <div className="member-details">
+                            <div className="member-name-row">
+                              <span className="member-name-text">{member.name}</span>
+                              {(member.id === user?.id || (member.name === (user?.fullName || currentUser?.name))) && (
+                                <span className="you-badge-label">(you)</span>
+                              )}
+                            </div>
+                            <span className="member-status-text">
+                              <span className="online-indicator-dot"></span> online now
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  </section>
 
-                  <div className="member-card-row">
-                    <div className="member-avatar ta-bg">TA</div>
-                    <div className="member-details">
-                      <span className="member-name-text">Tigist Alemu</span>
-                      <span className="member-status-text">
-                        <span className="online-indicator-dot"></span> online now
-                      </span>
+                  {/* Students Offline Section */}
+                  <section className="members-section">
+                    <h4 className="section-title">STUDENTS • OFFLINE ({OFFLINE_CLASSMATES.length})</h4>
+                    <div className="members-list-stack">
+                      {OFFLINE_CLASSMATES.map((member) => (
+                        <div className="member-card-row offline" key={member.id}>
+                          <div className={`member-avatar ${member.avatarClass}`}>{member.initials}</div>
+                          <div className="member-details">
+                            <span className="member-name-text">{member.name}</span>
+                            <span className="member-status-text">
+                              <span className="offline-indicator-dot"></span> {member.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  </section>
+                </div>
+              )}
 
-                  <div className="member-card-row">
-                    <div className="member-avatar ht-bg">HT</div>
-                    <div className="member-details">
-                      <span className="member-name-text">Hana Tesfaye</span>
-                      <span className="member-status-text">
-                        <span className="online-indicator-dot"></span> online now
-                      </span>
+              {activeTab === 'Study Groups' && (
+                <div className="members-tab-view">
+                  <div className="study-group-banner">
+                    <div className="banner-left">
+                      <div className="banner-icon-circle">
+                        <Sparkles size={20} />
+                      </div>
+                      <div className="banner-text">
+                        <h3 className="banner-title">Classroom Study Groups</h3>
+                        <p className="banner-desc">Select a study group from the sidebar to start collaborating.</p>
+                      </div>
                     </div>
+                    <button 
+                      type="button" 
+                      className="new-group-action-btn" 
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      onClick={() => setShowCreateGroup(true)}
+                    >
+                      <Plus size={16} /> New Group
+                    </button>
                   </div>
                 </div>
-              </section>
-
-              {/* Students Offline Section */}
-              <section className="members-section">
-                <h4 className="section-title">STUDENTS • OFFLINE (2)</h4>
-                <div className="members-list-stack">
-                  <div className="member-card-row offline">
-                    <div className="member-avatar mh-bg">MH</div>
-                    <div className="member-details">
-                      <span className="member-name-text">Meron Haile</span>
-                      <span className="member-status-text">
-                        <span className="offline-indicator-dot"></span> last seen 2h ago
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="member-card-row offline">
-                    <div className="member-avatar dg-bg">DG</div>
-                    <div className="member-details">
-                      <span className="member-name-text">Dawit Girma</span>
-                      <span className="member-status-text">
-                        <span className="offline-indicator-dot"></span> last seen 1d ago
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </section>
+              )}
             </div>
-          )}
+          </>
+        )}
+      </main>
 
-          {activeTab === 'Study Groups' && (
-            <div className="members-tab-view">
-              <div className="study-group-banner">
-                <div className="banner-left">
-                  <div className="banner-icon-circle">
-                    <Sparkles size={20} />
-                  </div>
-                  <div className="banner-text">
-                    <h3 className="banner-title">Widget Kings 👑</h3>
-                    <p className="banner-desc">4 members • Active peer study group for Flutter assignments.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </>
-    }
-  </main>
+      <CreateGroup
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        onCreate={handleCreateGroup}
+      />
     </div>
   );
 }

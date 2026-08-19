@@ -20,17 +20,20 @@ export class ChatService {
     });
 
     if (existing) {
-      const derivedName = existing.name || existing.fullName || name || `User ${userId}`;
+      const derivedName = existing.fullName || existing.name || name || `User ${userId}`;
+      const derivedInitials = this._deriveInitials(derivedName);
+      const needsReconcile =
+        existing.name !== derivedName ||
+        existing.initials !== derivedInitials ||
+        !existing.avatarBg;
 
-      if (!existing.name || !existing.initials || !existing.avatarBg) {
+      if (needsReconcile) {
         return this.db.user.update({
           where: { id: userId },
           data: {
-            ...(!existing.name ? { name: derivedName } : {}),
-            ...(!existing.initials
-              ? { initials: initials || this._deriveInitials(derivedName) }
-              : {}),
-            ...(!existing.avatarBg ? { avatarBg: avatarBg || '#3b82f6' } : {}),
+            name: derivedName,
+            initials: derivedInitials,
+            avatarBg: existing.avatarBg || avatarBg || '#3b82f6',
           },
         });
       }
@@ -71,7 +74,7 @@ export class ChatService {
    * the group has no members at all (legacy/demo/classroom groups that
    * predate per-user membership stay public).
    */
-  private async _assertGroupAccess(groupId: string, userId: string) {
+  private async _assertGroupAccess(groupId: string, userId?: string) {
     const group = await this.db.studyGroup.findUnique({
       where: { id: groupId },
       include: {
@@ -87,8 +90,21 @@ export class ChatService {
 
     if (
       group.members.length > 0 &&
+      userId &&
       !group.members.some((m) => m.userId === userId)
     ) {
+      // Allow seamless access to classroom study groups and default channels
+      if (group.classroomId || group.id === 'flutter' || group.id === 'react-native') {
+        await this.ensureUserExists(userId);
+        await this.db.groupMember.create({
+          data: {
+            userId,
+            groupId,
+            role: 'MEMBER',
+          },
+        }).catch(() => {});
+        return group;
+      }
       throw new ForbiddenException('You are not a member of this group');
     }
 
@@ -120,6 +136,7 @@ export class ChatService {
     memberIds: string[] = [],
     id?: string,
     creatorId?: string,
+    classroomId?: string,
   ) {
     const groupId = id || undefined;
 
@@ -166,6 +183,7 @@ export class ChatService {
         description,
         icon: icon || '📚',
         color: color || '#6366f1',
+        classroomId: classroomId || null,
         members: {
           create: [...memberMap.entries()].map(([userId, role]) => ({
             role,
@@ -208,14 +226,22 @@ export class ChatService {
     });
   }
 
-  async getGroups(userId: string) {
+  async getGroups(userId?: string, classroomId?: string) {
     return this.db.studyGroup.findMany({
-      where: {
-        OR: [
-          { members: { some: { userId } } },
-          { members: { none: {} } },
-        ],
-      },
+      where: classroomId
+        ? {
+            OR: [
+              { classroomId },
+              { classroomId: null },
+            ],
+          }
+        : {
+            OR: [
+              ...(userId ? [{ members: { some: { userId } } }] : []),
+              { members: { none: {} } },
+              { classroomId: null },
+            ],
+          },
       include: {
         members: {
           include: {

@@ -12,7 +12,7 @@ import StudyBuddy from '../study-buddy/study-buddy.jsx';
 
 export default function ClassroomDetail({
   classroom = { title: "Flutter", subject: "Widget · widget structure" },
-  currentUser = { name: "Gelila Sintayehu", role: "Student" },
+  currentUser = { name: "User", role: "Student" },
   onBackToClassrooms,
   onLogout,
   darkMode,
@@ -55,7 +55,7 @@ export default function ClassroomDetail({
 
       {currentNavTab === 'study-buddy' ? (
         <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
-          <StudyBuddy isTeacher={isTeacher} />
+          <StudyBuddy isTeacher={isTeacher} darkMode={darkMode} />
         </main>
       ) : (
         <>
@@ -83,13 +83,13 @@ export default function ClassroomDetail({
               <AttendanceTab isTeacher={isTeacher} currentUser={currentUser} />
             )}
             {activeDetailTab === 'quizzes' && (
-              <QuizzesTab isTeacher={isTeacher} currentUser={currentUser} />
+              <QuizzesTab isTeacher={isTeacher} currentUser={currentUser} darkMode={darkMode} />
             )}
             {activeDetailTab === 'members' && (
               isTeacher ? (
-                <TeacherMemberTab darkMode={darkMode} />
+                <TeacherMemberTab darkMode={darkMode} classroom={classroom} currentUser={currentUser} />
               ) : (
-                <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} />
+                <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} classroom={classroom} currentUser={currentUser} />
               )
             )}
           </main>

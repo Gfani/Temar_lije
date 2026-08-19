@@ -8,6 +8,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { LiveClassModule } from './modules/live-class/live-class.module';
 import { MaterialsModule } from './modules/materials/materials.module';
@@ -31,6 +32,7 @@ import { QuizzesModule } from './modules/quizzes/quizzes.module';
     }),
     DatabaseModule,
     AuthModule,
+    ChatModule,
     AttendanceModule,
     LiveClassModule,
     MaterialsModule,

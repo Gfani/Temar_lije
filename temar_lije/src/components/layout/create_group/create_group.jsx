@@ -18,11 +18,20 @@ const MOCK_MEMBERS = [
     { id: 'ta', name: 'Tigist Alemu', status: 'online', initials: 'TA', avatarBg: '#a855f7' }
 ];
 
+const STUDY_TOPIC_SUGGESTIONS = [
+    'StatefulWidget Lifecycle',
+    'Widget Tree & Rebuilds',
+    'setState() Deep Dive',
+    'BuildContext Explained',
+    'Keys in Flutter'
+];
+
 function CreateGroup({ isOpen, onClose, onCreate }) {
     const [groupName, setGroupName] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('📚');
     const [selectedColor, setSelectedColor] = useState('#06b6d4');
     const [selectedMembers, setSelectedMembers] = useState(['at', 'mh', 'yb']);
+    const [studyTopic, setStudyTopic] = useState('StatefulWidget Lifecycle');
 
     if (!isOpen) return null;
 
@@ -38,13 +47,15 @@ function CreateGroup({ isOpen, onClose, onCreate }) {
             name: groupName,
             icon: selectedIcon,
             color: selectedColor,
-            members: selectedMembers
+            members: selectedMembers,
+            topic: studyTopic
         });
         // Reset states
         setGroupName('');
         setSelectedIcon('📚');
         setSelectedColor('#06b6d4');
         setSelectedMembers(['at', 'mh', 'yb']);
+        setStudyTopic('StatefulWidget Lifecycle');
     };
 
     return (
@@ -65,6 +76,37 @@ function CreateGroup({ isOpen, onClose, onCreate }) {
                         onChange={(e) => setGroupName(e.target.value)}
                         autoFocus
                     />
+                </div>
+
+                <div className="create-group-form-field">
+                    <label className="field-label-text">Study Topic</label>
+                    <input
+                        type="text"
+                        placeholder="e.g. StatefulWidget Lifecycle"
+                        className="create-group-text-input"
+                        value={studyTopic}
+                        onChange={(e) => setStudyTopic(e.target.value)}
+                    />
+                    <div className="topic-suggestions-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                        {STUDY_TOPIC_SUGGESTIONS.map(sug => (
+                            <button
+                                key={sug}
+                                type="button"
+                                onClick={() => setStudyTopic(sug)}
+                                style={{
+                                    fontSize: '11px',
+                                    padding: '4px 8px',
+                                    borderRadius: '12px',
+                                    border: '1px solid var(--border-color)',
+                                    backgroundColor: studyTopic === sug ? '#0d9488' : 'var(--search-bg)',
+                                    color: studyTopic === sug ? 'white' : 'var(--text-muted)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {sug}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <div className="create-group-pickers-row">

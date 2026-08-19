@@ -1,3 +1,5 @@
+// Prisma Schema for Temar Lije Backend
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,26 +10,38 @@ datasource db {
 }
 
 model User {
-  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                 String                 @unique @db.VarChar(255)
-  passwordHash          String                 @map("password_hash") @db.VarChar(255)
-  fullName              String                 @map("full_name") @db.VarChar(150)
-  role                  user_role              @default(STUDENT)
-  avatarUrl             String?                @map("avatar_url")
-  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt             DateTime?              @map("deleted_at") @db.Timestamptz(6)
-  assignmentSubmissions AssignmentSubmission[]
-  createdAssignments    Assignment[]
-  attendanceRecords     AttendanceRecord[]
-  chatMessages          ChatMessage[]
-  studentMemberships    ClassroomMember[]
-  teacherMemberships    ClassroomTeacher[]
-  createdClassrooms     Classroom[]            @relation("ClassroomCreatedBy")
-  uploadedMaterials     Material[]
-  quizSubmissions       QuizSubmission[]
-  studyGroupMemberships StudyGroupMember[]
-  createdStudyGroups    StudyGroup[]
+  id                          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                       String                 @unique @db.VarChar(255)
+  passwordHash                String?                @map("password_hash") @db.VarChar(255)
+  fullName                    String?                @map("full_name") @db.VarChar(150)
+  googleId                    String?                @unique @map("google_id") @db.VarChar(255)
+  role                        user_role              @default(STUDENT)
+  avatarUrl                   String?                @map("avatar_url")
+  initials                    String?                @default("U") @db.VarChar(10)
+  avatarBg                    String?                @default("#3b82f6") @map("avatar_bg") @db.VarChar(20)
+  refreshTokenHash            String?                @map("refresh_token_hash")
+  failedLoginAttempts         Int                    @default(0) @map("failed_login_attempts")
+  lockedUntil                 DateTime?              @map("locked_until") @db.Timestamptz(6)
+  isEmailVerified             Boolean                @default(false) @map("is_email_verified")
+  emailVerificationTokenHash  String?                @map("email_verification_token_hash")
+  emailVerificationExpiresAt  DateTime?              @map("email_verification_expires_at") @db.Timestamptz(6)
+  passwordResetTokenHash      String?                @map("password_reset_token_hash")
+  passwordResetExpiresAt      DateTime?              @map("password_reset_expires_at") @db.Timestamptz(6)
+  createdAt                   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                   DateTime?              @map("deleted_at") @db.Timestamptz(6)
+
+  assignmentSubmissions       AssignmentSubmission[]
+  createdAssignments          Assignment[]
+  attendanceRecords           AttendanceRecord[]
+  chatMessages                ChatMessage[]
+  studentMemberships          ClassroomMember[]
+  teacherMemberships          ClassroomTeacher[]
+  createdClassrooms           Classroom[]            @relation("ClassroomCreatedBy")
+  uploadedMaterials           Material[]
+  quizSubmissions             QuizSubmission[]
+  studyGroupMemberships       StudyGroupMember[]
+  createdStudyGroups          StudyGroup[]
 
   @@index([email], map: "idx_users_email")
   @@map("users")

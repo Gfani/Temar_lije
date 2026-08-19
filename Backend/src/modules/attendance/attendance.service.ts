@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
 /**
@@ -10,17 +14,9 @@ export class AttendanceService {
 
   /**
    * Helper method to validate if an IP address belongs to the local classroom Wi-Fi network.
-   * Allowed IPs:
-   * - Starts with '192.168.1.'
-   * - Is loopback: '127.0.0.1', '::1', '::ffff:127.0.0.1'
-   *
-   * @param {string} rawIp - The client IP address extracted from socket/request.
-   * @returns {boolean} True if local classroom IP, false otherwise.
    */
-  isLocalIp(rawIp) {
+  isLocalIp(rawIp: string): boolean {
     if (!rawIp || typeof rawIp !== 'string') return false;
-
-    // Clean IP string by trimming and removing IPv6 wrapper prefix if present
     const cleanIp = rawIp.replace(/^::ffff:/, '').trim();
 
     return (
@@ -32,124 +28,121 @@ export class AttendanceService {
   }
 
   /**
-   * Records student check-in for a live class session.
-   * Enforces classroom Wi-Fi restriction and evaluates punctuality (PRESENT vs LATE).
-   *
-   * @param {string} classId - The unique ID of the classroom.
-   * @param {string} studentId - The unique ID of the student.
-   * @param {string} clientIp - The IP address of the client connection.
-   * @returns {Promise<Object>} The updated/created attendance record.
+   * Records student check-in for an active attendance session.
    */
-  async recordCheckIn(classId, studentId, clientIp) {
+  async recordCheckIn(classId: string, studentId: string, clientIp: string) {
     if (!classId || !studentId) {
-      throw new BadRequestException('Both classId and studentId are required for check-in');
+      throw new BadRequestException(
+        'Both classId and studentId are required for check-in',
+      );
     }
 
     // 1. Enforce local Wi-Fi check
     if (!this.isLocalIp(clientIp)) {
-      throw new UnauthorizedException('You must be connected to the classroom Wi-Fi hotspot');
+      throw new UnauthorizedException(
+        'You must be connected to the classroom Wi-Fi hotspot',
+      );
     }
 
-    // 2. Check current timestamp against class start time
-    const now = new Date();
-
-    // Fetch active live session or classroom schedule
-    const liveSession = await this.databaseService.liveClass.findFirst({
-      where: { classId, status: 'ACTIVE' },
-      orderBy: { startTime: 'desc' },
+    // 2. Find or create an active attendance session for this class
+    let session = await this.databaseService.attendanceSession.findFirst({
+      where: { classroomId: classId, isActive: true },
+      orderBy: { startedAt: 'desc' },
     });
 
-    const classroom = await this.databaseService.classroom.findUnique({
-      where: { id: classId },
-    });
-
-    // Determine reference start time (default to active live session start time, class startTime, or current time)
-    const startTime = liveSession?.startTime || classroom?.startTime || now;
+    if (!session) {
+      session = await this.databaseService.attendanceSession.create({
+        data: {
+          classroomId: classId,
+          isActive: true,
+          startedAt: new Date(),
+        },
+      });
+    }
 
     // Calculate time difference in minutes
-    const diffInMinutes = (now.getTime() - new Date(startTime).getTime()) / (1000 * 60);
+    const now = new Date();
+    const startTime = session.startedAt || now;
+    const diffInMinutes =
+      (now.getTime() - new Date(startTime).getTime()) / (1000 * 60);
 
     // If join time is within 15 minutes of start, mark PRESENT; otherwise LATE
     const status = diffInMinutes <= 15 ? 'PRESENT' : 'LATE';
 
-    const cleanIp = (clientIp || '').replace(/^::ffff:/, '').trim();
-
-    // 3. Upsert attendance record in Prisma
-    const record = await this.databaseService.attendance.upsert({
+    // Check if record exists for this session & student
+    const existingRecord = await this.databaseService.attendanceRecord.findFirst({
       where: {
-        classId_studentId: {
-          classId,
-          studentId,
-        },
-      },
-      update: {
-        status,
-        ipAddress: cleanIp,
-        checkInTime: now,
-      },
-      create: {
-        classId,
-        studentId,
-        status,
-        ipAddress: cleanIp,
-        checkInTime: now,
-      },
-      include: {
-        student: {
-          select: { id: true, name: true, email: true },
-        },
+        sessionId: session.id,
+        studentId: studentId,
       },
     });
 
-    return record;
+    if (existingRecord) {
+      return existingRecord;
+    }
+
+    return await this.databaseService.attendanceRecord.create({
+      data: {
+        sessionId: session.id,
+        studentId: studentId,
+        status,
+        checkedInAt: now,
+      },
+      include: {
+        student: {
+          select: { id: true, fullName: true, email: true },
+        },
+      },
+    });
   }
 
   /**
    * Generates an aggregated attendance report for a classroom.
-   * Groups students into PRESENT, LATE, and ABSENT lists with counts.
-   *
-   * @param {string} classId - The unique ID of the classroom.
-   * @returns {Promise<Object>} Aggregated attendance report.
    */
-  async getAttendanceReport(classId) {
+  async getAttendanceReport(classId: string) {
     if (!classId) {
       throw new BadRequestException('classId is required');
     }
 
-    // Retrieve recorded check-ins for the class
-    const attendanceRecords = await this.databaseService.attendance.findMany({
-      where: { classId },
+    const sessions = await this.databaseService.attendanceSession.findMany({
+      where: { classroomId: classId },
+      select: { id: true },
+    });
+
+    const sessionIds = sessions.map((s) => s.id);
+
+    const attendanceRecords = await this.databaseService.attendanceRecord.findMany({
+      where: { sessionId: { in: sessionIds } },
       include: {
         student: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, fullName: true, email: true },
         },
       },
     });
 
-    // Retrieve all enrolled students in the class
-    const enrollments = await this.databaseService.classroomStudent.findMany({
-      where: { classId },
+    const enrollments = await this.databaseService.classroomMember.findMany({
+      where: { classroomId: classId },
       include: {
-        student: {
-          select: { id: true, name: true, email: true },
+        user: {
+          select: { id: true, fullName: true, email: true },
         },
       },
     });
 
-    const checkedInStudentIds = new Set(attendanceRecords.map((rec) => rec.studentId));
+    const checkedInStudentIds = new Set(
+      attendanceRecords.map((rec) => rec.studentId),
+    );
 
-    // Filter into status groups
     const present = attendanceRecords.filter((rec) => rec.status === 'PRESENT');
     const late = attendanceRecords.filter((rec) => rec.status === 'LATE');
 
-    // Identify enrolled students who have no check-in record as ABSENT
     const absent = enrollments
-      .filter((enrollment) => !checkedInStudentIds.has(enrollment.studentId))
+      .filter((enrollment) => !checkedInStudentIds.has(enrollment.userId))
       .map((enrollment) => ({
-        studentId: enrollment.studentId,
+        studentId: enrollment.userId,
         status: 'ABSENT',
-        student: enrollment.student,
-        checkInTime: null,
+        student: enrollment.user,
+        checkedInAt: null,
       }));
 
     return {

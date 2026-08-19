@@ -6,6 +6,10 @@ import {
   ConnectedSocket,
   WsException,
 } from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { createSocketAuthMiddleware } from '../../common/socket-auth';
 
 /**
  * Socket.io gateway handling offline/LAN fallback and real-time whiteboard collaboration.
@@ -19,6 +23,15 @@ import {
 export class LiveClassGateway {
   @WebSocketServer()
   server;
+
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  afterInit(server: Server) {
+    server.use(createSocketAuthMiddleware(this.jwtService, this.configService));
+  }
 
   /**
    * Handles explicit socket room joining for classroom channels.
@@ -47,7 +60,9 @@ export class LiveClassGateway {
     const { classId, x, y, prevX, prevY, color } = data || {};
 
     if (!classId) {
-      throw new WsException('classId is required to broadcast whiteboard stroke');
+      throw new WsException(
+        'classId is required to broadcast whiteboard stroke',
+      );
     }
 
     // Broadcast receiveWhiteboardStroke to all other clients in classId room

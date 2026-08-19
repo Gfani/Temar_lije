@@ -1,96 +1,320 @@
 // Prisma Schema for Temar Lije Backend
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id          String             @id @default(uuid())
-  email       String             @unique
-  name        String
-  role        String             @default("STUDENT") // STUDENT, TEACHER, ADMIN
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  attendances Attendance[]
-  enrollments ClassroomStudent[]
-  classes     Classroom[]        @relation("TeacherClasses")
+  id                         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                      String                 @unique @db.VarChar(255)
+  passwordHash               String?                @map("password_hash") @db.VarChar(255)
+  fullName                   String?                @map("full_name") @db.VarChar(150)
+  googleId                   String?                @unique @map("google_id") @db.VarChar(255)
+  role                       user_role              @default(STUDENT)
+  avatarUrl                  String?                @map("avatar_url")
+  initials                   String?                @default("U") @db.VarChar(10)
+  avatarBg                   String?                @default("#3b82f6") @map("avatar_bg") @db.VarChar(20)
+  refreshTokenHash           String?                @map("refresh_token_hash")
+  failedLoginAttempts        Int                    @default(0) @map("failed_login_attempts")
+  lockedUntil                DateTime?              @map("locked_until") @db.Timestamptz(6)
+  isEmailVerified            Boolean                @default(false) @map("is_email_verified")
+  emailVerificationTokenHash String?                @map("email_verification_token_hash")
+  emailVerificationExpiresAt DateTime?              @map("email_verification_expires_at") @db.Timestamptz(6)
+  passwordResetTokenHash     String?                @map("password_reset_token_hash")
+  passwordResetExpiresAt     DateTime?              @map("password_reset_expires_at") @db.Timestamptz(6)
+  createdAt                  DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                  DateTime?              @map("deleted_at") @db.Timestamptz(6)
+
+  assignmentSubmissions      AssignmentSubmission[]
+  createdAssignments         Assignment[]
+  attendanceRecords          AttendanceRecord[]
+  chatMessages               ChatMessage[]
+  studentMemberships         ClassroomMember[]
+  teacherMemberships         ClassroomTeacher[]
+  createdClassrooms          Classroom[]            @relation("ClassroomCreatedBy")
+  uploadedMaterials          Material[]
+  quizSubmissions            QuizSubmission[]
+  studyGroupMemberships      StudyGroupMember[]
+  createdStudyGroups         StudyGroup[]
+
+  @@index([email], map: "idx_users_email")
+  @@map("users")
 }
 
 model Classroom {
-  id          String             @id @default(uuid())
-  name        String
-  code        String             @unique
-  teacherId   String
-  teacher     User               @relation("TeacherClasses", fields: [teacherId], references: [id])
-  startTime   DateTime?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  students    ClassroomStudent[]
-  attendances Attendance[]
-  liveClasses LiveClass[]
-  assignments Assignment[]
-  quizzes     Quiz[]
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title              String              @db.VarChar(200)
+  subject            String?             @db.VarChar(100)
+  description        String?
+  inviteCode         String              @unique @map("invite_code") @db.VarChar(6)
+  createdById        String              @map("created_by_id") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  assignments        Assignment[]
+  attendanceSessions AttendanceSession[]
+  chatMessages       ChatMessage[]
+  members            ClassroomMember[]
+  teachers           ClassroomTeacher[]
+  createdBy          User                @relation("ClassroomCreatedBy", fields: [createdById], references: [id], onUpdate: NoAction)
+  materials          Material[]
+  quizzes            Quiz[]
+  studyGroups        StudyGroup[]
+
+  @@index([inviteCode], map: "idx_classrooms_invite_code")
+  @@map("classrooms")
 }
 
-model ClassroomStudent {
-  id        String    @id @default(uuid())
-  classId   String
-  studentId String
-  classroom Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
-  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  joinedAt  DateTime  @default(now())
+model ClassroomTeacher {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classroomId String    @map("classroom_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  isOwner     Boolean   @default(false) @map("is_owner")
+  addedAt     DateTime  @default(now()) @map("added_at") @db.Timestamptz(6)
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([classId, studentId])
+  @@unique([classroomId, userId], map: "uq_classroom_teacher")
+  @@index([userId], map: "idx_classroom_teachers_user")
+  @@map("classroom_teachers")
 }
 
-model Attendance {
-  id          String    @id @default(uuid())
-  classId     String
-  studentId   String
-  status      String    // PRESENT, LATE, ABSENT
-  ipAddress   String?
-  checkInTime DateTime  @default(now())
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  classroom   Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
-  student     User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+model ClassroomMember {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classroomId String    @map("classroom_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  joinedAt    DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([classId, studentId])
+  @@unique([classroomId, userId], map: "uq_classroom_member")
+  @@index([userId], map: "idx_classroom_members_user")
+  @@map("classroom_members")
 }
 
-model LiveClass {
-  id        String    @id @default(uuid())
-  classId   String
-  status    String    @default("ACTIVE") // ACTIVE, ENDED
-  startTime DateTime  @default(now())
-  endTime   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  classroom Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
+model Material {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String        @db.VarChar(250)
+  fileUrl       String        @map("file_url")
+  fileType      material_type @default(PDF) @map("file_type")
+  fileSizeBytes BigInt?       @map("file_size_bytes")
+  isVectorized  Boolean       @default(false) @map("is_vectorized")
+  classroomId   String        @map("classroom_id") @db.Uuid
+  uploadedById  String        @map("uploaded_by_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  classroom     Classroom     @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uploadedBy    User          @relation(fields: [uploadedById], references: [id], onUpdate: NoAction)
+
+  @@index([classroomId], map: "idx_materials_classroom")
+  @@map("materials")
 }
 
 model Assignment {
-  id              String      @id @default(uuid())
-  classId         String
-  title           String
-  description     String
-  deadline        DateTime?
-  submissionCount Int         @default(0)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  classroom       Classroom   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String                 @db.VarChar(250)
+  description String?
+  dueDate     DateTime?              @map("due_date") @db.Timestamptz(6)
+  totalPoints Int                    @default(100) @map("total_points")
+  classroomId String                 @map("classroom_id") @db.Uuid
+  createdById String                 @map("created_by_id") @db.Uuid
+  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  submissions AssignmentSubmission[]
+  classroom   Classroom              @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdBy   User                   @relation(fields: [createdById], references: [id], onUpdate: NoAction)
+
+  @@index([classroomId], map: "idx_assignments_classroom")
+  @@map("assignments")
+}
+
+model AssignmentSubmission {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignmentId   String     @map("assignment_id") @db.Uuid
+  studentId      String     @map("student_id") @db.Uuid
+  attemptNumber  Int        @default(1) @map("attempt_number")
+  isLatest       Boolean    @default(true) @map("is_latest")
+  submissionText String?    @map("submission_text")
+  fileUrl        String?    @map("file_url")
+  grade          Decimal?   @db.Decimal(5, 2)
+  feedback       String?
+  submittedAt    DateTime   @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  assignment     Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  student        User       @relation(fields: [studentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([assignmentId, studentId, attemptNumber], map: "uq_assignment_attempt")
+  @@map("assignment_submissions")
 }
 
 model Quiz {
-  id          String      @id @default(uuid())
-  classId     String
-  title       String
-  description String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  classroom   Classroom   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String           @db.VarChar(250)
+  description     String?
+  durationMinutes Int              @default(30) @map("duration_minutes")
+  isPublished     Boolean          @default(false) @map("is_published")
+  classroomId     String           @map("classroom_id") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  questions       QuizQuestion[]
+  submissions     QuizSubmission[]
+  classroom       Classroom        @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizId       String        @map("quiz_id") @db.Uuid
+  questionText String        @map("question_text")
+  questionType question_type @default(MULTIPLE_CHOICE) @map("question_type")
+  options      Json?
+  correctAnswer String       @map("correct_answer")
+  points       Int           @default(1)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  quiz         Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("quiz_questions")
+}
+
+model QuizSubmission {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizId        String   @map("quiz_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  attemptNumber Int      @default(1) @map("attempt_number")
+  isLatest      Boolean  @default(true) @map("is_latest")
+  score         Decimal? @db.Decimal(5, 2)
+  answers       Json
+  submittedAt   DateTime @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([quizId, studentId, attemptNumber], map: "uq_quiz_attempt")
+  @@map("quiz_submissions")
+}
+
+model AttendanceSession {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classroomId String             @map("classroom_id") @db.Uuid
+  sessionCode String?            @map("session_code") @db.VarChar(6)
+  isActive    Boolean            @default(true) @map("is_active")
+  startedAt   DateTime           @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt     DateTime?          @map("ended_at") @db.Timestamptz(6)
+  records     AttendanceRecord[]
+  classroom   Classroom          @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId   String            @map("session_id") @db.Uuid
+  studentId   String            @map("student_id") @db.Uuid
+  status      attendance_status @default(PRESENT)
+  checkedInAt DateTime          @default(now()) @map("checked_in_at") @db.Timestamptz(6)
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  student     User              @relation(fields: [studentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([sessionId, studentId], map: "uq_session_student")
+  @@index([sessionId], map: "idx_attendance_records_session")
+  @@map("attendance_records")
+}
+
+model StudyGroup {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String             @db.VarChar(150)
+  classroomId String             @map("classroom_id") @db.Uuid
+  createdById String             @map("created_by_id") @db.Uuid
+  icon        String?            @db.VarChar(50)
+  colorAccent String?            @map("color_accent") @db.VarChar(20)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  messages    ChatMessage[]
+  members     StudyGroupMember[]
+  classroom   Classroom          @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdBy   User               @relation(fields: [createdById], references: [id], onUpdate: NoAction)
+
+  @@map("study_groups")
+}
+
+model StudyGroupMember {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studyGroupId String     @map("study_group_id") @db.Uuid
+  userId       String     @map("user_id") @db.Uuid
+  joinedAt     DateTime   @default(now()) @map("joined_at") @db.Timestamptz(6)
+  studyGroup   StudyGroup @relation(fields: [studyGroupId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([studyGroupId, userId], map: "uq_group_member")
+  @@index([userId], map: "idx_study_group_members_user")
+  @@map("study_group_members")
+}
+
+model ChatMessage {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderId     String      @map("sender_id") @db.Uuid
+  classroomId  String?     @map("classroom_id") @db.Uuid
+  studyGroupId String?     @map("study_group_id") @db.Uuid
+  content      String
+  attachments  Json?
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  classroom    Classroom?  @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sender       User        @relation(fields: [senderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  studyGroup   StudyGroup? @relation(fields: [studyGroupId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([classroomId, createdAt(sort: Desc)], map: "idx_chat_messages_classroom")
+  @@index([studyGroupId, createdAt(sort: Desc)], map: "idx_chat_messages_group")
+  @@map("chat_messages")
+}
+
+model SyncLog {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deviceHubId String      @map("device_hub_id") @db.VarChar(100)
+  entityName  String      @map("entity_name") @db.VarChar(100)
+  entityId    String      @map("entity_id") @db.Uuid
+  action      sync_action @map("action")
+  payload     Json
+  syncedAt    DateTime    @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  @@index([deviceHubId, syncedAt], map: "idx_sync_logs_device")
+  @@map("sync_logs")
+}
+
+enum attendance_status {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum material_type {
+  PDF
+  SLIDES
+  DOCUMENT
+  LINK
+}
+
+enum question_type {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum sync_action {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum user_role {
+  ADMIN
+  TEACHER
+  STUDENT
 }

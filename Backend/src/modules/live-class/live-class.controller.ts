@@ -1,10 +1,21 @@
-import { Controller, Post, Get, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  Query,
+  BadRequestException,
+  UseGuards,
+} from '@nestjs/common';
 import { LiveClassService } from './live-class.service';
+import * as JwtAuthGuardModule from '../../common/guards/JwtAuthGuard';
 
 /**
  * Controller providing REST API endpoints for starting, ending, and fetching tokens for live sessions.
  */
 @Controller('live-class')
+@UseGuards(JwtAuthGuardModule.JwtAuthGuard)
 export class LiveClassController {
   constructor(private readonly liveClassService: LiveClassService) {}
 
@@ -38,6 +49,15 @@ export class LiveClassController {
       throw new BadRequestException('classId is required in request body');
     }
     return await this.liveClassService.endSession(classId);
+  }
+
+  /**
+   * GET /live-class/:classId/active
+   * Endpoint to check if a live session is currently active.
+   */
+  @Get(':classId/active')
+  async getActiveSession(@Param('classId') classId: string) {
+    return this.liveClassService.getActiveSession(classId);
   }
 
   /**

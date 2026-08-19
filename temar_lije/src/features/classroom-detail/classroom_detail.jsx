@@ -7,6 +7,7 @@ import AssignmentsTab from './tabs/AssignmentsTab/AssignmentsTab.jsx';
 import AttendanceTab from './tabs/Attendance/AttendanceTab.jsx';
 import QuizzesTab from './tabs/Quize/QuizzesTab.jsx';
 import MembersTab from './tabs/MemberTab/MembersTab.jsx';
+import TeacherMemberTab from './tabs/TeacherMemberTab/TeacherMemberTab.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
 
 export default function ClassroomDetail({
@@ -17,10 +18,11 @@ export default function ClassroomDetail({
   darkMode,
   setDarkMode
 }) {
+  const isTeacher = (currentUser?.role || '').toLowerCase() === 'teacher';
   const [currentNavTab, setCurrentNavTab] = useState('classrooms');
   const [activeDetailTab, setActiveDetailTab] = useState('materials');
 
-  const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'GS';
+  const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U';
 
   const handleHeaderTabChange = (tab) => {
     if (tab === 'classrooms' && currentNavTab === 'classrooms') {
@@ -29,6 +31,9 @@ export default function ClassroomDetail({
       setCurrentNavTab(tab);
     }
   };
+
+  const defaultClassId = classroom.id || '66666666-6666-4666-8666-666666666666';
+  const defaultUserId = currentUser.id || '33333333-3333-4333-8333-333333333333';
 
   return (
     <div 
@@ -53,27 +58,66 @@ export default function ClassroomDetail({
 
       {currentNavTab === 'study-buddy' ? (
         <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
-          <StudyBuddy />
+          <StudyBuddy isTeacher={isTeacher} />
         </main>
       ) : (
         <>
           {/* Classroom Title & Navigation Tabs Header */}
           <ClassroomHeader
             title={classroom.title}
-            subject={classroom.subject}
+            subject={`${classroom.subject} · ${isTeacher ? 'Teacher View' : 'Student View'}`}
             activeTab={activeDetailTab}
             onTabChange={setActiveDetailTab}
             onBack={onBackToClassrooms}
           />
 
-          {/* Detail Tab Contents */}
+          {/* Detail Tab Contents with Integrated Props */}
           <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
-            {activeDetailTab === 'materials' && <MaterialsTab />}
-            {activeDetailTab === 'live-class' && <LiveClassTab />}
-            {activeDetailTab === 'assignments' && <AssignmentsTab />}
-            {activeDetailTab === 'attendance' && <AttendanceTab />}
-            {activeDetailTab === 'quizzes' && <QuizzesTab />}
-            {activeDetailTab === 'members' && <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} />}
+            {activeDetailTab === 'materials' && (
+              <MaterialsTab 
+                classId={defaultClassId} 
+                isTeacher={isTeacher} 
+                currentUser={currentUser} 
+              />
+            )}
+            {activeDetailTab === 'live-class' && (
+              <LiveClassTab
+                classId={defaultClassId}
+                studentId={defaultUserId}
+                isTeacher={isTeacher}
+                currentUser={currentUser}
+              />
+            )}
+            {activeDetailTab === 'assignments' && (
+              <AssignmentsTab
+                classId={defaultClassId}
+                isTeacher={isTeacher}
+                currentUserId={defaultUserId}
+                currentUser={currentUser}
+              />
+            )}
+            {activeDetailTab === 'attendance' && (
+              <AttendanceTab
+                classId={defaultClassId}
+                studentId={defaultUserId}
+                isTeacher={isTeacher}
+                currentUser={currentUser}
+              />
+            )}
+            {activeDetailTab === 'quizzes' && (
+              <QuizzesTab 
+                classId={defaultClassId}
+                isTeacher={isTeacher} 
+                currentUser={currentUser} 
+              />
+            )}
+            {activeDetailTab === 'members' && (
+              isTeacher ? (
+                <TeacherMemberTab darkMode={darkMode} />
+              ) : (
+                <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} />
+              )
+            )}
           </main>
         </>
       )}

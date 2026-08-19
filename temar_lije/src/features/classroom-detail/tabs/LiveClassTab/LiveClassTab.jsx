@@ -1,8 +1,16 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Video, UserPlus, Sparkles, Loader2, CheckCircle2, Radio } from 'lucide-react';
+import { startLiveSession, endLiveSession, getLiveToken, recordCheckIn } from '../../../../services/apiClient';
 import styles from './LiveClassTab.module.css';
 
+/**
+ * LiveClassTab
+ * Renders the "Live class" tab panel of a classroom: the meeting-room
+ * entry card on the left, and the Attendance + Live quiz utilities on the right.
+ */
 export default function LiveClassTab({
+  classId = '66666666-6666-4666-8666-666666666666',
+  studentId = '33333333-3333-4333-8333-333333333333',
   isTeacher = false,
   currentUser = { name: 'User', role: 'Student' },
   onJoinLiveClass,
@@ -12,6 +20,8 @@ export default function LiveClassTab({
   // ---- Live Class Session ----
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isLiveActive, setIsLiveActive] = useState(false);
+  const [sessionToken, setSessionToken] = useState(null);
   const [joinError, setJoinError] = useState('');
 
   // ---- Attendance ----
@@ -39,23 +49,43 @@ export default function LiveClassTab({
     try {
       if (onJoinLiveClass) {
         await onJoinLiveClass();
+        setIsSessionActive((prev) => !prev);
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        if (!isSessionActive) {
+          if (isTeacher) {
+            await startLiveSession(classId);
+          }
+          const tokenRes = await getLiveToken(classId, currentUser?.id || studentId);
+          setSessionToken(tokenRes?.token || null);
+          setIsLiveActive(true);
+          setIsSessionActive(true);
+        } else {
+          if (isTeacher) {
+            await endLiveSession(classId);
+          }
+          setIsLiveActive(false);
+          setIsSessionActive(false);
+          setSessionToken(null);
+        }
       }
-      setIsSessionActive(!isSessionActive);
     } catch (err) {
-      setJoinError('Could not connect to the live room. Try again.');
+      setJoinError(err.message || 'Could not connect to the live room. Try again.');
     } finally {
       setIsJoining(false);
     }
-  }, [isJoining, isSessionActive, onJoinLiveClass]);
+  }, [isJoining, isSessionActive, isTeacher, classId, studentId, currentUser, onJoinLiveClass]);
 
   const handleStudentCheckIn = useCallback(async () => {
     if (hasCheckedIn || isTakingAttendance) return;
     setIsTakingAttendance(true);
     setAttendanceError('');
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const activeUserId = currentUser?.id || studentId;
+      if (onTakeAttendance) {
+        await onTakeAttendance(currentUser?.name || 'Student');
+      } else {
+        await recordCheckIn(classId, activeUserId);
+      }
       const myName = currentUser?.name || 'Student';
       setCheckIns((prev) => [
         {
@@ -67,11 +97,11 @@ export default function LiveClassTab({
       ]);
       setHasCheckedIn(true);
     } catch (err) {
-      setAttendanceError('Could not record your attendance. Try again.');
+      setAttendanceError(err.message || 'Could not record your attendance. Try again.');
     } finally {
       setIsTakingAttendance(false);
     }
-  }, [hasCheckedIn, isTakingAttendance, currentUser]);
+  }, [hasCheckedIn, isTakingAttendance, currentUser, classId, studentId, onTakeAttendance]);
 
   const handleTeacherTakeAttendance = useCallback(async () => {
     if (isTakingAttendance) return;
@@ -82,7 +112,7 @@ export default function LiveClassTab({
       if (onTakeAttendance) {
         await onTakeAttendance(name);
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await recordCheckIn(classId, studentId);
       }
       if (name) {
         setCheckIns((prev) => [
@@ -98,11 +128,11 @@ export default function LiveClassTab({
         alert('Attendance session broadcasted to all online students!');
       }
     } catch (err) {
-      setAttendanceError('Action failed. Please try again.');
+      setAttendanceError(err.message || 'Action failed. Please try again.');
     } finally {
       setIsTakingAttendance(false);
     }
-  }, [checkInName, isTakingAttendance, onTakeAttendance]);
+  }, [checkInName, isTakingAttendance, onTakeAttendance, classId, studentId]);
 
   const handleCreateQuiz = useCallback(async () => {
     if (!isTeacher || isCreatingQuiz) return;
@@ -141,6 +171,22 @@ export default function LiveClassTab({
               ? 'Start interactive live teaching with video, audio, whiteboard sharing, and automated attendance logging.'
               : 'Join your teacher’s live session to watch whiteboard presentations, participate in discussions, and ask questions.'}
           </p>
+
+          {sessionToken && isSessionActive && (
+            <code
+              style={{
+                fontSize: '11px',
+                color: '#6b7573',
+                background: '#f3f7f5',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                marginBottom: '12px',
+                display: 'inline-block',
+              }}
+            >
+              Token: {sessionToken.substring(0, 24)}...
+            </code>
+          )}
 
           <button
             type="button"

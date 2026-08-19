@@ -47,7 +47,9 @@ export class LiveClassGateway {
     const { classId, x, y, prevX, prevY, color } = data || {};
 
     if (!classId) {
-      throw new WsException('classId is required to broadcast whiteboard stroke');
+      throw new WsException(
+        'classId is required to broadcast whiteboard stroke',
+      );
     }
 
     // Broadcast receiveWhiteboardStroke to all other clients in classId room

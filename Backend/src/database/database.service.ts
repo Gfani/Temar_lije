@@ -5,7 +5,10 @@ import { PrismaClient } from '@prisma/client';
  * DatabaseService provides Prisma Client instance injected throughout the app.
  */
 @Injectable()
-export class DatabaseService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class DatabaseService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor() {
     super();
   }

@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
 /**
@@ -42,12 +46,16 @@ export class AttendanceService {
    */
   async recordCheckIn(classId, studentId, clientIp) {
     if (!classId || !studentId) {
-      throw new BadRequestException('Both classId and studentId are required for check-in');
+      throw new BadRequestException(
+        'Both classId and studentId are required for check-in',
+      );
     }
 
     // 1. Enforce local Wi-Fi check
     if (!this.isLocalIp(clientIp)) {
-      throw new UnauthorizedException('You must be connected to the classroom Wi-Fi hotspot');
+      throw new UnauthorizedException(
+        'You must be connected to the classroom Wi-Fi hotspot',
+      );
     }
 
     // 2. Check current timestamp against class start time
@@ -67,7 +75,8 @@ export class AttendanceService {
     const startTime = liveSession?.startTime || classroom?.startTime || now;
 
     // Calculate time difference in minutes
-    const diffInMinutes = (now.getTime() - new Date(startTime).getTime()) / (1000 * 60);
+    const diffInMinutes =
+      (now.getTime() - new Date(startTime).getTime()) / (1000 * 60);
 
     // If join time is within 15 minutes of start, mark PRESENT; otherwise LATE
     const status = diffInMinutes <= 15 ? 'PRESENT' : 'LATE';
@@ -136,7 +145,9 @@ export class AttendanceService {
       },
     });
 
-    const checkedInStudentIds = new Set(attendanceRecords.map((rec) => rec.studentId));
+    const checkedInStudentIds = new Set(
+      attendanceRecords.map((rec) => rec.studentId),
+    );
 
     // Filter into status groups
     const present = attendanceRecords.filter((rec) => rec.status === 'PRESENT');

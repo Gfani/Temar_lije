@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
 function toUuid(id: string): string {
@@ -76,15 +80,60 @@ export class ChatService {
     }
 
     const sanitizedEmail = userId.replace(/[^a-zA-Z0-9]/g, '');
-    return this.db.user.create({
-      data: {
-        id: validId,
-        email: `${sanitizedEmail || 'user'}@placeholder.com`,
-        fullName: name || `User ${userId}`,
-        initials: initials || userId.substring(0, 2).toUpperCase(),
-        avatarBg: avatarBg || '#3b82f6',
+    try {
+      return await this.db.user.create({
+        data: {
+          id: validId,
+          email: `${sanitizedEmail || 'user'}@placeholder.com`,
+          fullName: name || `User ${userId}`,
+          initials: initials || userId.substring(0, 2).toUpperCase(),
+          avatarBg: avatarBg || '#3b82f6',
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        const winner = await this.db.user.findUnique({
+          where: { id: validId },
+        });
+        if (winner) return winner;
+      }
+      throw err;
+    }
+  }
+
+  private _deriveInitials(name?: string) {
+    const parts = (name || 'U').trim().split(/\s+/).filter(Boolean);
+    return parts.map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  }
+
+  private async _assertGroupAccess(groupId: string, userId: string) {
+    const validGroupUuid = toUuid(groupId);
+    const validUserUuid = toUuid(userId);
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: validGroupUuid },
+      include: {
+        members: {
+          select: { userId: true },
+        },
       },
     });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    if (
+      group.members.length > 0 &&
+      !group.members.some((m) => m.userId === validUserUuid)
+    ) {
+      throw new ForbiddenException('You are not a member of this group');
+    }
+
+    return group;
+  }
+
+  private async _assertOwner(groupId: string, userId: string) {
+    return this._assertGroupAccess(groupId, userId);
   }
 
   private async ensureDefaultClassroom(creatorId: string): Promise<string> {
@@ -109,14 +158,15 @@ export class ChatService {
     color?: string,
     memberIds: string[] = [],
     id?: string,
+    creatorId?: string,
   ) {
-    const creatorId = memberIds[0] || 'gs';
-    await this.ensureUserExists(creatorId);
+    const effectiveCreatorId = creatorId || memberIds[0] || 'gs';
+    await this.ensureUserExists(effectiveCreatorId);
     for (const memberId of memberIds) {
       await this.ensureUserExists(memberId);
     }
 
-    const classroomId = await this.ensureDefaultClassroom(creatorId);
+    const classroomId = await this.ensureDefaultClassroom(effectiveCreatorId);
     const groupUuid = id ? toUuid(id) : undefined;
 
     const createdGroup = await this.db.studyGroup.create({
@@ -126,7 +176,7 @@ export class ChatService {
         icon: icon || '📚',
         colorAccent: color || '#6366f1',
         classroomId,
-        createdById: toUuid(creatorId),
+        createdById: toUuid(effectiveCreatorId),
         members: {
           create: memberIds.map((userId) => ({
             user: {
@@ -150,7 +200,12 @@ export class ChatService {
     };
   }
 
-  async updateMemberRole(groupId: string, userId: string, role: string) {
+  async updateMemberRole(
+    groupId: string,
+    userId: string,
+    role: string,
+    actorId?: string,
+  ) {
     const member = await this.db.studyGroupMember.findFirst({
       where: {
         studyGroupId: toUuid(groupId),
@@ -160,7 +215,7 @@ export class ChatService {
     return { groupId, userId, role, success: !!member };
   }
 
-  async getGroups() {
+  async getGroups(userId?: string) {
     return this.db.studyGroup.findMany({
       include: {
         members: {
@@ -172,7 +227,7 @@ export class ChatService {
     });
   }
 
-  async getChatHistory(groupId: string) {
+  async getChatHistory(groupId: string, userId?: string) {
     const messages = await this.db.chatMessage.findMany({
       where: { studyGroupId: toUuid(groupId) },
       orderBy: { createdAt: 'asc' },
@@ -323,8 +378,10 @@ export class ChatService {
         where: { id: toUuid(messageId) },
       });
     } catch (err: any) {
-      console.warn(`Could not delete message ${messageId}:`, err.message);
-      return null;
+      if (err?.code === 'P2025') {
+        throw new NotFoundException('Message not found');
+      }
+      throw err;
     }
   }
 
@@ -337,8 +394,10 @@ export class ChatService {
       });
       return this.formatMessage(updated);
     } catch (err: any) {
-      console.warn(`Could not edit message ${messageId}:`, err.message);
-      return null;
+      if (err?.code === 'P2025') {
+        throw new NotFoundException('Message not found');
+      }
+      throw err;
     }
   }
 
@@ -373,7 +432,7 @@ export class ChatService {
     return this.groupReactions(reactions);
   }
 
-  async deleteGroup(id: string) {
+  async deleteGroup(id: string, userId?: string) {
     try {
       const groupUuid = toUuid(id);
       await this.db.studyGroupMember.deleteMany({
@@ -391,7 +450,7 @@ export class ChatService {
     }
   }
 
-  async removeMember(groupId: string, userId: string) {
+  async removeMember(groupId: string, userId: string, actorId?: string) {
     try {
       return await this.db.studyGroupMember.deleteMany({
         where: {
@@ -408,4 +467,3 @@ export class ChatService {
     }
   }
 }
-

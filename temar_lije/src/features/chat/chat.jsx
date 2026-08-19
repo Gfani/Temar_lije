@@ -3,6 +3,7 @@ import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, 
 import './chat.css';
 import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../../config/constants';
+import { useAuth } from '../../context/AuthContext';
 import CreateGroup from '../../components/layout/create_group/create_group';
 import AddMember from '../../components/layout/add_member/add_member';
 import Topic from '../../components/layout/topic/topic';
@@ -35,7 +36,45 @@ function Chat({
     const setDarkMode = propSetDarkMode !== undefined ? propSetDarkMode : setLocalDarkMode;
     const [searchQuery, setSearchQuery] = useState('');
 
-    const [localActiveId, setLocalActiveId] = useState('widget-kings');
+    const { accessToken, refreshAccessToken, user: authUser } = useAuth();
+    const tokenRef = useRef(accessToken);
+    tokenRef.current = accessToken;
+
+    // Chat identity = the logged-in user. Falls back to the demo persona
+    // ('gs') only when no session exists (dev/demo mode).
+    const currentUser = {
+        id: authUser?.id || 'gs',
+        name: authUser?.fullName || 'Gelila Sintayehu',
+        initials: (authUser?.fullName || 'GS').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U',
+        avatarBg: '#3b82f6'
+    };
+    const currentUserRef = useRef(currentUser);
+    currentUserRef.current = currentUser;
+    const isAuthedRef = useRef(!!authUser);
+
+    // Fetch wrapper that attaches the JWT and silently refreshes once on 401
+    const apiFetch = async (url, options = {}) => {
+        const doFetch = (token) =>
+            fetch(url, {
+                ...options,
+                headers: {
+                    ...(options.headers || {}),
+                    Authorization: `Bearer ${token}`
+                }
+            });
+        let res = await doFetch(accessToken);
+        if (res.status === 401 && accessToken) {
+            try {
+                const freshToken = await refreshAccessToken();
+                if (freshToken) res = await doFetch(freshToken);
+            } catch (err) {
+                console.warn('Token refresh failed:', err);
+            }
+        }
+        return res;
+    };
+
+    const [localActiveId, setLocalActiveId] = useState(authUser ? '' : 'widget-kings');
     const activeId = propActiveId !== undefined ? propActiveId : localActiveId;
     const setActiveId = propSetActiveId !== undefined ? propSetActiveId : setLocalActiveId;
 
@@ -112,7 +151,7 @@ function Chat({
     }, []);
 
     const handleDeleteSelected = useCallback(() => {
-        selectedMessageIds.forEach(id => handleDeleteMessage(id));
+        selectedMessageIds.forEach(id => handleDeleteMessageRef.current?.(id));
         exitSelectionMode();
     }, [selectedMessageIds, exitSelectionMode]);
 
@@ -151,7 +190,7 @@ function Chat({
         const currentRole = groupMemberRoles[`${activeId}-${memberId}`] || 'MEMBER';
         const newRole = currentRole === 'ADMIN' ? 'MEMBER' : 'ADMIN';
         
-        fetch(`${API_BASE_URL}/chat/groups/${activeId}/members/${memberId}/role`, {
+        apiFetch(`${API_BASE_URL}/chat/groups/${activeId}/members/${memberId}/role`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role: newRole })
@@ -228,7 +267,7 @@ function Chat({
                 if (socketRef.current && activeVoiceChat) {
                     socketRef.current.emit('leaveVoiceChat', {
                         groupId: activeVoiceChat.groupId,
-                        userId: 'gs'
+                        userId: currentUser.id
                     });
                 }
                 setVoiceCallStatus(null);
@@ -252,7 +291,7 @@ function Chat({
             const initialChat = {
                 groupId: activeId,
                 participants: [
-                    { userId: 'gs', username: 'Gelila Sintayehu', initials: 'GS', avatarBg: '#3b82f6', muted: false, speaking: false }
+                    { userId: currentUser.id, username: currentUser.name, initials: currentUser.initials, avatarBg: currentUser.avatarBg, muted: false, speaking: false }
                 ]
             };
             setActiveVoiceChat(initialChat);
@@ -260,10 +299,10 @@ function Chat({
             if (socketRef.current) {
                 socketRef.current.emit('joinVoiceChat', {
                     groupId: activeId,
-                    userId: 'gs',
-                    username: 'Gelila Sintayehu',
-                    initials: 'GS',
-                    avatarBg: '#3b82f6'
+                    userId: currentUser.id,
+                    username: currentUser.name,
+                    initials: currentUser.initials,
+                    avatarBg: currentUser.avatarBg
                 });
             }
 
@@ -301,8 +340,8 @@ function Chat({
                     return {
                         ...prev,
                         participants: prev.participants.map(p => {
-                            if (p.userId === 'gs') {
-                                return { ...p, speaking: !localMuted && (localIsSpeaking || Math.random() > 0.7) };
+                            if (p.userId === currentUser.id) {
+                                return { ...p, speaking: !localMutedRef.current && (localIsSpeakingRef.current || Math.random() > 0.7) };
                             }
                             return { ...p, speaking: !p.muted && Math.random() > 0.5 };
                         })
@@ -323,7 +362,7 @@ function Chat({
         if (socketRef.current && activeVoiceChat) {
             socketRef.current.emit('leaveVoiceChat', {
                 groupId: activeVoiceChat.groupId,
-                userId: 'gs'
+                userId: currentUser.id
             });
         }
 
@@ -344,14 +383,20 @@ function Chat({
         if (socketRef.current && activeVoiceChat) {
             socketRef.current.emit('toggleMuteVoice', {
                 groupId: activeVoiceChat.groupId,
-                userId: 'gs',
+                userId: currentUser.id,
                 muted: nextMuted
             });
         }
     };
 
     const [activeVoiceChat, setActiveVoiceChat] = useState(null); 
+    const activeVoiceChatRef = useRef(null);
+    activeVoiceChatRef.current = activeVoiceChat;
     const [localMuted, setLocalMuted] = useState(false);
+    const localMutedRef = useRef(localMuted);
+    localMutedRef.current = localMuted;
+    const localIsSpeakingRef = useRef(localIsSpeaking);
+    localIsSpeakingRef.current = localIsSpeaking;
     const [voiceCallStatus, setVoiceCallStatus] = useState(null);
 
     // Audio Voice Note Recording Handlers
@@ -454,7 +499,7 @@ function Chat({
             let audioUrl = '';
             let uploadFailed = false;
             try {
-                const res = await fetch(`${API_BASE_URL}/chat/upload`, {
+                const res = await apiFetch(`${API_BASE_URL}/chat/upload`, {
                     method: 'POST',
                     body: formData
                 });
@@ -478,10 +523,10 @@ function Chat({
             const optimisticId = `optimistic-voice-${Date.now()}`;
             const newMsg = {
                 id: optimisticId,
-                senderId: 'gs',
-                sender: 'Gelila Sintayehu',
-                initials: 'GS',
-                avatarClass: 'gs',
+                senderId: currentUser.id,
+                sender: currentUser.name,
+                initials: currentUser.initials,
+                avatarClass: currentUser.initials.toLowerCase(),
                 time: timeString,
                 incoming: false,
                 type: 'audio',
@@ -503,7 +548,7 @@ function Chat({
                 socketRef.current.emit('sendMessage', {
                     _optimisticId: optimisticId,
                     roomId,
-                    senderId: 'gs',
+                    senderId: currentUser.id,
                     text: audioUrl,
                     type: 'audio',
                     fileName: newMsg.fileName,
@@ -529,7 +574,7 @@ function Chat({
     const handleTogglePinMessage = (msg) => {
         if (!msg) return;
         const newPinned = !msg.isPinned;
-        fetch(`${API_BASE_URL}/chat/messages/${msg.id}/pin`, {
+        apiFetch(`${API_BASE_URL}/chat/messages/${msg.id}/pin`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ isPinned: newPinned })
@@ -562,14 +607,14 @@ function Chat({
         }
     };
 
-    // Mock list of Classrooms
-    const [classrooms, setClassrooms] = useState([
+    // Mock list of Classrooms (demo mode only — logged-in users start empty)
+    const [classrooms, setClassrooms] = useState(authUser ? [] : [
         { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM' },
         { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '' }
     ]);
 
-    // Study Groups
-    const [localStudyGroups, setLocalStudyGroups] = useState([
+    // Study Groups (demo mode only — logged-in users start empty)
+    const [localStudyGroups, setLocalStudyGroups] = useState(authUser ? [] : [
         { id: 'widget-kings', name: 'Widget Kings 👑', subtitle: 'Abebe: Deadline Sunday midni...', isClassroom: false, time: '2:54 PM', members: ['gs', 'at', 'yb'], icon: '🦋', color: '#6366f1' },
         { id: 'vd', name: 'vd', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '💻', color: '#0d9488' },
         { id: 'packages', name: 'packages', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '📚', color: '#06b6d4' }
@@ -583,13 +628,21 @@ function Chat({
     // Refs
     const socketRef = useRef(null);
     const studyGroupsRef = useRef(studyGroups);
+    const handleDeleteMessageRef = useRef(null);
+    const prevRoomIdRef = useRef(null);
+
+    // Pick a sensible fallback channel when the active one disappears
+    const fallbackGroupId = (excludeId) => {
+        const remaining = (studyGroupsRef.current || []).filter(g => g.id !== excludeId);
+        return remaining[0]?.id || (authUser ? '' : 'widget-kings');
+    };
 
     // Keep studyGroupsRef in sync with studyGroups
     useEffect(() => {
         studyGroupsRef.current = studyGroups;
     }, [studyGroups]);
 
-    const [topicsByGroup, setTopicsByGroup] = useState({
+    const [topicsByGroup, setTopicsByGroup] = useState(authUser ? {} : {
         'widget-kings': [
             { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'You: Perfect, that leaves me UI patch and...', time: 'Mon' },
             { id: 'project', name: 'Project', icon: 'P', color: '#ef4444', subtitle: 'Lala G: In addition to this next to the .jsx file...', time: '9:18 PM' },
@@ -608,7 +661,15 @@ function Chat({
 
     // Initialize socket connection and load groups
     useEffect(() => {
-        socketRef.current = io(API_BASE_URL);
+        socketRef.current = io(API_BASE_URL, {
+            auth: (cb) => cb({ token: tokenRef.current }),
+            transports: ['websocket', 'polling']
+        });
+
+        socketRef.current.on('connect_error', (err) => {
+            console.warn('Socket connection failed:', err.message);
+            showToast('Realtime connection lost. Reconnecting…', '⚠️');
+        });
 
         socketRef.current.on('newMessage', (msg) => {
             // Restore file data for document and grouped types
@@ -622,18 +683,18 @@ function Chat({
 
             const mappedMsg = {
                 id: msg.id,
-                sender: msg.senderId === 'gs' ? 'Gelila Sintayehu' : (msg.sender?.name || msg.senderId),
-                initials: msg.senderId === 'gs' ? 'GS' : (msg.sender?.initials || '??'),
-                avatarClass: msg.senderId === 'gs' ? 'gs' : (msg.sender?.initials?.toLowerCase() || 'at'),
+                sender: msg.senderId === currentUserRef.current.id ? currentUserRef.current.name : (msg.sender?.name || msg.senderId),
+                initials: msg.senderId === currentUserRef.current.id ? currentUserRef.current.initials : (msg.sender?.initials || '??'),
+                avatarClass: msg.senderId === currentUserRef.current.id ? currentUserRef.current.initials.toLowerCase() : (msg.sender?.initials?.toLowerCase() || 'at'),
                 avatarBg: msg.sender?.avatarBg || '#8b5cf6',
                 text: msg.type === 'document' || msg.type === 'grouped' ? undefined : msg.text,
                 image: msg.image,
                 time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                incoming: msg.senderId !== 'gs',
+                incoming: msg.senderId !== currentUserRef.current.id,
                 reactions: (msg.reactionsGrouped || []).map(r => ({
                     emoji: r.emoji,
                     count: r.count,
-                    userReacted: (r.userIds || []).includes('gs')
+                    userReacted: (r.userIds || []).includes(currentUserRef.current.id)
                 })),
                 type: msg.type,
                 fileName: msg.fileName,
@@ -654,7 +715,7 @@ function Chat({
                 if (existing.some(m => m.id === msg.id)) return prev;
 
                 // Replace optimistic placeholder using _optimisticId for precision or matching content
-                if (msg.senderId === 'gs') {
+                if (msg.senderId === currentUserRef.current.id) {
                     let optimisticIdx = -1;
                     if (msg._optimisticId) {
                         optimisticIdx = existing.findIndex(m => m.id === msg._optimisticId);
@@ -682,9 +743,9 @@ function Chat({
             });
 
             const previewText = msg.type === 'audio' ? '🎙️ Voice note' : (msg.text || (msg.image ? '📷 Photo' : 'Attachment'));
-            const senderName = msg.senderId === 'gs' ? 'You' : (msg.sender?.name || msg.senderId);
+            const senderName = msg.senderId === currentUserRef.current.id ? 'You' : (msg.sender?.name || msg.senderId);
             // Find parent group using prefix matching (safe for UUID IDs)
-            const parentGroup = studyGroupsRef.current.find(g => msg.groupId === g.id || msg.groupId.startsWith(g.id + '-'));
+            const parentGroup = studyGroupsRef.current.find(g => msg.groupId === g.id || (msg.groupId || '').startsWith(g.id + '-'));
             if (parentGroup) {
                 setStudyGroups(prev =>
                     prev.map(g => (g.id === parentGroup.id ? { ...g, subtitle: `${senderName}: ${previewText}`, time: mappedMsg.time } : g))
@@ -730,7 +791,7 @@ function Chat({
             const mappedReactions = (reactions || []).map(r => ({
                 emoji: r.emoji,
                 count: r.count,
-                userReacted: (r.userIds || []).includes('gs')
+                userReacted: (r.userIds || []).includes(currentUserRef.current.id)
             }));
             setMessagesByGroup(prev => {
                 const updatedAll = {};
@@ -743,7 +804,7 @@ function Chat({
 
         socketRef.current.on('groupDeleted', (data) => {
             const { groupId } = data;
-            const parent = studyGroupsRef.current.find(m => groupId.startsWith(`${m.id}-`));
+            const parent = studyGroupsRef.current.find(m => groupId && groupId.startsWith(`${m.id}-`));
             if (parent) {
                 const topicId = groupId.substring(parent.id.length + 1);
                 setTopicsByGroup(prev => {
@@ -757,12 +818,12 @@ function Chat({
                 setActiveTopicId(prev => (prev === topicId ? 'general' : prev));
             } else {
                 setStudyGroups(prev => prev.filter(g => g.id !== groupId));
-                setActiveId(prev => (prev === groupId ? 'flutter' : prev));
+                setActiveId(prev => (prev === groupId ? fallbackGroupId(groupId) : prev));
             }
         });
 
         socketRef.current.on('groupCreated', (group) => {
-            const parent = studyGroupsRef.current.find(m => group.id.startsWith(`${m.id}-`));
+            const parent = studyGroupsRef.current.find(m => group?.id && group.id.startsWith(`${m.id}-`));
             if (parent) {
                 const topicId = group.id.substring(parent.id.length + 1);
                 setTopicsByGroup(prev => {
@@ -818,10 +879,8 @@ function Chat({
 
         socketRef.current.on('memberRemoved', (data) => {
             const { groupId, userId } = data;
-            if (userId === 'gs') {
-                if (activeId === groupId) {
-                    setActiveId('flutter');
-                }
+            if (userId === currentUserRef.current.id) {
+                setActiveId(prev => (prev === groupId ? fallbackGroupId(groupId) : prev));
                 setStudyGroups(prev => prev.filter(g => g.id !== groupId));
                 if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
                 setToastMessage(`You were removed from the group.`);
@@ -842,7 +901,7 @@ function Chat({
         });
 
         socketRef.current.on('studyInvitation', (data) => {
-            if (data.invitedMembers.includes('gs') && data.inviterId !== 'gs') {
+            if (data.invitedMembers?.includes(currentUserRef.current.id) && data.inviterId !== currentUserRef.current.id) {
                 setInvitationData({
                     isOpen: true,
                     inviterName: data.inviterName,
@@ -904,7 +963,7 @@ function Chat({
         });
 
         // Fetch persisted study groups
-        fetch(`${API_BASE_URL}/chat/groups`)
+        apiFetch(`${API_BASE_URL}/chat/groups`)
             .then(res => res.json())
             .then(data => {
                 if (data && Array.isArray(data)) {
@@ -917,12 +976,13 @@ function Chat({
                         return isTopic;
                     });
 
-                    // Default classrooms
-                    const defaultClassrooms = [
+                    // Merge default classrooms and loaded classrooms
+                    // (demo mode only — logged-in users start empty)
+                    const defaultClassrooms = isAuthedRef.current ? [] : [
                         { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM' },
                         { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '' }
                     ];
-
+                    const mergedClassrooms = [...defaultClassrooms];
                     const loadedClassrooms = [];
                     const mappedGroups = [];
 
@@ -946,7 +1006,6 @@ function Chat({
                     });
 
                     // Merge default classrooms and loaded classrooms
-                    const mergedClassrooms = [...defaultClassrooms];
                     loadedClassrooms.forEach(lc => {
                         if (!mergedClassrooms.some(dc => dc.id === lc.id)) {
                             mergedClassrooms.push(lc);
@@ -1005,6 +1064,31 @@ function Chat({
         };
     }, []);
 
+    // Consume a pending /join/:id invite once the target group is loaded
+    useEffect(() => {
+        const pending = sessionStorage.getItem('pending_join_id');
+        if (!pending) return;
+        const target =
+            studyGroups.find(g => g.id === pending) ||
+            classrooms.find(c => c.id === pending);
+        if (target) {
+            setJoinPreviewGroupId(pending);
+            sessionStorage.removeItem('pending_join_id');
+        }
+    }, [studyGroups, classrooms]);
+
+    // Announce voice-chat departure on page close (server also cleans up on socket disconnect)
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            const vc = activeVoiceChatRef.current;
+            if (socketRef.current && vc?.groupId) {
+                socketRef.current.emit('leaveVoiceChat', { groupId: vc.groupId });
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
+
     // Room connection and chat history loading hook
     useEffect(() => {
         if (!activeId || !socketRef.current) return;
@@ -1012,15 +1096,20 @@ function Chat({
         const isClassroom = classrooms.some(c => c.id === activeId);
         const roomId = isClassroom ? activeId : `${activeId}-${activeTopicId}`;
 
+        if (prevRoomIdRef.current && prevRoomIdRef.current !== roomId) {
+            socketRef.current.emit('leaveRoom', { roomId: prevRoomIdRef.current });
+        }
+        prevRoomIdRef.current = roomId;
+
         socketRef.current.emit('joinRoom', {
             roomId: roomId,
-            userId: 'gs',
-            username: 'Gelila Sintayehu',
-            initials: 'GS',
-            avatarBg: '#3b82f6'
+            userId: currentUserRef.current.id,
+            username: currentUserRef.current.name,
+            initials: currentUserRef.current.initials,
+            avatarBg: currentUserRef.current.avatarBg
         });
 
-        fetch(`${API_BASE_URL}/chat/history/${roomId}`)
+        apiFetch(`${API_BASE_URL}/chat/history/${roomId}`)
             .then(res => res.json())
             .then(data => {
                 if (data && Array.isArray(data)) {
@@ -1034,18 +1123,18 @@ function Chat({
                         }
                         return ({
                             id: msg.id,
-                            sender: msg.senderId === 'gs' ? 'Gelila Sintayehu' : (msg.sender?.name || msg.senderId),
-                            initials: msg.senderId === 'gs' ? 'GS' : (msg.sender?.initials || '??'),
-                            avatarClass: msg.senderId === 'gs' ? 'gs' : (msg.sender?.initials?.toLowerCase() || 'at'),
+                            sender: msg.senderId === currentUserRef.current.id ? currentUserRef.current.name : (msg.sender?.name || msg.senderId),
+                            initials: msg.senderId === currentUserRef.current.id ? currentUserRef.current.initials : (msg.sender?.initials || '??'),
+                            avatarClass: msg.senderId === currentUserRef.current.id ? currentUserRef.current.initials.toLowerCase() : (msg.sender?.initials?.toLowerCase() || 'at'),
                             avatarBg: msg.sender?.avatarBg || '#8b5cf6',
                             text: msg.type === 'document' || msg.type === 'grouped' ? undefined : msg.text,
                             image: msg.image,
                             time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            incoming: msg.senderId !== 'gs',
+                            incoming: msg.senderId !== currentUserRef.current.id,
                             reactions: (msg.reactionsGrouped || []).map(r => ({
                                 emoji: r.emoji,
                                 count: r.count,
-                                userReacted: (r.userIds || []).includes('gs')
+                                userReacted: (r.userIds || []).includes(currentUserRef.current.id)
                             })),
                             type: msg.type,
                             fileName: msg.fileName,
@@ -1077,7 +1166,7 @@ function Chat({
                 }
             })
             .catch(err => console.error('Failed to load chat history:', err));
-    }, [activeId, activeTopicId]);
+    }, [activeId, activeTopicId, classrooms]);
 
     // Refs
     const conversationPaneRef = useRef(null);
@@ -1230,6 +1319,7 @@ function Chat({
 
     // Typing indicator simulation when active group changes
     useEffect(() => {
+        if (authUser) return undefined;
         setTypingUser(null);
         if (activeId === 'widget-kings') {
             const timer = setTimeout(() => {
@@ -1254,7 +1344,7 @@ function Chat({
                 clearTimeout(clearTimer);
             };
         }
-    }, [activeId]);
+    }, [activeId, authUser]);
 
     // Close custom context menu on outside click
     useEffect(() => {
@@ -1492,7 +1582,7 @@ function Chat({
                 formData.append('file', file);
                 let fileUrl = null;
                 try {
-                    const res = await fetch(`${API_BASE_URL}/chat/upload`, {
+                    const res = await apiFetch(`${API_BASE_URL}/chat/upload`, {
                         method: 'POST',
                         body: formData
                     });
@@ -1522,9 +1612,9 @@ function Chat({
             const groupedItems = await Promise.all(promises);
             const newMessage = {
                 id: `msg-group-${Date.now()}`,
-                sender: 'Gelila Sintayehu',
-                initials: 'GS',
-                avatarClass: 'gs',
+                sender: currentUser.name,
+                initials: currentUser.initials,
+                avatarClass: currentUser.initials.toLowerCase(),
                 type: 'grouped',
                 files: groupedItems,
                 time: timeString,
@@ -1548,7 +1638,7 @@ function Chat({
             if (socketRef.current) {
                 socketRef.current.emit('sendMessage', {
                     roomId,
-                    senderId: 'gs',
+                    senderId: currentUser.id,
                     text: JSON.stringify(groupedItems),
                     type: 'grouped',
                     fileName: `${pendingFiles.length} files`,
@@ -1565,7 +1655,7 @@ function Chat({
 
                 let serverUrl = null;
                 try {
-                    const res = await fetch(`${API_BASE_URL}/chat/upload`, {
+                    const res = await apiFetch(`${API_BASE_URL}/chat/upload`, {
                         method: 'POST',
                         body: formData
                     });
@@ -1585,9 +1675,9 @@ function Chat({
 
                 const newMessage = {
                     id: `optimistic-file-${Date.now()}-${index}`,
-                    sender: 'Gelila Sintayehu',
-                    initials: 'GS',
-                    avatarClass: 'gs',
+                    sender: currentUser.name,
+                    initials: currentUser.initials,
+                    avatarClass: currentUser.initials.toLowerCase(),
                     time: timeString,
                     incoming: false,
                     reactions: [],
@@ -1620,7 +1710,7 @@ function Chat({
                 if (socketRef.current) {
                     socketRef.current.emit('sendMessage', {
                         roomId,
-                        senderId: 'gs',
+                        senderId: currentUser.id,
                         text: newMessage.type === 'document' ? (newMessage.fileDataUrl || '') : (newMessage.text || ''),
                         image: newMessage.image || undefined,
                         type: newMessage.type || 'text',
@@ -1684,7 +1774,7 @@ function Chat({
 
             // Call backend API to persist edit and broadcast
             const roomId = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
-            fetch(`${API_BASE_URL}/chat/messages/${editingMessageId}`, {
+            apiFetch(`${API_BASE_URL}/chat/messages/${editingMessageId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: inputValue, roomId })
@@ -1701,10 +1791,10 @@ function Chat({
             // Optimistically add message locally so it appears immediately
             const optimisticMsg = {
                 id: optimisticId,
-                sender: 'Gelila Sintayehu',
-                initials: 'GS',
-                avatarClass: 'gs',
-                avatarBg: '#3b82f6',
+                sender: currentUser.name,
+                initials: currentUser.initials,
+                avatarClass: currentUser.initials.toLowerCase(),
+                avatarBg: currentUser.avatarBg,
                 text: inputValue,
                 image: attachedImage || undefined,
                 time: timeString,
@@ -1734,7 +1824,7 @@ function Chat({
             if (socketRef.current) {
                 socketRef.current.emit('sendMessage', {
                     roomId,
-                    senderId: 'gs',
+                    senderId: currentUser.id,
                     text: inputValue,
                     image: attachedImage || undefined,
                     replyToId: replyingTo ? replyingTo.id : undefined,
@@ -1785,19 +1875,20 @@ function Chat({
         });
 
         // Call backend API to persist delete and broadcast
-        fetch(`${API_BASE_URL}/chat/messages/${messageId}`, {
+        apiFetch(`${API_BASE_URL}/chat/messages/${messageId}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ roomId })
         })
         .catch(err => console.error('Failed to delete message:', err));
     };
+    handleDeleteMessageRef.current = handleDeleteMessage;
 
     // Handle deleting a study group
     const handleDeleteGroup = (groupId, e) => {
         if (e) e.stopPropagation();
         if (window.confirm('Are you sure you want to delete this study group?')) {
-            fetch(`${API_BASE_URL}/chat/groups/${groupId}`, {
+            apiFetch(`${API_BASE_URL}/chat/groups/${groupId}`, {
                 method: 'DELETE'
             })
             .catch(err => console.error('Failed to delete group:', err));
@@ -1808,7 +1899,7 @@ function Chat({
     const handleDeleteTopic = (groupId, topicId, e) => {
         if (e) e.stopPropagation();
         if (window.confirm(`Are you sure you want to delete the topic "${topicId}"?`)) {
-            fetch(`${API_BASE_URL}/chat/groups/${groupId}-${topicId}`, {
+            apiFetch(`${API_BASE_URL}/chat/groups/${groupId}-${topicId}`, {
                 method: 'DELETE'
             })
             .catch(err => console.error('Failed to delete topic:', err));
@@ -1818,7 +1909,7 @@ function Chat({
     // Handle removing a member from group
     const handleRemoveMember = (memberId) => {
         if (window.confirm(`Are you sure you want to remove ${USER_PROFILES[memberId]?.name || memberId} from this group?`)) {
-            fetch(`${API_BASE_URL}/chat/groups/${activeId}/members/${memberId}`, {
+            apiFetch(`${API_BASE_URL}/chat/groups/${activeId}/members/${memberId}`, {
                 method: 'DELETE'
             })
             .then(res => {
@@ -1875,10 +1966,10 @@ function Chat({
 
         const newForwardMsg = {
             id: `optimistic-forward-${Date.now()}`,
-            sender: 'Gelila Sintayehu',
-            initials: 'GS',
-            avatarClass: 'gs',
-            avatarBg: '#3b82f6',
+            sender: currentUser.name,
+            initials: currentUser.initials,
+            avatarClass: currentUser.initials.toLowerCase(),
+            avatarBg: currentUser.avatarBg,
             text: forwardingMessage.text,
             image: forwardingMessage.image,
             time: timeString,
@@ -1912,7 +2003,7 @@ function Chat({
         if (socketRef.current) {
             socketRef.current.emit('sendMessage', {
                 roomId: targetRoomId,
-                senderId: 'gs',
+                senderId: currentUser.id,
                 text: forwardingMessage.text || '',
                 image: forwardingMessage.image || undefined,
                 type: forwardingMessage.type || 'text',
@@ -1953,7 +2044,7 @@ function Chat({
         );
 
         const addedUser = USER_PROFILES[memberId];
-        const addedText = `Gelila Sintayehu added ${addedUser?.name || memberId} to the group`;
+        const addedText = `${currentUser.name} added ${addedUser?.name || memberId} to the group`;
 
         setMessagesByGroup(prev => ({
             ...prev,
@@ -2084,10 +2175,10 @@ function Chat({
         });
 
         // Trigger REST API call
-        fetch(`${API_BASE_URL}/chat/messages/${messageId}/reactions`, {
+        apiFetch(`${API_BASE_URL}/chat/messages/${messageId}/reactions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: 'gs', emoji, roomId })
+            body: JSON.stringify({ emoji, roomId })
         })
         .catch(err => console.error('Failed to toggle reaction:', err));
     };
@@ -2146,10 +2237,10 @@ function Chat({
         });
 
         // Trigger REST API call
-        fetch(`${API_BASE_URL}/chat/messages/${messageId}/reactions`, {
+        apiFetch(`${API_BASE_URL}/chat/messages/${messageId}/reactions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: 'gs', emoji, roomId })
+            body: JSON.stringify({ emoji, roomId })
         })
         .catch(err => console.error('Failed to add emoji reaction:', err));
     };
@@ -2162,7 +2253,7 @@ function Chat({
         const descText = newGroupDesc.trim() || 'No messages yet';
 
         if (showAddModal.type === 'classroom') {
-            fetch(`${API_BASE_URL}/chat/groups`, {
+            apiFetch(`${API_BASE_URL}/chat/groups`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2170,10 +2261,10 @@ function Chat({
                     description: descText,
                     icon: '🏫',
                     color: '#10b981',
-                    memberIds: ['gs']
+                    memberIds: [currentUser.id]
                 })
             })
-            .then(res => res.json())
+            .then(res => { if (!res.ok) throw new Error(`Create classroom failed (${res.status})`); return res.json(); })
             .then(g => {
                 const newClassroomObj = {
                     id: g.id,
@@ -2198,7 +2289,7 @@ function Chat({
                 subtitle: descText,
                 isClassroom: false,
                 time: '',
-                members: ['gs'],
+                members: [currentUser.id],
                 icon: '👥',
                 color: '#8b5cf6'
             };
@@ -2211,20 +2302,20 @@ function Chat({
             setActiveTopicId('general');
             setActiveId(tempId);
 
-            fetch(`${API_BASE_URL}/chat/groups`, {
+            apiFetch(`${API_BASE_URL}/chat/groups`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: tempId,
                     name: newGroupName,
                     description: descText,
-                    memberIds: ['gs']
+                    memberIds: [currentUser.id]
                 })
             })
-            .then(res => res.json())
+            .then(res => { if (!res.ok) throw new Error(`Create group failed (${res.status})`); return res.json(); })
             .then(group => {
                 // Pre-persist general topic channel
-                fetch(`${API_BASE_URL}/chat/groups`, {
+                apiFetch(`${API_BASE_URL}/chat/groups`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -2239,7 +2330,7 @@ function Chat({
 
                 setGroupMemberRoles(prev => ({
                     ...prev,
-                    [`${tempId}-gs`]: 'OWNER'
+                    [`${tempId}-${currentUser.id}`]: 'OWNER'
                 }));
             })
             .catch(err => console.error('Failed to persist group:', err));
@@ -2298,11 +2389,11 @@ function Chat({
                     <div className="profile-card">
                         <div className="profile-info">
                             <div className="profile-avatar">
-                                GS
+                                {currentUser.initials}
                                 <span className="online-dot"></span>
                             </div>
                             <div className="profile-details">
-                                <span className="profile-name">Gelila Sintayehu</span>
+                                <span className="profile-name">{currentUser.name}</span>
                                 <span className="profile-status">online</span>
                             </div>
                         </div>
@@ -2954,7 +3045,7 @@ function Chat({
                     }}>
                         {(topicsByGroup[activeId] || []).map(t => {
                             const isActive = activeTopicId === t.id;
-                            const myRole = groupMemberRoles[`${activeId}-gs`] || 'OWNER';
+                            const myRole = groupMemberRoles[`${activeId}-${currentUser.id}`] || 'OWNER';
                             const showDelete = t.id !== 'general' && (myRole === 'OWNER' || myRole === 'ADMIN');
                             return (
                                 <div
@@ -3160,8 +3251,10 @@ function Chat({
                                                     alt="attachment"
                                                     className="message-image"
                                                     onClick={() => {
-                                                        const w = window.open();
-                                                        w.document.write(`<img src="${msg.image}" style="max-width:100%; max-height:100%; display:block; margin:auto;" />`);
+                                                        const w = window.open('', '_blank');
+                                                        if (w) {
+                                                            w.document.write(`<img src="${msg.image}" style="max-width:100%; max-height:100%; display:block; margin:auto;" />`);
+                                                        }
                                                     }}
                                                 />
                                             )}
@@ -3176,8 +3269,10 @@ function Chat({
                                                         style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', backgroundColor: msg.incoming ? 'var(--search-bg)' : 'rgba(255,255,255,0.15)', borderRadius: '12px', marginTop: '6px', border: '1px solid var(--border-color)', minWidth: '220px', cursor: docIsImage ? 'pointer' : 'default' }}
                                                         onClick={() => {
                                                             if (docIsImage && docSrc) {
-                                                                const w = window.open();
-                                                                w.document.write(`<img src="${docSrc}" style="max-width:100%;max-height:100%;display:block;margin:auto;background:#000;" />`);
+                                                                const w = window.open('', '_blank');
+                                                                if (w) {
+                                                                    w.document.write(`<img src="${docSrc}" style="max-width:100%;max-height:100%;display:block;margin:auto;background:#000;" />`);
+                                                                }
                                                             }
                                                         }}
                                                     >
@@ -3220,8 +3315,10 @@ function Chat({
                                                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', padding: '8px', backgroundColor: msg.incoming ? 'var(--search-bg)' : 'rgba(255,255,255,0.15)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', textAlign: 'left' }}>
                                                             {file.isImage && file.data ? (
                                                                 <img src={file.data} alt={file.name} style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '8px', marginBottom: '6px', cursor: 'pointer' }} onClick={() => {
-                                                                    const w = window.open();
-                                                                    w.document.write(`<img src="${file.data}" style="max-width:100%; max-height:100%; display:block; margin:auto;" />`);
+                                                                    const w = window.open('', '_blank');
+                                                                    if (w) {
+                                                                        w.document.write(`<img src="${file.data}" style="max-width:100%; max-height:100%; display:block; margin:auto;" />`);
+                                                                    }
                                                                 }} />
                                                             ) : (
                                                                 <div style={{ height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', backgroundColor: 'var(--sidebar-bg)', borderRadius: '8px', marginBottom: '6px' }}>
@@ -3390,7 +3487,7 @@ function Chat({
                                             <div className="reactions-list">
                                                 {msg.reactions.map((react, rIdx) => (
                                                     <button
-                                                        key={rIdx}
+                                                        key={react.emoji}
                                                         className={`reaction-badge ${react.userReacted ? 'active' : ''}`}
                                                         onClick={() => handleReactionClick(msg.id, rIdx)}
                                                     >
@@ -3579,9 +3676,9 @@ function Chat({
                     onCloseCreateGroupDirectly?.();
                 }}
                 onCreate={(groupDetails) => {
-                    const memberList = ['gs', ...groupDetails.members];
+                    const memberList = [currentUser.id, ...groupDetails.members];
                     
-                    fetch(`${API_BASE_URL}/chat/groups`, {
+                    apiFetch(`${API_BASE_URL}/chat/groups`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -3592,7 +3689,7 @@ function Chat({
                             memberIds: memberList
                         })
                     })
-                    .then(res => res.json())
+                    .then(res => { if (!res.ok) throw new Error(`Create group failed (${res.status})`); return res.json(); })
                     .then(g => {
                         const newGroupObj = {
                             id: g.id,
@@ -3609,21 +3706,21 @@ function Chat({
                         let joinedText = '';
                         if (memberNames.length > 0) {
                             if (memberNames.length === 1) {
-                                joinedText = `Gelila Sintayehu added ${memberNames[0]} to the group`;
+                                joinedText = `${currentUser.name} added ${memberNames[0]} to the group`;
                             } else if (memberNames.length === 2) {
-                                joinedText = `Gelila Sintayehu added ${memberNames[0]} and ${memberNames[1]} to the group`;
+                                joinedText = `${currentUser.name} added ${memberNames[0]} and ${memberNames[1]} to the group`;
                             } else {
                                 const last = memberNames.pop();
-                                joinedText = `Gelila Sintayehu added ${memberNames.join(', ')}, and ${last} to the group`;
+                                joinedText = `${currentUser.name} added ${memberNames.join(', ')}, and ${last} to the group`;
                             }
                         }
 
                         // Emit WebSocket studyInvitation to all other invited members
                         if (socketRef.current) {
                             socketRef.current.emit('studyInvitation', {
-                                inviterId: 'gs',
-                                inviterName: 'Gelila Sintayehu',
-                                inviterInitials: 'GS',
+                                inviterId: currentUser.id,
+                                inviterName: currentUser.name,
+                                inviterInitials: currentUser.initials,
                                 topicName: groupDetails.topic || 'StatefulWidget Lifecycle',
                                 categoryName: `${groupDetails.name} · Study Group`,
                                 invitedMembers: groupDetails.members,
@@ -3635,7 +3732,7 @@ function Chat({
                         const topicId = (groupDetails.topic || 'StatefulWidget Lifecycle').toLowerCase().replace(/\s+/g, '-');
                         
                         // Persist general topic channel to DB
-                        fetch(`${API_BASE_URL}/chat/groups`, {
+                        apiFetch(`${API_BASE_URL}/chat/groups`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -3650,7 +3747,7 @@ function Chat({
                         .catch(err => console.error('Failed to create general topic:', err));
 
                         // Persist initial custom topic channel to DB
-                        fetch(`${API_BASE_URL}/chat/groups`, {
+                        apiFetch(`${API_BASE_URL}/chat/groups`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -3674,7 +3771,7 @@ function Chat({
 
                         setGroupMemberRoles(prev => {
                             const updated = { ...prev };
-                            updated[`${g.id}-gs`] = 'OWNER';
+                            updated[`${g.id}-${currentUser.id}`] = 'OWNER';
                             groupDetails.members.forEach(mId => {
                                 updated[`${g.id}-${mId}`] = 'MEMBER';
                             });
@@ -4044,8 +4141,8 @@ function Chat({
                                                 </span>
                                             </div>
                                             {(() => {
-                                                const role = groupMemberRoles[`${activeId}-${memberId}`] || (memberId === 'gs' ? 'OWNER' : 'MEMBER');
-                                                const myRole = groupMemberRoles[`${activeId}-gs`] || 'OWNER';
+                                                const role = groupMemberRoles[`${activeId}-${memberId}`] || (memberId === currentUser.id ? 'OWNER' : 'MEMBER');
+                                                const myRole = groupMemberRoles[`${activeId}-${currentUser.id}`] || 'OWNER';
                                                 const roleText = role === 'OWNER' ? 'Owner' : (role === 'ADMIN' ? 'Admin' : 'Member');
                                                 const roleClass = role === 'OWNER' ? 'owner' : (role === 'ADMIN' ? 'admin' : 'member');
                                                 return (
@@ -4053,7 +4150,7 @@ function Chat({
                                                         <span className={`member-role-badge ${roleClass}`}>
                                                             {roleText}
                                                         </span>
-                                                        {myRole === 'OWNER' && memberId !== 'gs' && (
+                                                        {myRole === 'OWNER' && memberId !== currentUser.id && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleToggleAdminRole(memberId)}
@@ -4072,7 +4169,7 @@ function Chat({
                                                                 {role === 'ADMIN' ? 'Demote' : 'Promote'}
                                                             </button>
                                                         )}
-                                                        {memberId !== 'gs' && (myRole === 'OWNER' || (myRole === 'ADMIN' && role !== 'OWNER')) && (
+                                                        {memberId !== currentUser.id && (myRole === 'OWNER' || (myRole === 'ADMIN' && role !== 'OWNER')) && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleRemoveMember(memberId)}
@@ -4143,7 +4240,7 @@ function Chat({
                     studyGroups.find(g => g.id === joinPreviewGroupId) ||
                     classrooms.find(c => c.id === joinPreviewGroupId);
                 if (!previewItem) return null;
-                const isMember = previewItem.members?.includes('gs') || previewItem.isClassroom;
+                const isMember = previewItem.members?.includes(currentUser.id) || previewItem.isClassroom;
 
                 const handleJoinAction = () => {
                     if (isMember) {
@@ -4170,7 +4267,7 @@ function Chat({
                                     if (g.id === joinPreviewGroupId) {
                                         return {
                                             ...g,
-                                            members: [...(g.members || []), 'gs']
+                                            members: [...(g.members || []), currentUser.id]
                                         };
                                     }
                                     return g;
@@ -4182,7 +4279,7 @@ function Chat({
                                 ...prev,
                                 [joinPreviewGroupId]: [
                                     ...(prev[joinPreviewGroupId] || []),
-                                    { id: `sys-joined-req-${Date.now()}`, type: 'system', text: 'Gelila Sintayehu joined the group via join request' }
+                                    { id: `sys-joined-req-${Date.now()}`, type: 'system', text: `${currentUser.name} joined the group via join request` }
                                 ]
                             }));
 
@@ -4334,12 +4431,12 @@ function Chat({
                 isOpen={showCreateTopicModal}
                 onClose={() => setShowCreateTopicModal(false)}
                 userProfiles={USER_PROFILES}
-                invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== 'gs') : ['at', 'yb']}
+                invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== currentUser.id) : ['at', 'yb']}
                 onCreate={(topicName) => {
                     const topicId = topicName.toLowerCase().replace(/\s+/g, '-');
                     const targetGroupKey = selectedGroupIdForTopics || activeId;
 
-                    fetch(`${API_BASE_URL}/chat/groups`, {
+                    apiFetch(`${API_BASE_URL}/chat/groups`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -4386,7 +4483,7 @@ function Chat({
                 isOpen={showSendInvitationModal}
                 onClose={() => setShowSendInvitationModal(false)}
                 topicName={createdTopicName}
-                invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== 'gs') : []}
+                invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== currentUser.id) : []}
                 userProfiles={USER_PROFILES}
                 onSend={() => {
                     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);

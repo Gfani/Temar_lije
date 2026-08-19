@@ -6,13 +6,16 @@ import {
   Param,
   Query,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { LiveClassService } from './live-class.service';
+import * as JwtAuthGuardModule from '../../common/guards/JwtAuthGuard';
 
 /**
  * Controller providing REST API endpoints for starting, ending, and fetching tokens for live sessions.
  */
 @Controller('live-class')
+@UseGuards(JwtAuthGuardModule.JwtAuthGuard)
 export class LiveClassController {
   constructor(private readonly liveClassService: LiveClassService) {}
 

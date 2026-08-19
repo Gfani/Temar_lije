@@ -11,7 +11,7 @@ const { PrismaService } = require('../../database/prisma.service');
 const { EmailModule } = require('../email/email.module');
 
 @Module({
-  imports: [PassportModule, JwtModule.register({}), EmailModule],
+  imports: [PassportModule, JwtModule.register({ global: true }), EmailModule],
   controllers: [AuthController],
   providers: [
     AuthService,

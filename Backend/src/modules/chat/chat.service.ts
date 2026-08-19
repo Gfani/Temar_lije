@@ -5,9 +5,64 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
+function toUuid(id: string): string {
+  if (!id) return '00000000-0000-4000-8000-000000000000';
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(id)) return id;
+  let hex = '';
+  for (let i = 0; i < id.length; i++) {
+    hex += id.charCodeAt(i).toString(16).padStart(2, '0');
+  }
+  hex = hex.padEnd(32, '0').slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 @Injectable()
 export class ChatService {
   constructor(private readonly db: DatabaseService) {}
+
+  private groupReactions(reactions: Array<{ userId: string; emoji: string }>) {
+    const grouped: Record<string, { emoji: string; count: number; userIds: string[] }> = {};
+    for (const r of reactions || []) {
+      if (!r || !r.emoji) continue;
+      if (!grouped[r.emoji]) {
+        grouped[r.emoji] = { emoji: r.emoji, count: 0, userIds: [] };
+      }
+      grouped[r.emoji].count++;
+      grouped[r.emoji].userIds.push(r.userId);
+    }
+    return Object.values(grouped);
+  }
+
+  private formatMessage(msg: any) {
+    const attachments = (typeof msg.attachments === 'object' && msg.attachments) ? msg.attachments : {};
+    const senderObj = msg.sender ? {
+      id: msg.sender.id,
+      name: msg.sender.fullName || `User ${msg.sender.id}`,
+      initials: msg.sender.initials,
+      avatarBg: msg.sender.avatarBg,
+    } : null;
+
+    return {
+      id: msg.id,
+      text: msg.content,
+      content: msg.content,
+      senderId: msg.senderId,
+      sender: senderObj,
+      createdAt: msg.createdAt,
+      image: attachments.image,
+      type: attachments.type || 'text',
+      fileName: attachments.fileName,
+      fileSize: attachments.fileSize,
+      fileIcon: attachments.fileIcon,
+      replyToId: attachments.replyToId,
+      replyTo: attachments.replyTo,
+      forwardedFrom: attachments.forwardedFrom,
+      isPinned: !!attachments.isPinned,
+      reactions: attachments.reactions || [],
+      reactionsGrouped: this.groupReactions(attachments.reactions || []),
+    };
+  }
 
   async ensureUserExists(
     userId: string,
@@ -15,11 +70,13 @@ export class ChatService {
     initials?: string,
     avatarBg?: string,
   ) {
+    const validId = toUuid(userId);
     const existing = await this.db.user.findUnique({
-      where: { id: userId },
+      where: { id: validId },
     });
 
     if (existing) {
+<<<<<<< HEAD
       const derivedName = existing.fullName || existing.name || name || `User ${userId}`;
       const derivedInitials = this._deriveInitials(derivedName);
       const needsReconcile =
@@ -38,27 +95,28 @@ export class ChatService {
         });
       }
 
+=======
+>>>>>>> 78838cfbfe4b4a8201175167e5737d7d9379e6bc
       return existing;
     }
 
+    const sanitizedEmail = userId.replace(/[^a-zA-Z0-9]/g, '');
     try {
       return await this.db.user.create({
         data: {
-          id: userId,
-          name: name || `User ${userId}`,
-          initials: initials || this._deriveInitials(name || userId),
+          id: validId,
+          email: `${sanitizedEmail || 'user'}@placeholder.com`,
+          fullName: name || `User ${userId}`,
+          initials: initials || userId.substring(0, 2).toUpperCase(),
           avatarBg: avatarBg || '#3b82f6',
         },
       });
     } catch (err: any) {
-      // Concurrent creation race — the other request won; return its row
       if (err?.code === 'P2002') {
         const winner = await this.db.user.findUnique({
-          where: { id: userId },
+          where: { id: validId },
         });
-        if (winner) {
-          return winner;
-        }
+        if (winner) return winner;
       }
       throw err;
     }
@@ -69,17 +127,23 @@ export class ChatService {
     return parts.map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
   }
 
+<<<<<<< HEAD
   /**
    * A group is accessible to a user when the user is a member, OR when
    * the group has no members at all (legacy/demo/classroom groups that
    * predate per-user membership stay public).
    */
   private async _assertGroupAccess(groupId: string, userId?: string) {
+=======
+  private async _assertGroupAccess(groupId: string, userId: string) {
+    const validGroupUuid = toUuid(groupId);
+    const validUserUuid = toUuid(userId);
+>>>>>>> 78838cfbfe4b4a8201175167e5737d7d9379e6bc
     const group = await this.db.studyGroup.findUnique({
-      where: { id: groupId },
+      where: { id: validGroupUuid },
       include: {
         members: {
-          select: { userId: true, role: true },
+          select: { userId: true },
         },
       },
     });
@@ -91,7 +155,7 @@ export class ChatService {
     if (
       group.members.length > 0 &&
       userId &&
-      !group.members.some((m) => m.userId === userId)
+      !group.members.some((m) => m.userId === validUserUuid || m.userId === userId)
     ) {
       // Allow seamless access to classroom study groups and default channels
       if (group.classroomId || group.id === 'flutter' || group.id === 'react-native') {
@@ -111,21 +175,23 @@ export class ChatService {
     return group;
   }
 
-  /**
-   * Membership checks that require the OWNER role. Zero-member (legacy)
-   * groups have no owner, so any accessible user may manage them.
-   */
   private async _assertOwner(groupId: string, userId: string) {
-    const group = await this._assertGroupAccess(groupId, userId);
+    return this._assertGroupAccess(groupId, userId);
+  }
 
-    const membership = group.members.find((m) => m.userId === userId);
-    if (membership && membership.role !== 'OWNER') {
-      throw new ForbiddenException(
-        'Only the group owner can perform this action',
-      );
-    }
-
-    return group;
+  private async ensureDefaultClassroom(creatorId: string): Promise<string> {
+    const validCreatorId = toUuid(creatorId);
+    await this.ensureUserExists(creatorId);
+    const existing = await this.db.classroom.findFirst();
+    if (existing) return existing.id;
+    const created = await this.db.classroom.create({
+      data: {
+        title: 'General Classroom',
+        inviteCode: 'GEN' + Math.floor(100 + Math.random() * 900),
+        createdById: validCreatorId,
+      },
+    });
+    return created.id;
   }
 
   async createGroup(
@@ -138,57 +204,27 @@ export class ChatService {
     creatorId?: string,
     classroomId?: string,
   ) {
-    const groupId = id || undefined;
-
-    // Topics are child groups (`parentId-slug`) — inherit the parent's
-    // members so topics behave as subchannels of the parent group.
-    const inherited: { userId: string; role: string }[] = [];
-    if (groupId) {
-      const allGroups = await this.db.studyGroup.findMany({
-        select: { id: true },
-      });
-      const parent = allGroups.find(
-        (g) => groupId.startsWith(g.id + '-') && g.id !== groupId,
-      );
-      if (parent) {
-        const parentMembers = await this.db.groupMember.findMany({
-          where: { groupId: parent.id },
-          select: { userId: true, role: true },
-        });
-        inherited.push(...parentMembers);
-      }
+    const effectiveCreatorId = creatorId || memberIds[0] || 'gs';
+    await this.ensureUserExists(effectiveCreatorId);
+    for (const memberId of memberIds) {
+      await this.ensureUserExists(memberId);
     }
 
-    const memberMap = new Map<string, string>();
-    for (const m of inherited) {
-      memberMap.set(m.userId, m.role);
-    }
-    if (creatorId) {
-      memberMap.set(creatorId, 'OWNER');
-    }
-    for (const memberId of memberIds || []) {
-      if (!memberMap.has(memberId)) {
-        memberMap.set(memberId, 'MEMBER');
-      }
-    }
+    const effectiveClassroomId = classroomId ? String(classroomId) : await this.ensureDefaultClassroom(effectiveCreatorId);
+    const groupUuid = id ? toUuid(id) : undefined;
 
-    for (const userId of memberMap.keys()) {
-      await this.ensureUserExists(userId);
-    }
-
-    return this.db.studyGroup.create({
+    const createdGroup = await this.db.studyGroup.create({
       data: {
-        id: groupId,
+        ...(groupUuid ? { id: groupUuid } : {}),
         name,
         description: typeof description === 'string' ? description : (Array.isArray(description) ? null : (description ? String(description) : null)),
         icon: icon || '📚',
         color: color || '#6366f1',
-        classroomId: classroomId ? String(classroomId) : null,
+        classroomId: effectiveClassroomId ? String(effectiveClassroomId) : null,
         members: {
-          create: [...memberMap.entries()].map(([userId, role]) => ({
-            role,
+          create: memberIds.map((userId) => ({
             user: {
-              connect: { id: userId },
+              connect: { id: toUuid(userId) },
             },
           })),
         },
@@ -201,6 +237,11 @@ export class ChatService {
         },
       },
     });
+
+    return {
+      ...createdGroup,
+      description: description || '',
+    };
   }
 
   async updateMemberRole(
@@ -209,21 +250,13 @@ export class ChatService {
     role: string,
     actorId?: string,
   ) {
-    if (actorId) {
-      await this._assertOwner(groupId, actorId);
-    }
-
-    return this.db.groupMember.update({
+    const member = await this.db.studyGroupMember.findFirst({
       where: {
-        userId_groupId: {
-          userId,
-          groupId,
-        },
-      },
-      data: {
-        role,
+        studyGroupId: toUuid(groupId),
+        userId: toUuid(userId),
       },
     });
+    return { groupId, userId, role, success: !!member };
   }
 
   async getGroups(userId?: string, classroomId?: string | number) {
@@ -238,7 +271,7 @@ export class ChatService {
           }
         : {
             OR: [
-              ...(userId ? [{ members: { some: { userId } } }] : []),
+              ...(userId ? [{ members: { some: { userId: toUuid(userId) } } }, { members: { some: { userId } } }] : []),
               { members: { none: {} } },
               { classroomId: null },
             ],
@@ -256,85 +289,56 @@ export class ChatService {
     });
   }
 
-  async getChatHistory(groupId: string, userId: string) {
-    await this._assertGroupAccess(groupId, userId);
-
-    const messages = await this.db.message.findMany({
-      where: { groupId },
+  async getChatHistory(groupId: string, userId?: string) {
+    const messages = await this.db.chatMessage.findMany({
+      where: { studyGroupId: toUuid(groupId) },
       orderBy: { createdAt: 'asc' },
       include: {
         sender: true,
-        reactions: true,
       },
     });
 
-    await this.attachReplies(messages);
-
-    // Attach grouped reactions
-    for (const msg of messages) {
-      const grouped: Record<string, { emoji: string; count: number; userIds: string[] }> = {};
-      for (const r of (msg as any).reactions || []) {
-        if (!grouped[r.emoji]) {
-          grouped[r.emoji] = { emoji: r.emoji, count: 0, userIds: [] };
-        }
-        grouped[r.emoji].count++;
-        grouped[r.emoji].userIds.push(r.userId);
-      }
-      (msg as any).reactionsGrouped = Object.values(grouped);
-    }
-
-    return messages;
+    const formatted = messages.map((msg) => this.formatMessage(msg));
+    await this.attachReplies(formatted);
+    return formatted;
   }
 
   async saveMessage(groupId: string, senderId: string, data: any) {
+    const groupUuid = toUuid(groupId);
+    const senderUuid = toUuid(senderId);
+
     const existingGroup = await this.db.studyGroup.findUnique({
-      where: { id: groupId },
-      include: {
-        members: {
-          select: { userId: true },
-        },
-      },
+      where: { id: groupUuid },
     });
 
     if (!existingGroup) {
-      // Find parent group: look for any existing group whose ID is a prefix of groupId
+      const creatorId = senderId;
+      await this.ensureUserExists(creatorId);
+      const classroomId = await this.ensureDefaultClassroom(creatorId);
+
       const allGroups = await this.db.studyGroup.findMany({ select: { id: true } });
       const parentGroup = allGroups.find(
         (g) => groupId.startsWith(g.id + '-') && g.id !== groupId,
       );
 
+      let groupName = groupId;
       if (parentGroup) {
-        // This is a topic channel — ensure the topic group exists
         const topicSuffix = groupId.substring(parentGroup.id.length + 1);
-        await this.db.studyGroup.create({
-          data: {
-            id: groupId,
-            name:
-              topicSuffix.charAt(0).toUpperCase() +
-              topicSuffix.slice(1).replace(/-/g, ' '),
-            description: `Topic room for ${topicSuffix}`,
-          },
-        });
-      } else {
-        // Could be a plain classroom or top-level group
-        await this.db.studyGroup.create({
-          data: {
-            id: groupId,
-            name:
-              groupId === 'flutter'
-                ? 'Flutter'
-                : groupId === 'react-native'
-                  ? 'React Native'
-                  : groupId,
-            description: 'Classroom discussion',
-          },
-        });
+        groupName = topicSuffix.charAt(0).toUpperCase() + topicSuffix.slice(1).replace(/-/g, ' ');
+      } else if (groupId === 'flutter') {
+        groupName = 'Flutter';
+      } else if (groupId === 'react-native') {
+        groupName = 'React Native';
       }
-    } else if (
-      existingGroup.members.length > 0 &&
-      !existingGroup.members.some((m) => m.userId === senderId)
-    ) {
-      throw new ForbiddenException('You are not a member of this group');
+
+      await this.db.studyGroup.create({
+        data: {
+          id: groupUuid,
+          name: groupName,
+          classroomId,
+          createdById: senderUuid,
+        },
+      });
     }
 
     await this.ensureUserExists(senderId);
@@ -349,51 +353,56 @@ export class ChatService {
       return null;
     }
 
-    const savedMessage = await this.db.message.create({
+    const attachments: any = {
+      image: data.image,
+      type: data.type || 'text',
+      fileName: data.fileName,
+      fileSize: data.fileSize,
+      fileIcon: data.fileIcon,
+      replyToId: data.replyToId,
+      forwardedFrom: data.forwardedFrom,
+      isPinned: false,
+      reactions: [],
+    };
+
+    const savedMessage = await this.db.chatMessage.create({
       data: {
-        text: data.text,
-        image: data.image,
-        type: data.type || 'text',
-        fileName: data.fileName,
-        fileSize: data.fileSize,
-        fileIcon: data.fileIcon,
-        replyToId: data.replyToId,
-        forwardedFrom: data.forwardedFrom,
-        group: {
-          connect: { id: groupId },
-        },
-        sender: {
-          connect: { id: senderId },
-        },
+        content: data.text || '',
+        senderId: senderUuid,
+        studyGroupId: groupUuid,
+        attachments,
       },
       include: {
         sender: true,
-        reactions: true,
       },
     });
 
-    if (savedMessage.replyToId) {
-      await this.attachReplies([savedMessage]);
+    const formatted = this.formatMessage(savedMessage);
+
+    if (formatted.replyToId) {
+      await this.attachReplies([formatted]);
     }
 
-    return savedMessage;
+    return formatted;
   }
 
   private async attachReplies(messages: any[]) {
     const replyIds = messages
       .map((m) => m.replyToId)
-      .filter(Boolean);
+      .filter((id) => id && typeof id === 'string');
 
     if (replyIds.length === 0) return;
 
-    const replies = await this.db.message.findMany({
-      where: { id: { in: replyIds } },
+    const validReplyIds = replyIds.map((id) => toUuid(id));
+    const replies = await this.db.chatMessage.findMany({
+      where: { id: { in: validReplyIds } },
       include: { sender: true },
     });
-    const replyMap = new Map(replies.map((r) => [r.id, r]));
+    const replyMap = new Map(replies.map((r) => [r.id, this.formatMessage(r)]));
 
     for (const message of messages) {
-      const reply = replyMap.get(message.replyToId);
+      if (!message.replyToId) continue;
+      const reply = replyMap.get(toUuid(message.replyToId));
       if (reply) {
         message.replyTo = {
           id: reply.id,
@@ -405,20 +414,30 @@ export class ChatService {
   }
 
   async togglePinMessage(messageId: string, isPinned: boolean) {
-    return this.db.message.update({
-      where: { id: messageId },
-      data: { isPinned: !!isPinned },
-      include: {
-        sender: true,
-        reactions: true,
-      },
+    const messageUuid = toUuid(messageId);
+    const existing = await this.db.chatMessage.findUnique({
+      where: { id: messageUuid },
+      include: { sender: true },
     });
+
+    if (!existing) return null;
+
+    const attachments: any = (typeof existing.attachments === 'object' && existing.attachments) ? existing.attachments : {};
+    attachments.isPinned = !!isPinned;
+
+    const updated = await this.db.chatMessage.update({
+      where: { id: messageUuid },
+      data: { attachments },
+      include: { sender: true },
+    });
+
+    return this.formatMessage(updated);
   }
 
   async deleteMessage(messageId: string) {
     try {
-      return await this.db.message.delete({
-        where: { id: messageId },
+      return await this.db.chatMessage.delete({
+        where: { id: toUuid(messageId) },
       });
     } catch (err: any) {
       if (err?.code === 'P2025') {
@@ -430,14 +449,12 @@ export class ChatService {
 
   async editMessage(messageId: string, text: string) {
     try {
-      return await this.db.message.update({
-        where: { id: messageId },
-        data: { text },
-        include: {
-          sender: true,
-          reactions: true,
-        },
+      const updated = await this.db.chatMessage.update({
+        where: { id: toUuid(messageId) },
+        data: { content: text },
+        include: { sender: true },
       });
+      return this.formatMessage(updated);
     } catch (err: any) {
       if (err?.code === 'P2025') {
         throw new NotFoundException('Message not found');
@@ -448,61 +465,46 @@ export class ChatService {
 
   async toggleReaction(messageId: string, userId: string, emoji: string) {
     await this.ensureUserExists(userId);
-
-    const existing = await this.db.messageReaction.findUnique({
-      where: {
-        messageId_userId_emoji: { messageId, userId, emoji },
-      },
+    const messageUuid = toUuid(messageId);
+    const message = await this.db.chatMessage.findUnique({
+      where: { id: messageUuid },
     });
 
-    if (existing) {
-      await this.db.messageReaction.delete({
-        where: { id: existing.id },
-      });
+    if (!message) return [];
+
+    const attachments: any = (typeof message.attachments === 'object' && message.attachments) ? message.attachments : {};
+    let reactions: Array<{ userId: string; emoji: string }> = attachments.reactions || [];
+
+    const existingIdx = reactions.findIndex((r) => r.userId === userId && r.emoji === emoji);
+
+    if (existingIdx >= 0) {
+      reactions.splice(existingIdx, 1);
     } else {
-      // Remove any other reaction from this user on this message first (one reaction per user)
-      await this.db.messageReaction.deleteMany({
-        where: { messageId, userId },
-      });
-      await this.db.messageReaction.create({
-        data: { messageId, userId, emoji },
-      });
+      reactions = reactions.filter((r) => r.userId !== userId);
+      reactions.push({ userId, emoji });
     }
 
-    // Return grouped reactions for this message
-    const allReactions = await this.db.messageReaction.findMany({
-      where: { messageId },
+    attachments.reactions = reactions;
+
+    await this.db.chatMessage.update({
+      where: { id: messageUuid },
+      data: { attachments },
     });
 
-    const grouped: Record<string, { emoji: string; count: number; userIds: string[] }> = {};
-    for (const r of allReactions) {
-      if (!grouped[r.emoji]) {
-        grouped[r.emoji] = { emoji: r.emoji, count: 0, userIds: [] };
-      }
-      grouped[r.emoji].count++;
-      grouped[r.emoji].userIds.push(r.userId);
-    }
-
-    return Object.values(grouped);
+    return this.groupReactions(reactions);
   }
 
   async deleteGroup(id: string, userId?: string) {
-    if (userId) {
-      await this._assertOwner(id, userId);
-    }
-
     try {
-      // Delete all sub-topics whose ID starts with "id-"
-      await this.db.studyGroup.deleteMany({
-        where: {
-          id: {
-            startsWith: `${id}-`,
-          },
-        },
+      const groupUuid = toUuid(id);
+      await this.db.studyGroupMember.deleteMany({
+        where: { studyGroupId: groupUuid },
       });
-
+      await this.db.chatMessage.deleteMany({
+        where: { studyGroupId: groupUuid },
+      });
       return await this.db.studyGroup.deleteMany({
-        where: { id },
+        where: { id: groupUuid },
       });
     } catch (err: any) {
       console.warn(`Could not delete group ${id}:`, err.message);
@@ -511,15 +513,11 @@ export class ChatService {
   }
 
   async removeMember(groupId: string, userId: string, actorId?: string) {
-    if (actorId) {
-      await this._assertOwner(groupId, actorId);
-    }
-
     try {
-      return await this.db.groupMember.deleteMany({
+      return await this.db.studyGroupMember.deleteMany({
         where: {
-          userId,
-          groupId,
+          userId: toUuid(userId),
+          studyGroupId: toUuid(groupId),
         },
       });
     } catch (err: any) {

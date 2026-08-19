@@ -8,9 +8,10 @@ const { JwtStrategy } = require('./strategies/jwt.strategy');
 const { JwtRefreshStrategy } = require('./strategies/jwt-refresh.strategy');
 const { GoogleStrategy } = require('./strategies/google.strategy');
 const { PrismaService } = require('../../database/prisma.service');
+const { EmailModule } = require('../email/email.module');
 
 @Module({
-  imports: [PassportModule, JwtModule.register({ global: true })],
+  imports: [PassportModule, JwtModule.register({ global: true }), EmailModule],
   controllers: [AuthController],
   providers: [
     AuthService,

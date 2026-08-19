@@ -1,56 +1,84 @@
-import React, { useState } from 'react';
-import { Search, Upload, FileText, Download, Eye, BookOpen } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Upload, FileText, Download, Loader2, X, Eye, BookOpen } from 'lucide-react';
+import { getMaterials, uploadMaterial, getFileUrl } from '../../../../services/apiClient';
 import './MaterialsTab.css';
 
-const DEFAULT_MATERIALS = [
-  {
-    id: 'mat-1',
-    title: 'Introduction to State Management.pdf',
-    type: 'PDF Document',
-    size: '2.4 MB',
-    uploadedBy: 'Instructor',
-    date: 'Aug 14, 2026',
-  },
-  {
-    id: 'mat-2',
-    title: 'Lecture 3 - Component Lifecycles & Hooks.pptx',
-    type: 'Presentation',
-    size: '5.1 MB',
-    uploadedBy: 'Instructor',
-    date: 'Aug 16, 2026',
-  },
-];
-
-export default function MaterialsTab({ isTeacher = false, currentUser, onUploadMaterial }) {
+export default function MaterialsTab({
+  classId = '66666666-6666-4666-8666-666666666666',
+  isTeacher = false,
+  currentUser,
+  onUploadMaterial,
+}) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [materials, setMaterials] = useState(DEFAULT_MATERIALS);
+  const [materials, setMaterials] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
+  // Upload modal state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
-  const handleUpload = () => {
-    if (!isTeacher) return;
+  const loadMaterials = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getMaterials(classId);
+      setMaterials(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError('Could not load course materials.');
+    } finally {
+      setLoading(false);
+    }
+  }, [classId]);
+
+  useEffect(() => {
+    loadMaterials();
+  }, [loadMaterials]);
+
+  const handleOpenUpload = () => {
     if (onUploadMaterial) {
       onUploadMaterial();
     } else {
-      const fileName = prompt('Enter material title (e.g. Chapter 4 Notes.pdf):');
-      if (fileName && fileName.trim()) {
-        const newMat = {
-          id: `mat-${Date.now()}`,
-          title: fileName.trim(),
-          type: 'PDF Document',
-          size: '1.8 MB',
-          uploadedBy: currentUser?.name || 'Instructor',
-          date: 'Just now',
-        };
-        setMaterials((prev) => [newMat, ...prev]);
-      }
+      setShowUploadModal(true);
+    }
+  };
+
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+    if (!uploadTitle.trim() || !selectedFile) {
+      setUploadError('Title and file are required.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('title', uploadTitle.trim());
+      formData.append('description', uploadDescription.trim());
+      formData.append('classId', classId);
+      formData.append('file', selectedFile);
+
+      await uploadMaterial(formData);
+      setShowUploadModal(false);
+      setUploadTitle('');
+      setUploadDescription('');
+      setSelectedFile(null);
+      await loadMaterials();
+    } catch (err) {
+      setUploadError(err.message || 'Upload failed.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
   const filteredMaterials = materials.filter((m) =>
-    m.title.toLowerCase().includes(searchQuery.toLowerCase())
+    (m.title || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -64,20 +92,26 @@ export default function MaterialsTab({ isTeacher = false, currentUser, onUploadM
             className="materials-search-input"
             placeholder="Search materials by title..."
             value={searchQuery}
-            onChange={handleSearchChange}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-
         {isTeacher && (
-          <button className="materials-upload-btn" onClick={handleUpload}>
+          <button className="materials-upload-btn" onClick={handleOpenUpload}>
             <Upload className="materials-upload-icon" />
             Upload material
           </button>
         )}
       </div>
 
-      {/* Materials List */}
-      {filteredMaterials.length === 0 ? (
+      {error && <p style={{ color: '#dc2626', marginBottom: '1rem' }}>{error}</p>}
+
+      {/* Loading & Empty State */}
+      {loading ? (
+        <div className="materials-empty-state-card">
+          <Loader2 className="materials-spinner animate-spin" style={{ margin: '0 auto 1rem' }} />
+          <p className="materials-empty-state-text">Loading course materials...</p>
+        </div>
+      ) : filteredMaterials.length === 0 ? (
         <div className="materials-empty-state-card">
           <BookOpen size={40} style={{ opacity: 0.5, marginBottom: '12px' }} />
           <p className="materials-empty-state-text">
@@ -87,87 +121,224 @@ export default function MaterialsTab({ isTeacher = false, currentUser, onUploadM
           </p>
         </div>
       ) : (
+        /* Materials List Grid */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
-          {filteredMaterials.map((mat) => (
-            <div
-              key={mat.id}
+          {filteredMaterials.map((item) => {
+            const downloadLink = getFileUrl(item.fileUrl || item.filePath);
+            return (
+              <div
+                key={item.id}
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e3e9e6',
+                  borderRadius: '10px',
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '10px',
+                      background: '#e0f2fe',
+                      color: '#0284c7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '600', color: '#16181b' }}>
+                      {item.title}
+                    </h4>
+                    {item.fileType && (
+                      <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>{item.fileType}</span>
+                    )}
+                  </div>
+                </div>
+
+                {downloadLink && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <a
+                      href={downloadLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #d1d5db',
+                        backgroundColor: '#ffffff',
+                        color: '#374151',
+                        fontWeight: 500,
+                        fontSize: '0.85rem',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <Eye size={14} /> View
+                    </a>
+                    <a
+                      href={downloadLink}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: '#14785c',
+                        color: '#ffffff',
+                        fontWeight: 500,
+                        fontSize: '0.85rem',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <Download size={14} /> Download
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Upload Material Modal */}
+      {showUploadModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              width: '90%',
+              maxWidth: '480px',
+              padding: '24px',
+              position: 'relative',
+            }}
+          >
+            <button
+              onClick={() => setShowUploadModal(false)}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '16px 20px',
-                background: 'var(--surface-color, #ffffff)',
-                border: '1px solid #e5e7eb',
-                borderRadius: '12px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div
+              <X size={20} />
+            </button>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#16181b' }}>Upload Course Material</h3>
+
+            {uploadError && <p style={{ color: '#dc2626', fontSize: '14px' }}>{uploadError}</p>}
+
+            <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  placeholder="e.g. Chapter 1 Slides"
                   style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '10px',
-                    background: '#e0f2fe',
-                    color: '#0284c7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #ccc',
+                    boxSizing: 'border-box',
                   }}
-                >
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '600' }}>
-                    {mat.title}
-                  </h4>
-                  <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                    {mat.type} · {mat.size} · Uploaded {mat.date}
-                  </span>
-                </div>
+                />
               </div>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+                  Description (optional)
+                </label>
+                <textarea
+                  value={uploadDescription}
+                  onChange={(e) => setUploadDescription(e.target.value)}
+                  placeholder="Additional context or notes"
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #ccc',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+                  File *
+                </label>
+                <input
+                  type="file"
+                  required
+                  onChange={(e) => setSelectedFile(e.target.files[0])}
+                  style={{ fontSize: '14px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button
                   type="button"
+                  onClick={() => setShowUploadModal(false)}
                   style={{
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid #d1d5db',
-                    background: '#ffffff',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid #ccc',
+                    background: '#fff',
                     cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: '500',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
                   }}
-                  onClick={() => alert(`Opening ${mat.title}...`)}
                 >
-                  <Eye size={14} /> View
+                  Cancel
                 </button>
                 <button
-                  type="button"
+                  type="submit"
+                  disabled={isUploading}
                   style={{
-                    padding: '8px 14px',
-                    borderRadius: '8px',
+                    padding: '8px 18px',
+                    borderRadius: '6px',
                     border: 'none',
                     background: '#14785c',
-                    color: '#ffffff',
+                    color: '#fff',
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: '500',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
                   }}
-                  onClick={() => alert(`Downloading ${mat.title}...`)}
                 >
-                  <Download size={14} /> Download
+                  {isUploading ? 'Uploading...' : 'Upload'}
                 </button>
               </div>
-            </div>
-          ))}
+            </form>
+          </div>
         </div>
       )}
     </div>

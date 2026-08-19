@@ -24,6 +24,10 @@ const { LoginDto } = require('./dto/login.dto');
 const { JwtAuthGuard } = require('../../common/guards/JwtAuthGuard');
 const { JwtRefreshGuard } = require('../../common/guards/JwtRefreshGuard');
 const { GoogleAuthGuard } = require('../../common/guards/GoogleAuthGuard');
+const { VerifyEmailDto } = require('./dto/verify-email.dto');
+const { ResendVerificationDto } = require('./dto/resend-verification.dto');
+const { ForgotPasswordDto } = require('./dto/forgot-password.dto');
+const { ResetPasswordDto } = require('./dto/reset-password.dto');
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
 const REFRESH_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -98,12 +102,46 @@ class AuthController {
     return this._sendAuthResult(res, result);
   }
 
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body() dto) {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  /**
+   * Throttled tighter than the global default — prevents email-bombing.
+   */
+  @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 per 15 minutes
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(@Body() dto) {
+    return this.authService.resendVerificationEmail(dto.email);
+  }
+
+  @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 per 15 minutes
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() dto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() dto, @Res({ passthrough: true }) res) {
+    const result = await this.authService.resetPassword(
+      dto.token,
+      dto.newPassword,
+    );
+    return this._sendAuthResult(res, result);
+  }
+
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtRefreshGuard)
   async refresh(@Req() req, @Res({ passthrough: true }) res) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
-    const refreshToken = req.user?.refreshToken || req.cookies?.[REFRESH_COOKIE_NAME];
+    const refreshToken =
+      req.user?.refreshToken || req.cookies?.[REFRESH_COOKIE_NAME];
     const result = await this.authService.refreshTokens(userId, refreshToken);
     return this._sendAuthResult(res, result);
   }
@@ -119,45 +157,14 @@ class AuthController {
   }
 
   /**
-   * Kicks off the Google OAuth flow. This handler's body never
-   * actually runs — GoogleAuthGuard intercepts the request first and
-   * issues the redirect to Google's consent screen. It exists only so
-   * there's a route for the guard to attach to.
-   *
-   * Frontend integration: this must be a full-page navigation
-   * (window.location.href = ...), not a fetch/AJAX call — a fetch
-   * request has no way to render Google's interactive login screen.
-   * The create-account page's Google button should link here with
-   * ?role=STUDENT or ?role=TEACHER based on the selected toggle; the
-   * signin page's Google button should omit the role param entirely
-   * (signing in should never silently create a new account).
+   * Kicks off the Google OAuth flow.
    */
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   googleAuth() {}
 
   /**
-   * Google redirects back here after the user consents. By the time
-   * this method body runs, GoogleAuthGuard has already exchanged the
-   * authorization code for a profile via GoogleStrategy — req.user is
-   * that normalized profile object, NOT the AuthenticatedUser shape
-   * from jwt.strategy.js.
-   *
-   * @Res() here (no passthrough) because this handler redirects
-   * rather than returning JSON — passthrough mode is for letting Nest
-   * auto-serialize a return value, which doesn't apply once we're
-   * calling res.redirect() ourselves.
-   *
-   * Deliberately does NOT put the access token in the redirect URL.
-   * A token in a URL ends up in browser history, server access logs,
-   * and any Referer header sent by the next page load — real
-   * exposure for very little benefit. Instead: the refresh cookie
-   * (httpOnly, already scoped to /auth/refresh) is set here, and the
-   * frontend's OAuth-callback page is expected to immediately call
-   * POST /auth/refresh on mount — the same silent-refresh pattern
-   * you'd use on normal app boot — to obtain an access token and the
-   * user object (including role, for routing to the right dashboard)
-   * without anything sensitive ever touching the URL.
+   * Google redirects back here after the user consents.
    */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
@@ -198,11 +205,6 @@ class AuthController {
       this._setRefreshCookie(res, result.refreshToken);
       return res.redirect(`${frontendBaseUrl}/oauth/callback`);
     } catch (err) {
-      // Covers loginWithGoogle's own rejections (e.g. "no account
-      // found, register first") — surfaced to the user via a query
-      // param the signin page can read and display, rather than a raw
-      // JSON error hitting a browser mid-redirect with nothing to
-      // render it.
       const message = encodeURIComponent(
         err.message || 'Google sign-in failed',
       );

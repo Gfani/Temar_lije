@@ -125,6 +125,50 @@ export const authApi = {
   },
 
   /**
+   * Verify email address using token from email link
+   * @param {{ token: string }} data
+   */
+  async verifyEmail({ token }) {
+    return request('/auth/verify-email', {
+      method: 'POST',
+      body: { token },
+    });
+  },
+
+  /**
+   * Resend verification email
+   * @param {{ email: string }} data
+   */
+  async resendVerification({ email }) {
+    return request('/auth/resend-verification', {
+      method: 'POST',
+      body: { email: email.trim().toLowerCase() },
+    });
+  },
+
+  /**
+   * Request password reset email
+   * @param {{ email: string }} data
+   */
+  async forgotPassword({ email }) {
+    return request('/auth/forgot-password', {
+      method: 'POST',
+      body: { email: email.trim().toLowerCase() },
+    });
+  },
+
+  /**
+   * Reset password with token and new password
+   * @param {{ token: string, newPassword: string }} data
+   */
+  async resetPassword({ token, newPassword }) {
+    return request('/auth/reset-password', {
+      method: 'POST',
+      body: { token, newPassword },
+    });
+  },
+
+  /**
    * Logout user
    * @param {string} accessToken
    */

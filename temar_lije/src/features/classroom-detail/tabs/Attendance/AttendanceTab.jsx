@@ -1,165 +1,227 @@
-import React, { useState } from 'react';
-import { ClipboardCheck, CheckCircle2, UserCheck, Calendar, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ClipboardCheck, Loader2, CheckCircle2, Clock, XCircle, AlertCircle } from 'lucide-react';
+import { getAttendanceReport, recordCheckIn } from '../../../../services/apiClient';
 import './AttendanceTab.css';
 
-const DEFAULT_RECORDS = [
-  { id: '1', date: 'Aug 18, 2026', title: 'Session 4: State Management', presentCount: 24, totalCount: 26, status: 'Present' },
-  { id: '2', date: 'Aug 16, 2026', title: 'Session 3: Lifecycle Hooks', presentCount: 25, totalCount: 26, status: 'Present' },
-  { id: '3', date: 'Aug 14, 2026', title: 'Session 2: Widgets & Layouts', presentCount: 26, totalCount: 26, status: 'Present' },
-  { id: '4', date: 'Aug 11, 2026', title: 'Session 1: Introduction to Framework', presentCount: 26, totalCount: 26, status: 'Present' },
-];
-
 export default function AttendanceTab({
+  classId = '66666666-6666-4666-8666-666666666666',
+  studentId = '33333333-3333-4333-8333-333333333333',
   isTeacher = false,
   currentUser = { name: 'User', role: 'Student' },
-  onTakeAttendance
 }) {
-  const [checkInName, setCheckInName] = useState('');
-  const [records, setRecords] = useState(DEFAULT_RECORDS);
-  const [studentCheckedIn, setStudentCheckedIn] = useState(false);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkInMessage, setCheckInMessage] = useState('');
+  const [checkInError, setCheckInError] = useState('');
+  const [sessionTopic, setSessionTopic] = useState('');
 
-  const handleInputChange = (e) => {
-    setCheckInName(e.target.value);
+  const loadAttendance = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getAttendanceReport(classId);
+      setReport(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [classId]);
+
+  useEffect(() => {
+    loadAttendance();
+  }, [loadAttendance]);
+
+  const handleCheckIn = async (e) => {
+    e?.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setCheckInMessage('');
+    setCheckInError('');
+
+    try {
+      const targetUserId = currentUser?.id || studentId;
+      const res = await recordCheckIn(classId, targetUserId);
+      setCheckInMessage(`Checked in successfully! Status: ${res.status || 'PRESENT'}`);
+      await loadAttendance();
+    } catch (err) {
+      setCheckInError(err.message || 'Check-in failed. Are you connected to classroom Wi-Fi?');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleTakeAttendance = (e) => {
-    e.preventDefault();
-    if (!isTeacher) return;
-    const sessionTitle = checkInName.trim() || `Session ${records.length + 1}`;
-    const newRecord = {
-      id: `${Date.now()}`,
-      date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
-      title: sessionTitle,
-      presentCount: 25,
-      totalCount: 26,
-      status: 'Present',
-    };
-    setRecords((prev) => [newRecord, ...prev]);
-    setCheckInName('');
-    alert(`Attendance logged for "${sessionTitle}"!`);
-  };
-
-  const handleStudentSelfCheckIn = () => {
-    setStudentCheckedIn(true);
-    alert(`Attendance recorded for ${currentUser?.name || 'Student'}!`);
-  };
+  const summary = report?.summary || { PRESENT: 0, LATE: 0, ABSENT: 0, totalEnrolled: 0 };
+  const records = report?.records || { PRESENT: [], LATE: [], ABSENT: [] };
+  const allRecords = [...records.PRESENT, ...records.LATE, ...records.ABSENT];
 
   return (
     <div className="classroom-detail-container">
-      {/* Attendance Control Panel */}
+      {/* Attendance Control Card */}
       <div className="attendance-control-card">
         {isTeacher ? (
-          <form onSubmit={handleTakeAttendance} className="attendance-action-row">
+          <form onSubmit={handleCheckIn} className="attendance-action-row">
             <input
               type="text"
               className="attendance-input"
               placeholder="Session topic or check-in title (e.g. Session 5 - Live Coding)"
-              value={checkInName}
-              onChange={handleInputChange}
+              value={sessionTopic}
+              onChange={(e) => setSessionTopic(e.target.value)}
             />
-            <button type="submit" className="attendance-btn">
-              <ClipboardCheck className="attendance-btn-icon" />
-              Take session attendance
+            <button type="submit" className="attendance-btn" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="attendance-btn-icon animate-spin" />
+              ) : (
+                <ClipboardCheck className="attendance-btn-icon" />
+              )}
+              <span>{isSubmitting ? 'Logging...' : 'Log Session Attendance'}</span>
             </button>
           </form>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: '600' }}>
-                Your Attendance Status
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
-                Overall attendance rate: <strong>100% (4/4 Sessions)</strong>
+          <form onSubmit={handleCheckIn} className="attendance-action-row">
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#16181b' }}>
+                Classroom Wi-Fi Hotspot Attendance Check-In
+              </span>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#8b9491' }}>
+                Connect to your classroom Wi-Fi network and click to register your presence.
               </p>
             </div>
-            <button
-              type="button"
-              className="attendance-btn"
-              onClick={handleStudentSelfCheckIn}
-              disabled={studentCheckedIn}
-              style={studentCheckedIn ? { backgroundColor: '#059669' } : {}}
-            >
-              {studentCheckedIn ? <CheckCircle2 size={16} /> : <UserCheck size={16} />}
-              {studentCheckedIn ? 'Checked In Today ✓' : 'Check In for Today'}
+            <button type="submit" className="attendance-btn" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="attendance-btn-icon animate-spin" />
+              ) : (
+                <ClipboardCheck className="attendance-btn-icon" />
+              )}
+              <span>{isSubmitting ? 'Checking in...' : 'Check-In Now'}</span>
             </button>
+          </form>
+        )}
+
+        {checkInMessage && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '10px 14px',
+              backgroundColor: '#ecfdf5',
+              color: '#047857',
+              borderRadius: '6px',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <CheckCircle2 size={16} /> {checkInMessage}
+          </div>
+        )}
+
+        {checkInError && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '10px 14px',
+              backgroundColor: '#fef2f2',
+              color: '#b91c1c',
+              borderRadius: '6px',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <AlertCircle size={16} /> {checkInError}
           </div>
         )}
       </div>
 
-      {/* Attendance Summary Cards */}
-      <div style={{ display: 'flex', gap: '16px', margin: '20px 0' }}>
-        <div style={{ flex: 1, padding: '16px 20px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <span style={{ fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: '600' }}>
-            {isTeacher ? 'Class Average Attendance' : 'My Attendance Rate'}
-          </span>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#14785c', margin: '6px 0 0 0' }}>
-            96.8%
-          </h2>
+      {/* Summary Cards */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '16px',
+          margin: '24px 0',
+        }}
+      >
+        <div style={{ background: '#fff', border: '1px solid #e3e9e6', borderRadius: '10px', padding: '16px' }}>
+          <span style={{ fontSize: '13px', color: '#8b9491' }}>Total Enrolled</span>
+          <h3 style={{ margin: '4px 0 0', fontSize: '24px', color: '#16181b' }}>{summary.totalEnrolled}</h3>
         </div>
-        <div style={{ flex: 1, padding: '16px 20px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <span style={{ fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: '600' }}>
-            Total Completed Sessions
+        <div style={{ background: '#fff', border: '1px solid #e3e9e6', borderRadius: '10px', padding: '16px' }}>
+          <span style={{ fontSize: '13px', color: '#047857', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <CheckCircle2 size={14} /> Present
           </span>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#111827', margin: '6px 0 0 0' }}>
-            {records.length}
-          </h2>
+          <h3 style={{ margin: '4px 0 0', fontSize: '24px', color: '#047857' }}>{summary.PRESENT}</h3>
+        </div>
+        <div style={{ background: '#fff', border: '1px solid #e3e9e6', borderRadius: '10px', padding: '16px' }}>
+          <span style={{ fontSize: '13px', color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Clock size={14} /> Late
+          </span>
+          <h3 style={{ margin: '4px 0 0', fontSize: '24px', color: '#d97706' }}>{summary.LATE}</h3>
+        </div>
+        <div style={{ background: '#fff', border: '1px solid #e3e9e6', borderRadius: '10px', padding: '16px' }}>
+          <span style={{ fontSize: '13px', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <XCircle size={14} /> Absent
+          </span>
+          <h3 style={{ margin: '4px 0 0', fontSize: '24px', color: '#dc2626' }}>{summary.ABSENT}</h3>
         </div>
       </div>
 
-      {/* Attendance Records Table */}
-      <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h4 style={{ margin: 0, fontWeight: '600', fontSize: '0.95rem' }}>Attendance History</h4>
-          {isTeacher && (
-            <button
-              type="button"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#14785c',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-              onClick={() => alert('Exporting attendance report (CSV)...')}
-            >
-              <Download size={14} /> Export CSV
-            </button>
-          )}
+      {/* Attendance List */}
+      {loading ? (
+        <div className="attendance-empty-state-card">
+          <Loader2 className="attendance-btn-icon animate-spin" style={{ margin: '0 auto 1rem' }} />
+          <p className="attendance-empty-state-text">Loading attendance report...</p>
         </div>
+      ) : allRecords.length === 0 ? (
+        <div className="attendance-empty-state-card">
+          <p className="attendance-empty-state-text">
+            No check-ins recorded yet. Connect to classroom Wi-Fi to submit attendance.
+          </p>
+        </div>
+      ) : (
+        <div style={{ background: '#fff', border: '1px solid #e3e9e6', borderRadius: '12px', padding: '16px' }}>
+          <h4 style={{ marginTop: 0, marginBottom: '16px', color: '#16181b' }}>Student Records</h4>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {allRecords.map((item, idx) => {
+              const studentName = item.student?.fullName || item.student?.name || 'Student';
+              const isPresent = item.status === 'PRESENT';
+              const isLate = item.status === 'LATE';
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-          <thead>
-            <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb', color: '#6b7280', fontSize: '0.8rem' }}>
-              <th style={{ padding: '12px 20px' }}>SESSION / TOPIC</th>
-              <th style={{ padding: '12px 20px' }}>DATE</th>
-              <th style={{ padding: '12px 20px' }}>{isTeacher ? 'ATTENDEES' : 'YOUR STATUS'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((r) => (
-              <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '14px 20px', fontWeight: '500' }}>{r.title}</td>
-                <td style={{ padding: '14px 20px', color: '#6b7280' }}>{r.date}</td>
-                <td style={{ padding: '14px 20px' }}>
-                  {isTeacher ? (
-                    <span style={{ color: '#14785c', fontWeight: '600' }}>
-                      {r.presentCount} / {r.totalCount} ({Math.round((r.presentCount / r.totalCount) * 100)}%)
-                    </span>
-                  ) : (
-                    <span style={{ color: '#14785c', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <CheckCircle2 size={14} /> {r.status}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              return (
+                <li
+                  key={item.id || idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    backgroundColor: '#fafbfc',
+                    border: '1px solid #f0f4f2',
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: '#16181b', fontSize: '14px' }}>{studentName}</span>
+                  <span
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      backgroundColor: isPresent ? '#ecfdf5' : isLate ? '#fffbeb' : '#fef2f2',
+                      color: isPresent ? '#047857' : isLate ? '#b45309' : '#b91c1c',
+                    }}
+                  >
+                    {item.status}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

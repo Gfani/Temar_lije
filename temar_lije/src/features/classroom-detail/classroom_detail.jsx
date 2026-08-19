@@ -32,6 +32,9 @@ export default function ClassroomDetail({
     }
   };
 
+  const defaultClassId = classroom.id || '66666666-6666-4666-8666-666666666666';
+  const defaultUserId = currentUser.id || '33333333-3333-4333-8333-333333333333';
+
   return (
     <div 
       className="classroom-detail-page" 
@@ -68,22 +71,46 @@ export default function ClassroomDetail({
             onBack={onBackToClassrooms}
           />
 
-          {/* Detail Tab Contents with Role-Based Separation */}
+          {/* Detail Tab Contents with Integrated Props */}
           <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
             {activeDetailTab === 'materials' && (
-              <MaterialsTab isTeacher={isTeacher} currentUser={currentUser} />
+              <MaterialsTab 
+                classId={defaultClassId} 
+                isTeacher={isTeacher} 
+                currentUser={currentUser} 
+              />
             )}
             {activeDetailTab === 'live-class' && (
-              <LiveClassTab isTeacher={isTeacher} currentUser={currentUser} />
+              <LiveClassTab
+                classId={defaultClassId}
+                studentId={defaultUserId}
+                isTeacher={isTeacher}
+                currentUser={currentUser}
+              />
             )}
             {activeDetailTab === 'assignments' && (
-              <AssignmentsTab isTeacher={isTeacher} currentUser={currentUser} />
+              <AssignmentsTab
+                classId={defaultClassId}
+                isTeacher={isTeacher}
+                currentUserId={defaultUserId}
+                currentUser={currentUser}
+              />
             )}
             {activeDetailTab === 'attendance' && (
-              <AttendanceTab isTeacher={isTeacher} currentUser={currentUser} />
+              <AttendanceTab
+                classId={defaultClassId}
+                studentId={defaultUserId}
+                isTeacher={isTeacher}
+                currentUser={currentUser}
+              />
             )}
             {activeDetailTab === 'quizzes' && (
-              <QuizzesTab isTeacher={isTeacher} currentUser={currentUser} darkMode={darkMode} />
+              <QuizzesTab 
+                classId={defaultClassId}
+                isTeacher={isTeacher} 
+                currentUser={currentUser} 
+                darkMode={darkMode}
+              />
             )}
             {activeDetailTab === 'members' && (
               isTeacher ? (

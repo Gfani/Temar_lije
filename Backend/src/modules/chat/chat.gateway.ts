@@ -60,7 +60,60 @@ export class ChatGateway {
       forwardedFrom: data.forwardedFrom,
     });
 
-    this.server.to(roomId).emit('newMessage', savedMsg);
+    if (savedMsg) {
+      // Pass _optimisticId back so the frontend can replace the placeholder precisely
+      this.server.to(roomId).emit('newMessage', {
+        ...savedMsg,
+        _optimisticId: data._optimisticId,
+      });
+    }
+  }
+
+  @SubscribeMessage('deleteMessage')
+  async handleDeleteMessage(
+    @MessageBody() data: any,
+  ) {
+    const { messageId, roomId } = data;
+    if (!messageId) return;
+
+    await this.chatService.deleteMessage(messageId);
+    if (roomId) {
+      this.server.to(roomId).emit('messageDeleted', { messageId });
+    } else {
+      this.server.emit('messageDeleted', { messageId });
+    }
+  }
+
+  @SubscribeMessage('editMessage')
+  async handleEditMessage(
+    @MessageBody() data: any,
+  ) {
+    const { messageId, text, roomId } = data;
+    if (!messageId || text === undefined) return;
+
+    const updated = await this.chatService.editMessage(messageId, text);
+    if (updated) {
+      if (roomId) {
+        this.server.to(roomId).emit('messageUpdated', { messageId, text });
+      } else {
+        this.server.emit('messageUpdated', { messageId, text });
+      }
+    }
+  }
+
+  @SubscribeMessage('toggleReaction')
+  async handleToggleReaction(
+    @MessageBody() data: any,
+  ) {
+    const { messageId, userId, emoji, roomId } = data;
+    if (!messageId || !emoji) return;
+
+    const reactions = await this.chatService.toggleReaction(messageId, userId || 'gs', emoji);
+    if (roomId) {
+      this.server.to(roomId).emit('reactionToggled', { messageId, reactions });
+    } else {
+      this.server.emit('reactionToggled', { messageId, reactions });
+    }
   }
 
   @SubscribeMessage('studyInvitation')
@@ -91,16 +144,21 @@ export class ChatGateway {
     @MessageBody() data: any,
   ) {
     if (!data?.groupId) return;
-    client.join(data.groupId);
+    // Only join the voice-specific room if not already in it
+    if (!client.rooms.has(data.groupId)) {
+      client.join(data.groupId);
+    }
     this.server.to(data.groupId).emit('voiceChatUserJoined', data);
   }
 
   @SubscribeMessage('leaveVoiceChat')
   async handleLeaveVoiceChat(
+    @ConnectedSocket() client: Socket,
     @MessageBody() data: any,
   ) {
     if (!data?.groupId) return;
     this.server.to(data.groupId).emit('voiceChatUserLeft', data);
+    client.leave(data.groupId);
   }
 
   @SubscribeMessage('toggleMuteVoice')

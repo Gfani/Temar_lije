@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare, Phone, Mic, MicOff, Volume2, LogOut, Pin, PinOff, Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
 import './chat.css';
 import { io } from 'socket.io-client';
@@ -56,6 +56,9 @@ function Chat({
     const audioChunksRef = useRef([]);
     const recordingTimerRef = useRef(null);
     const audioPlayerRefs = useRef({});
+    const audioWaveAnimRef = useRef(null);
+    const audioWaveCanvasRef = useRef({});
+    const activeAudioPlayingIdRef = useRef(null);
 
     // Voice Chat Real Microphone Stream
     const voiceAudioContextRef = useRef(null);
@@ -72,7 +75,51 @@ function Chat({
     const [typingUser, setTypingUser] = useState(null);
     const [editingMessageId, setEditingMessageId] = useState(null);
     const [toastMessage, setToastMessage] = useState(null);
+    const [toastEmoji, setToastEmoji] = useState('🔗');
+    const toastTimeoutRef = useRef(null);
+
+    const showToast = useCallback((msg, emoji = '🔗') => {
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        setToastMessage(msg);
+        setToastEmoji(emoji);
+        toastTimeoutRef.current = setTimeout(() => {
+            setToastMessage(null);
+        }, 3000);
+    }, []);
+
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, message: null });
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [selectedMessageIds, setSelectedMessageIds] = useState(new Set());
+
+    const enterSelectionMode = useCallback((msgId) => {
+        setIsSelectionMode(true);
+        setSelectedMessageIds(new Set(msgId ? [msgId] : []));
+        setContextMenu({ visible: false, x: 0, y: 0, message: null });
+    }, []);
+
+    const exitSelectionMode = useCallback(() => {
+        setIsSelectionMode(false);
+        setSelectedMessageIds(new Set());
+    }, []);
+
+    const toggleMessageSelection = useCallback((msgId) => {
+        setSelectedMessageIds(prev => {
+            const next = new Set(prev);
+            if (next.has(msgId)) next.delete(msgId);
+            else next.add(msgId);
+            return next;
+        });
+    }, []);
+
+    const handleDeleteSelected = useCallback(() => {
+        selectedMessageIds.forEach(id => handleDeleteMessage(id));
+        exitSelectionMode();
+    }, [selectedMessageIds, exitSelectionMode]);
+
+    const isImageFile = useCallback((fileName = '', fileIcon = '') => {
+        const imgExts = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i;
+        return imgExts.test(fileName) || fileIcon === '🖼️' || fileIcon === '🎨';
+    }, []);
     const [replyingTo, setReplyingTo] = useState(null);
     const [forwardingMessage, setForwardingMessage] = useState(null);
     const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
@@ -115,9 +162,7 @@ function Chat({
                     ...prev,
                     [`${activeId}-${memberId}`]: newRole
                 }));
-                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-                setToastMessage(`${USER_PROFILES[memberId]?.name} is now a ${newRole.toLowerCase()}!`);
-                toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+                showToast(`${USER_PROFILES[memberId]?.name} is now a ${newRole.toLowerCase()}!`, '👑');
             }
         })
         .catch(err => console.error('Failed to update member role:', err));
@@ -171,9 +216,32 @@ function Chat({
 
     const handleToggleVoiceChat = () => {
         if (voiceCallStatus === 'connected') {
-            return;
+            if (activeVoiceChat?.groupId === activeId) {
+                handleLeaveVoiceChat();
+                return;
+            } else {
+                stopVoiceAudioCapture();
+                if (simSpeakerIntervalRef.current) {
+                    clearInterval(simSpeakerIntervalRef.current);
+                    simSpeakerIntervalRef.current = null;
+                }
+                if (socketRef.current && activeVoiceChat) {
+                    socketRef.current.emit('leaveVoiceChat', {
+                        groupId: activeVoiceChat.groupId,
+                        userId: 'gs'
+                    });
+                }
+                setVoiceCallStatus(null);
+                setActiveVoiceChat(null);
+                setTimeout(joinNewVoiceCall, 100);
+                return;
+            }
         }
 
+        joinNewVoiceCall();
+    };
+
+    const joinNewVoiceCall = () => {
         setVoiceCallStatus('connecting');
         startVoiceAudioCapture();
 
@@ -289,30 +357,33 @@ function Chat({
     // Audio Voice Note Recording Handlers
     const handleStartVoiceRecording = async () => {
         try {
-            let stream = null;
-            const isVoiceChatActive = voiceStreamRef.current && voiceCallStatus === 'connected';
-
-            if (isVoiceChatActive) {
-                stream = voiceStreamRef.current;
-            } else {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
-            }
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
 
             audioChunksRef.current = [];
 
-            let options = { audioBitsPerSecond: 128000 };
-            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                options.mimeType = 'audio/webm;codecs=opus';
-            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-                options.mimeType = 'audio/webm';
+            let chosenMimeType = '';
+            const preferredTypes = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4;codecs=aac',
+                'audio/mp4',
+                'audio/ogg;codecs=opus',
+                'audio/wav'
+            ];
+            for (const t of preferredTypes) {
+                if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+                    chosenMimeType = t;
+                    break;
+                }
             }
 
+            const options = chosenMimeType ? { mimeType: chosenMimeType } : {};
             const mediaRecorder = new MediaRecorder(stream, options);
             mediaRecorderRef.current = mediaRecorder;
 
@@ -322,7 +393,7 @@ function Chat({
                 }
             };
 
-            mediaRecorder.start(1000); // Flush buffer chunks every second for reliability
+            mediaRecorder.start(250); // flush 250ms chunks continuously into audioChunksRef
             setIsRecordingVoice(true);
             setRecordingDuration(0);
             recordingTimerRef.current = setInterval(() => {
@@ -330,17 +401,20 @@ function Chat({
             }, 1000);
         } catch (err) {
             console.error('Failed to start audio recording:', err);
-            alert('Microphone access is required to record voice notes.');
+            showToast('Microphone access is required to record voice notes.', '🎙️');
         }
     };
 
     const handleCancelVoiceRecording = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            const isSharedStream = voiceStreamRef.current && voiceCallStatus === 'connected';
-            if (!isSharedStream) {
-                mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+            try {
+                if (mediaRecorderRef.current.stream) {
+                    mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+                }
+                mediaRecorderRef.current.stop();
+            } catch (err) {
+                console.warn('Error cancelling recording:', err);
             }
-            mediaRecorderRef.current.stop();
         }
         clearInterval(recordingTimerRef.current);
         setIsRecordingVoice(false);
@@ -350,40 +424,60 @@ function Chat({
 
     const handleSendVoiceRecording = async () => {
         if (!mediaRecorderRef.current || !isRecordingVoice) return;
-        const duration = recordingDuration;
+        const duration = recordingDuration || 1;
         clearInterval(recordingTimerRef.current);
         setIsRecordingVoice(false);
         setRecordingDuration(0);
 
-        mediaRecorderRef.current.onstop = async () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-            const isSharedStream = voiceStreamRef.current && voiceCallStatus === 'connected';
-            if (!isSharedStream) {
-                mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        const recorder = mediaRecorderRef.current;
+        recorder.onstop = async () => {
+            if (recorder.stream) {
+                recorder.stream.getTracks().forEach(track => track.stop());
             }
 
+            const recordedMimeType = recorder.mimeType || 'audio/webm';
+            const audioBlob = new Blob(audioChunksRef.current, { type: recordedMimeType });
+
+            if (audioBlob.size === 0) {
+                showToast('Voice note was empty, please try again.', '⚠️');
+                return;
+            }
+
+            const ext = recordedMimeType.includes('mp4') ? 'mp4' 
+                      : recordedMimeType.includes('ogg') ? 'ogg' 
+                      : recordedMimeType.includes('wav') ? 'wav' 
+                      : 'webm';
+
             const formData = new FormData();
-            formData.append('file', audioBlob, `voice-note-${Date.now()}.webm`);
+            formData.append('file', audioBlob, `voice-note-${Date.now()}.${ext}`);
 
             let audioUrl = '';
+            let uploadFailed = false;
             try {
                 const res = await fetch(`${API_BASE_URL}/chat/upload`, {
                     method: 'POST',
                     body: formData
                 });
                 const data = await res.json();
-                audioUrl = data.url;
+                if (data && data.url) {
+                    audioUrl = data.url;
+                } else {
+                    throw new Error('No URL in upload response');
+                }
             } catch (err) {
                 console.error('Failed to upload voice note:', err);
+                uploadFailed = true;
                 audioUrl = URL.createObjectURL(audioBlob);
             }
 
             const isClassroom = classrooms.some(c => c.id === activeId);
             const roomId = isClassroom ? activeId : `${activeId}-${activeTopicId}`;
             const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const durationLabel = `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`;
 
+            const optimisticId = `optimistic-voice-${Date.now()}`;
             const newMsg = {
-                id: `optimistic-voice-${Date.now()}`,
+                id: optimisticId,
                 senderId: 'gs',
                 sender: 'Gelila Sintayehu',
                 initials: 'GS',
@@ -393,7 +487,7 @@ function Chat({
                 type: 'audio',
                 audioUrl: audioUrl,
                 text: audioUrl,
-                fileName: `Voice message (${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')})`,
+                fileName: `Voice message (${durationLabel})`,
                 fileSize: formatBytes(audioBlob.size),
                 fileIcon: '🎙️',
                 duration: duration,
@@ -405,20 +499,30 @@ function Chat({
                 [roomId]: [...(prev[roomId] || []), newMsg]
             }));
 
-            if (socketRef.current) {
+            if (socketRef.current && !uploadFailed) {
                 socketRef.current.emit('sendMessage', {
+                    _optimisticId: optimisticId,
                     roomId,
                     senderId: 'gs',
                     text: audioUrl,
                     type: 'audio',
                     fileName: newMsg.fileName,
                     fileSize: newMsg.fileSize,
-                    fileIcon: '🎙️'
+                    fileIcon: '🎙️',
+                    duration: duration
                 });
+            } else if (uploadFailed) {
+                showToast('Voice note stored locally (server offline).', '⚠️');
             }
         };
 
-        mediaRecorderRef.current.stop();
+        try {
+            if (recorder.state !== 'inactive') {
+                recorder.stop();
+            }
+        } catch (e) {
+            console.error('Error stopping recorder:', e);
+        }
     };
 
     // Toggle Pin Message Handler
@@ -441,9 +545,7 @@ function Chat({
                     [currentKey]: current.map(m => (m.id === msg.id ? { ...m, isPinned: newPinned } : m))
                 };
             });
-            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-            setToastMessage(newPinned ? 'Message pinned to top!' : 'Message unpinned');
-            toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2500);
+            showToast(newPinned ? 'Message pinned to top!' : 'Message unpinned', '📌');
         })
         .catch(err => console.error('Failed to pin message:', err));
     };
@@ -509,24 +611,40 @@ function Chat({
         socketRef.current = io(API_BASE_URL);
 
         socketRef.current.on('newMessage', (msg) => {
+            // Restore file data for document and grouped types
+            let fileDataUrl;
+            let groupedFiles;
+            if (msg.type === 'document') {
+                fileDataUrl = msg.text; // file URL stored in text field
+            } else if (msg.type === 'grouped') {
+                try { groupedFiles = JSON.parse(msg.text || '[]'); } catch { groupedFiles = []; }
+            }
+
             const mappedMsg = {
                 id: msg.id,
                 sender: msg.senderId === 'gs' ? 'Gelila Sintayehu' : (msg.sender?.name || msg.senderId),
                 initials: msg.senderId === 'gs' ? 'GS' : (msg.sender?.initials || '??'),
-                avatarClass: msg.senderId === 'gs' ? 'gs' : 'at',
+                avatarClass: msg.senderId === 'gs' ? 'gs' : (msg.sender?.initials?.toLowerCase() || 'at'),
                 avatarBg: msg.sender?.avatarBg || '#8b5cf6',
-                text: msg.text,
+                text: msg.type === 'document' || msg.type === 'grouped' ? undefined : msg.text,
                 image: msg.image,
                 time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 incoming: msg.senderId !== 'gs',
-                reactions: [],
+                reactions: (msg.reactionsGrouped || []).map(r => ({
+                    emoji: r.emoji,
+                    count: r.count,
+                    userReacted: (r.userIds || []).includes('gs')
+                })),
                 type: msg.type,
                 fileName: msg.fileName,
                 fileSize: msg.fileSize,
                 fileIcon: msg.fileIcon,
                 isPinned: msg.isPinned || false,
                 audioUrl: msg.type === 'audio' ? (msg.audioUrl || msg.text) : undefined,
-                replyTo: msg.replyTo || undefined
+                replyTo: msg.replyTo || undefined,
+                forwardedFrom: msg.forwardedFrom || undefined,
+                fileDataUrl: fileDataUrl,
+                files: groupedFiles
             };
 
             setMessagesByGroup(prev => {
@@ -534,9 +652,9 @@ function Chat({
                 const existing = prev[key] || [];
                 // If we already have this server-confirmed id, skip
                 if (existing.some(m => m.id === msg.id)) return prev;
-                // Replace optimistic placeholder if sender is 'gs'
-                if (msg.senderId === 'gs') {
-                    const optimisticIdx = existing.findIndex(m => m.id && m.id.startsWith('optimistic-'));
+                // Replace optimistic placeholder using _optimisticId for precision
+                if (msg.senderId === 'gs' && msg._optimisticId) {
+                    const optimisticIdx = existing.findIndex(m => m.id === msg._optimisticId);
                     if (optimisticIdx !== -1) {
                         const updated = [...existing];
                         updated[optimisticIdx] = mappedMsg;
@@ -566,6 +684,44 @@ function Chat({
                 const updatedAll = {};
                 Object.keys(prev).forEach(key => {
                     updatedAll[key] = (prev[key] || []).map(m => (m.id === messageId ? { ...m, isPinned } : m));
+                });
+                return updatedAll;
+            });
+        });
+
+        socketRef.current.on('messageDeleted', (data) => {
+            const { messageId } = data;
+            setMessagesByGroup(prev => {
+                const updatedAll = {};
+                Object.keys(prev).forEach(key => {
+                    updatedAll[key] = (prev[key] || []).filter(m => m.id !== messageId);
+                });
+                return updatedAll;
+            });
+        });
+
+        socketRef.current.on('messageUpdated', (data) => {
+            const { messageId, text } = data;
+            setMessagesByGroup(prev => {
+                const updatedAll = {};
+                Object.keys(prev).forEach(key => {
+                    updatedAll[key] = (prev[key] || []).map(m => m.id === messageId ? { ...m, text } : m);
+                });
+                return updatedAll;
+            });
+        });
+
+        socketRef.current.on('reactionToggled', (data) => {
+            const { messageId, reactions } = data;
+            const mappedReactions = (reactions || []).map(r => ({
+                emoji: r.emoji,
+                count: r.count,
+                userReacted: (r.userIds || []).includes('gs')
+            }));
+            setMessagesByGroup(prev => {
+                const updatedAll = {};
+                Object.keys(prev).forEach(key => {
+                    updatedAll[key] = (prev[key] || []).map(m => m.id === messageId ? { ...m, reactions: mappedReactions } : m);
                 });
                 return updatedAll;
             });
@@ -607,22 +763,42 @@ function Chat({
                     };
                 });
             } else {
-                setStudyGroups(prev => {
-                    if (prev.some(g => g.id === group.id)) return prev;
-                    return [
-                        ...prev,
-                        {
-                            id: group.id,
-                            name: group.name,
-                            subtitle: group.description || 'No messages yet',
-                            isClassroom: false,
-                            time: '',
-                            icon: group.icon || '👥',
-                            color: group.color || '#8b5cf6',
-                            members: group.members?.map(m => m.userId) || []
-                        }
-                    ];
-                });
+                const isClassroom = group.icon === '🏫';
+                if (isClassroom) {
+                    setClassrooms(prev => {
+                        if (prev.some(c => c.id === group.id)) return prev;
+                        return [
+                            ...prev,
+                            {
+                                id: group.id,
+                                name: group.name,
+                                subtitle: group.description || 'No messages yet',
+                                isClassroom: true,
+                                time: '',
+                                icon: group.icon || '🏫',
+                                color: group.color || '#10b981',
+                                members: group.members?.map(m => m.userId) || []
+                            }
+                        ];
+                    });
+                } else {
+                    setStudyGroups(prev => {
+                        if (prev.some(g => g.id === group.id)) return prev;
+                        return [
+                            ...prev,
+                            {
+                                id: group.id,
+                                name: group.name,
+                                subtitle: group.description || 'No messages yet',
+                                isClassroom: false,
+                                time: '',
+                                icon: group.icon || '👥',
+                                color: group.color || '#8b5cf6',
+                                members: group.members?.map(m => m.userId) || []
+                            }
+                        ];
+                    });
+                }
             }
         });
 
@@ -727,16 +903,43 @@ function Chat({
                         return isTopic;
                     });
 
-                    const mappedGroups = mainGroups.map(g => ({
-                        id: g.id,
-                        name: g.name,
-                        subtitle: g.description || 'No messages yet',
-                        isClassroom: false,
-                        time: '',
-                        icon: g.icon || '👥',
-                        color: g.color || '#8b5cf6',
-                        members: g.members?.map(m => m.userId) || []
-                    }));
+                    // Default classrooms
+                    const defaultClassrooms = [
+                        { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM' },
+                        { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '' }
+                    ];
+
+                    const loadedClassrooms = [];
+                    const mappedGroups = [];
+
+                    mainGroups.forEach(g => {
+                        const isClassroom = g.icon === '🏫' || g.id === 'flutter' || g.id === 'react-native';
+                        const item = {
+                            id: g.id,
+                            name: g.name,
+                            subtitle: g.description || 'No messages yet',
+                            isClassroom: isClassroom,
+                            time: '',
+                            icon: g.icon || '👥',
+                            color: g.color || '#8b5cf6',
+                            members: g.members?.map(m => m.userId) || []
+                        };
+                        if (isClassroom) {
+                            loadedClassrooms.push(item);
+                        } else {
+                            mappedGroups.push(item);
+                        }
+                    });
+
+                    // Merge default classrooms and loaded classrooms
+                    const mergedClassrooms = [...defaultClassrooms];
+                    loadedClassrooms.forEach(lc => {
+                        if (!mergedClassrooms.some(dc => dc.id === lc.id)) {
+                            mergedClassrooms.push(lc);
+                        }
+                    });
+
+                    setClassrooms(mergedClassrooms);
                     
                     const rolesMap = {};
                     data.forEach(g => {
@@ -784,6 +987,7 @@ function Chat({
         return () => {
             if (socketRef.current) socketRef.current.disconnect();
             if (simSpeakerIntervalRef.current) clearInterval(simSpeakerIntervalRef.current);
+            stopAudioWaveAnim();
         };
     }, []);
 
@@ -806,25 +1010,41 @@ function Chat({
             .then(res => res.json())
             .then(data => {
                 if (data && Array.isArray(data)) {
-                    const mappedMessages = data.map(msg => ({
-                        id: msg.id,
-                        sender: msg.senderId === 'gs' ? 'Gelila Sintayehu' : (msg.sender?.name || msg.senderId),
-                        initials: msg.senderId === 'gs' ? 'GS' : (msg.sender?.initials || '??'),
-                        avatarClass: msg.senderId === 'gs' ? 'gs' : 'at',
-                        avatarBg: msg.sender?.avatarBg || '#8b5cf6',
-                        text: msg.text,
-                        image: msg.image,
-                        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        incoming: msg.senderId !== 'gs',
-                        reactions: [],
-                        type: msg.type,
-                        fileName: msg.fileName,
-                        fileSize: msg.fileSize,
-                        fileIcon: msg.fileIcon,
-                        isPinned: msg.isPinned || false,
-                        audioUrl: msg.type === 'audio' ? (msg.audioUrl || msg.text) : undefined,
-                        replyTo: msg.replyTo || undefined
-                    }));
+                    const mappedMessages = data.map(msg => {
+                        let fileDataUrl;
+                        let groupedFiles;
+                        if (msg.type === 'document') {
+                            fileDataUrl = msg.text;
+                        } else if (msg.type === 'grouped') {
+                            try { groupedFiles = JSON.parse(msg.text || '[]'); } catch { groupedFiles = []; }
+                        }
+                        return ({
+                            id: msg.id,
+                            sender: msg.senderId === 'gs' ? 'Gelila Sintayehu' : (msg.sender?.name || msg.senderId),
+                            initials: msg.senderId === 'gs' ? 'GS' : (msg.sender?.initials || '??'),
+                            avatarClass: msg.senderId === 'gs' ? 'gs' : (msg.sender?.initials?.toLowerCase() || 'at'),
+                            avatarBg: msg.sender?.avatarBg || '#8b5cf6',
+                            text: msg.type === 'document' || msg.type === 'grouped' ? undefined : msg.text,
+                            image: msg.image,
+                            time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            incoming: msg.senderId !== 'gs',
+                            reactions: (msg.reactionsGrouped || []).map(r => ({
+                                emoji: r.emoji,
+                                count: r.count,
+                                userReacted: (r.userIds || []).includes('gs')
+                            })),
+                            type: msg.type,
+                            fileName: msg.fileName,
+                            fileSize: msg.fileSize,
+                            fileIcon: msg.fileIcon,
+                            isPinned: msg.isPinned || false,
+                            audioUrl: msg.type === 'audio' ? (msg.audioUrl || msg.text) : undefined,
+                            replyTo: msg.replyTo || undefined,
+                            forwardedFrom: msg.forwardedFrom || undefined,
+                            fileDataUrl,
+                            files: groupedFiles
+                        });
+                    });
                     
                     setMessagesByGroup(prev => ({
                         ...prev,
@@ -839,7 +1059,98 @@ function Chat({
     const conversationPaneRef = useRef(null);
     const fileInputRef = useRef(null);
     const prevActiveIdRef = useRef(activeId);
-    const toastTimeoutRef = useRef(null);
+
+    // Drag-to-select refs
+    const dragStartRef = useRef(null);        // { x, y } in pane-local coords
+    const dragRectRef  = useRef(null);        // live { x, y, w, h } state
+    const [dragRect, setDragRect] = useState(null); // triggers re-render for the overlay
+
+    // Drag-to-select effect — attaches window-level listeners while pane is mounted
+    useEffect(() => {
+        const pane = conversationPaneRef.current;
+        if (!pane) return;
+
+        const onMouseDown = (e) => {
+            // Only left-button drag on the pane background (not on a bubble/button)
+            if (e.button !== 0) return;
+            const tag = e.target.tagName.toLowerCase();
+            if (['button', 'a', 'input', 'textarea', 'canvas'].includes(tag)) return;
+            if (e.target.closest('.message-bubble, .audio-player-bubble, .document-attachment-card, .grouped-attachments-grid, .message-reaction-bar, .reactions-list')) return;
+
+            const paneRect = pane.getBoundingClientRect();
+            const startX = e.clientX - paneRect.left;
+            const startY = e.clientY - paneRect.top + pane.scrollTop;
+            dragStartRef.current = { x: startX, y: startY, clientX: e.clientX, clientY: e.clientY };
+            dragRectRef.current = null;
+        };
+
+        const onMouseMove = (e) => {
+            if (!dragStartRef.current) return;
+            const start = dragStartRef.current;
+
+            // Only start drawing rect after moving 6px to avoid accidental drags
+            const dx = e.clientX - start.clientX;
+            const dy = e.clientY - start.clientY;
+            if (!dragRectRef.current && Math.sqrt(dx * dx + dy * dy) < 6) return;
+
+            const paneRect = pane.getBoundingClientRect();
+            const curX = e.clientX - paneRect.left;
+            const curY = e.clientY - paneRect.top + pane.scrollTop;
+
+            const rx = Math.min(start.x, curX);
+            const ry = Math.min(start.y, curY);
+            const rw = Math.abs(curX - start.x);
+            const rh = Math.abs(curY - start.y);
+
+            dragRectRef.current = { rx, ry, rw, rh };
+            setDragRect({ rx, ry, rw, rh });
+
+            // Hit-test each message row
+            const rows = pane.querySelectorAll('.message-row');
+            const newSelected = new Set();
+            rows.forEach(row => {
+                const rowRect = row.getBoundingClientRect();
+                const rowTop    = rowRect.top    - paneRect.top + pane.scrollTop;
+                const rowBottom = rowRect.bottom - paneRect.top + pane.scrollTop;
+                const rowLeft   = rowRect.left   - paneRect.left;
+                const rowRight  = rowRect.right  - paneRect.left;
+
+                const overlaps =
+                    rowRight  > rx       &&
+                    rowLeft   < rx + rw  &&
+                    rowBottom > ry       &&
+                    rowTop    < ry + rh;
+
+                if (overlaps) {
+                    const msgId = row.dataset.msgid;
+                    if (msgId) newSelected.add(msgId);
+                }
+            });
+
+            if (newSelected.size > 0) {
+                setIsSelectionMode(true);
+                setSelectedMessageIds(newSelected);
+            }
+
+            e.preventDefault();
+        };
+
+        const onMouseUp = () => {
+            dragStartRef.current = null;
+            dragRectRef.current  = null;
+            setDragRect(null);
+        };
+
+        pane.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+
+        return () => {
+            pane.removeEventListener('mousedown', onMouseDown);
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+    }, []);
 
     // Active item and active messages key helpers
     const activeItem =
@@ -950,6 +1261,156 @@ function Chat({
         return 0;
     };
 
+    // --- Voice note waveform (frequency bars) ---
+    const getAudioWaveSeed = (msgId) => {
+        let h = 0;
+        const idStr = String(msgId || 'default');
+        for (let i = 0; i < idStr.length; i++) h = (h * 31 + idStr.charCodeAt(i)) >>> 0;
+        return (h / 4294967295) * Math.PI * 2;
+    };
+
+    const drawAudioWave = (canvas, isPlaying, msgId, incoming, progress = 0) => {
+        if (!canvas) return;
+        const ctx2d = canvas.getContext('2d');
+        if (!ctx2d) return;
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx2d.clearRect(0, 0, W, H);
+        const barCount = 30;
+        const barGap = 2;
+        const barW = (W - barGap * (barCount - 1)) / barCount;
+        const seed = getAudioWaveSeed(msgId);
+
+        for (let i = 0; i < barCount; i++) {
+            const barRatio = i / barCount;
+            const isPlayed = barRatio <= progress;
+
+            let v = 0.25 + 0.3 * Math.sin(i * 0.75 + seed) + 0.15 * Math.sin(i * 1.8 + seed * 2);
+            if (isPlaying) {
+                const waveShift = (Date.now() / 120) + (i * 0.45);
+                v = 0.2 + 0.55 * Math.abs(Math.sin(waveShift));
+            }
+            v = Math.max(0.18, Math.min(0.92, v));
+            const h = Math.max(4, v * (H - 8));
+            const x = i * (barW + barGap);
+            const y = (H - h) / 2;
+            const r = Math.min(barW / 2, 2);
+
+            ctx2d.fillStyle = isPlayed
+                ? (incoming ? '#4f46e5' : '#ffffff')
+                : (incoming ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.45)');
+
+            ctx2d.beginPath();
+            if (ctx2d.roundRect) {
+                ctx2d.roundRect(x, y, barW, h, r);
+            } else {
+                ctx2d.rect(x, y, barW, h);
+            }
+            ctx2d.fill();
+        }
+    };
+
+    const stopAudioWaveAnim = () => {
+        if (audioWaveAnimRef.current) {
+            cancelAnimationFrame(audioWaveAnimRef.current);
+            audioWaveAnimRef.current = null;
+        }
+    };
+
+    const startAudioWaveAnim = (msgId, incoming) => {
+        stopAudioWaveAnim();
+        const animate = () => {
+            if (activeAudioPlayingIdRef.current !== msgId) return;
+            const canvas = audioWaveCanvasRef.current[msgId];
+            const el = audioPlayerRefs.current[msgId];
+            if (canvas && el) {
+                let dur = el.duration;
+                if (!dur || dur === Infinity || isNaN(dur)) {
+                    dur = 0;
+                }
+                const progress = dur > 0 ? el.currentTime / dur : 0;
+                drawAudioWave(canvas, true, msgId, incoming, progress);
+            }
+            audioWaveAnimRef.current = requestAnimationFrame(animate);
+        };
+        audioWaveAnimRef.current = requestAnimationFrame(animate);
+    };
+
+    const handlePlayAudioMessage = async (msg) => {
+        const audioSrc = msg.audioUrl || msg.text;
+        if (!audioSrc) {
+            showToast("Audio source not available", "⚠️");
+            return;
+        }
+
+        const el = audioPlayerRefs.current[msg.id];
+        if (!el) {
+            console.warn("Audio element ref not found for", msg.id);
+            return;
+        }
+
+        if (activeAudioPlayingId === msg.id) {
+            el.pause();
+            setActiveAudioPlayingId(null);
+            activeAudioPlayingIdRef.current = null;
+            stopAudioWaveAnim();
+            const canvas = audioWaveCanvasRef.current[msg.id];
+            if (canvas) {
+                let dur = el.duration;
+                if (!dur || dur === Infinity || isNaN(dur)) {
+                    dur = getAudioDurationFromFileName(msg.fileName) || msg.duration || 1;
+                }
+                drawAudioWave(canvas, false, msg.id, msg.incoming, el.currentTime / dur);
+            }
+            return;
+        }
+
+        // Pause all other audio players
+        Object.keys(audioPlayerRefs.current).forEach(id => {
+            const otherEl = audioPlayerRefs.current[id];
+            if (otherEl && id !== msg.id) {
+                otherEl.pause();
+                const otherCanvas = audioWaveCanvasRef.current[id];
+                if (otherCanvas) {
+                    let otherDur = otherEl.duration;
+                    if (!otherDur || otherDur === Infinity || isNaN(otherDur)) otherDur = 1;
+                    drawAudioWave(otherCanvas, false, id, false, otherEl.currentTime / otherDur);
+                }
+            }
+        });
+
+        try {
+            if (!el.src || el.src === window.location.href) {
+                el.src = audioSrc;
+                el.load();
+            }
+            await el.play();
+            setActiveAudioPlayingId(msg.id);
+            activeAudioPlayingIdRef.current = msg.id;
+            startAudioWaveAnim(msg.id, msg.incoming);
+        } catch (err) {
+            console.error("Audio playback error:", err);
+            showToast("Audio playback failed", "⚠️");
+            setActiveAudioPlayingId(null);
+            activeAudioPlayingIdRef.current = null;
+            stopAudioWaveAnim();
+        }
+    };
+
+    const handlePauseAudioMessage = (msg) => {
+        const el = audioPlayerRefs.current[msg.id];
+        if (el) el.pause();
+        setActiveAudioPlayingId(null);
+        activeAudioPlayingIdRef.current = null;
+        stopAudioWaveAnim();
+    };
+
+    const handleAudioEnded = () => {
+        setActiveAudioPlayingId(null);
+        activeAudioPlayingIdRef.current = null;
+        stopAudioWaveAnim();
+    };
+
     // Helper to format audio playback time
     const formatAudioTime = (seconds) => {
         if (isNaN(seconds) || seconds === Infinity) return '0:00';
@@ -1053,9 +1514,10 @@ function Chat({
                 socketRef.current.emit('sendMessage', {
                     roomId,
                     senderId: 'gs',
-                    text: previewText,
+                    text: JSON.stringify(groupedItems),
                     type: 'grouped',
-                    fileName: `${pendingFiles.length} files`
+                    fileName: `${pendingFiles.length} files`,
+                    _optimisticId: newMessage.id
                 });
             }
 
@@ -1124,12 +1586,13 @@ function Chat({
                     socketRef.current.emit('sendMessage', {
                         roomId,
                         senderId: 'gs',
-                        text: newMessage.text || '',
+                        text: newMessage.type === 'document' ? (newMessage.fileDataUrl || '') : (newMessage.text || ''),
                         image: newMessage.image || undefined,
                         type: newMessage.type || 'text',
                         fileName: newMessage.fileName,
                         fileSize: newMessage.fileSize,
-                        fileIcon: newMessage.fileIcon
+                        fileIcon: newMessage.fileIcon,
+                        _optimisticId: newMessage.id
                     });
                 }
             }
@@ -1183,6 +1646,15 @@ function Chat({
                     prev.map(c => (c.id === activeId ? { ...c, subtitle: `You (edited): ${previewText}`, time: timeString } : c))
                 );
             }
+
+            // Call backend API to persist edit and broadcast
+            const roomId = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+            fetch(`${API_BASE_URL}/chat/messages/${editingMessageId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: inputValue, roomId })
+            })
+            .catch(err => console.error('Failed to edit message:', err));
 
             setEditingMessageId(null);
         } else {
@@ -1244,8 +1716,32 @@ function Chat({
 
     // Handle deleting a message
     const handleDeleteMessage = (messageId) => {
+        const roomId = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+        
         setMessagesByGroup(prev => {
             const activeMessagesList = prev[activeMessagesKey] || [];
+            const wasLastMessage = activeMessagesList.length > 0 && activeMessagesList[activeMessagesList.length - 1].id === messageId;
+            
+            if (wasLastMessage) {
+                const textPreview = 'Message deleted';
+                if (studyGroups.some(g => g.id === activeId)) {
+                    setStudyGroups(gPrev =>
+                        gPrev.map(g => (g.id === activeId ? { ...g, subtitle: textPreview } : g))
+                    );
+                    if (!activeItem.isClassroom) {
+                        setTopicsByGroup(tPrev => {
+                            const groupTopics = tPrev[activeId] || [];
+                            const updated = groupTopics.map(t => (t.id === activeTopicId ? { ...t, subtitle: textPreview } : t));
+                            return { ...tPrev, [activeId]: updated };
+                        });
+                    }
+                } else if (classrooms.some(c => c.id === activeId)) {
+                    setClassrooms(cPrev =>
+                        cPrev.map(c => (c.id === activeId ? { ...c, subtitle: textPreview } : c))
+                    );
+                }
+            }
+
             const filteredMessages = activeMessagesList.filter(msg => msg.id !== messageId);
             return {
                 ...prev,
@@ -1253,31 +1749,13 @@ function Chat({
             };
         });
 
-        // Update sidebar preview to "Message deleted" if it was the last preview
-        setMessagesByGroup(current => {
-            const activeMessagesList = current[activeMessagesKey] || [];
-            const wasLastMessage = activeMessagesList.length > 0 && activeMessagesList[activeMessagesList.length - 1].id === messageId;
-            if (wasLastMessage) {
-                const textPreview = 'Message deleted';
-                if (studyGroups.some(g => g.id === activeId)) {
-                    setStudyGroups(prev =>
-                        prev.map(g => (g.id === activeId ? { ...g, subtitle: textPreview } : g))
-                    );
-                    if (!activeItem.isClassroom) {
-                        setTopicsByGroup(prev => {
-                            const groupTopics = prev[activeId] || [];
-                            const updated = groupTopics.map(t => (t.id === activeTopicId ? { ...t, subtitle: textPreview } : t));
-                            return { ...prev, [activeId]: updated };
-                        });
-                    }
-                } else if (classrooms.some(c => c.id === activeId)) {
-                    setClassrooms(prev =>
-                        prev.map(c => (c.id === activeId ? { ...c, subtitle: textPreview } : c))
-                    );
-                }
-            }
-            return current;
-        });
+        // Call backend API to persist delete and broadcast
+        fetch(`${API_BASE_URL}/chat/messages/${messageId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomId })
+        })
+        .catch(err => console.error('Failed to delete message:', err));
     };
 
     // Handle deleting a study group
@@ -1330,6 +1808,10 @@ function Chat({
     };
 
     const handleKeyDown = (e) => {
+        if (e.key === 'Escape' && isSelectionMode) {
+            exitSelectionMode();
+            return;
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage();
@@ -1352,22 +1834,31 @@ function Chat({
         if (!forwardingMessage) return;
 
         const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        const isTargetClassroom = classrooms.some(c => c.id === targetChannelId);
+        const targetRoomId = isTargetClassroom ? targetChannelId : `${targetChannelId}-general`;
+
         const newForwardMsg = {
-            id: `msg-${Date.now()}`,
+            id: `optimistic-forward-${Date.now()}`,
             sender: 'Gelila Sintayehu',
             initials: 'GS',
             avatarClass: 'gs',
+            avatarBg: '#3b82f6',
             text: forwardingMessage.text,
             image: forwardingMessage.image,
             time: timeString,
             incoming: false,
             reactions: [],
-            forwardedFrom: forwardingMessage.sender
+            forwardedFrom: forwardingMessage.sender,
+            type: forwardingMessage.type || 'text',
+            fileName: forwardingMessage.fileName,
+            fileSize: forwardingMessage.fileSize,
+            fileIcon: forwardingMessage.fileIcon
         };
 
         setMessagesByGroup(prev => ({
             ...prev,
-            [targetChannelId]: [...(prev[targetChannelId] || []), newForwardMsg]
+            [targetRoomId]: [...(prev[targetRoomId] || []), newForwardMsg]
         }));
 
         // Update target channel's preview in the sidebar
@@ -1383,16 +1874,24 @@ function Chat({
             );
         }
 
+        if (socketRef.current) {
+            socketRef.current.emit('sendMessage', {
+                roomId: targetRoomId,
+                senderId: 'gs',
+                text: forwardingMessage.text || '',
+                image: forwardingMessage.image || undefined,
+                type: forwardingMessage.type || 'text',
+                fileName: forwardingMessage.fileName,
+                fileSize: forwardingMessage.fileSize,
+                fileIcon: forwardingMessage.fileIcon,
+                forwardedFrom: forwardingMessage.sender,
+                _optimisticId: newForwardMsg.id
+            });
+        }
+
         setForwardingMessage(null);
 
-        // Display toast notice
-        if (toastTimeoutRef.current) {
-            clearTimeout(toastTimeoutRef.current);
-        }
-        setToastMessage(`Message forwarded to "${targetItem?.name}"!`);
-        toastTimeoutRef.current = setTimeout(() => {
-            setToastMessage(null);
-        }, 3000);
+        showToast(`Message forwarded to "${targetItem?.name}"!`, '↪️');
     };
 
     // Copy to clipboard from context menu
@@ -1400,13 +1899,7 @@ function Chat({
         if (!msg.text) return;
         navigator.clipboard.writeText(msg.text)
             .then(() => {
-                if (toastTimeoutRef.current) {
-                    clearTimeout(toastTimeoutRef.current);
-                }
-                setToastMessage('Message copied to clipboard!');
-                toastTimeoutRef.current = setTimeout(() => {
-                    setToastMessage(null);
-                }, 2000);
+                showToast('Message copied to clipboard!', '📋');
             });
     };
 
@@ -1429,19 +1922,13 @@ function Chat({
 
         setMessagesByGroup(prev => ({
             ...prev,
-            [activeId]: [
-                ...(prev[activeId] || []),
+            [activeMessagesKey]: [
+                ...(prev[activeMessagesKey] || []),
                 { id: `sys-added-${Date.now()}`, type: 'system', text: addedText }
             ]
         }));
 
-        if (toastTimeoutRef.current) {
-            clearTimeout(toastTimeoutRef.current);
-        }
-        setToastMessage(`${addedUser?.name} added to the group!`);
-        toastTimeoutRef.current = setTimeout(() => {
-            setToastMessage(null);
-        }, 3000);
+        showToast(`${addedUser?.name} added to the group!`, '👤');
     };
 
     // Render message text with clickable URL links & search highlighting
@@ -1510,6 +1997,13 @@ function Chat({
 
     // Toggle emoji reactions (clicked on reaction badge under message bubble)
     const handleReactionClick = (messageId, emojiIndex) => {
+        const roomId = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+        const activeMessagesList = messagesByGroup[activeMessagesKey] || [];
+        const msg = activeMessagesList.find(m => m.id === messageId);
+        if (!msg) return;
+        const emoji = msg.reactions[emojiIndex]?.emoji;
+        if (!emoji) return;
+
         setMessagesByGroup(prev => {
             const activeMessagesList = prev[activeMessagesKey] || [];
             const updatedMessages = activeMessagesList.map(msg => {
@@ -1553,10 +2047,20 @@ function Chat({
                 [activeMessagesKey]: updatedMessages
             };
         });
+
+        // Trigger REST API call
+        fetch(`${API_BASE_URL}/chat/messages/${messageId}/reactions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: 'gs', emoji, roomId })
+        })
+        .catch(err => console.error('Failed to toggle reaction:', err));
     };
 
     // Add a quick reaction emoji directly if not already present (from hover bar)
     const handleAddEmojiReaction = (messageId, emoji) => {
+        const roomId = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
+
         setMessagesByGroup(prev => {
             const activeMessagesList = prev[activeMessagesKey] || [];
             const updatedMessages = activeMessagesList.map(msg => {
@@ -1605,6 +2109,14 @@ function Chat({
                 [activeMessagesKey]: updatedMessages
             };
         });
+
+        // Trigger REST API call
+        fetch(`${API_BASE_URL}/chat/messages/${messageId}/reactions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: 'gs', emoji, roomId })
+        })
+        .catch(err => console.error('Failed to add emoji reaction:', err));
     };
 
     // Handle creating a new study group or classroom
@@ -1615,19 +2127,34 @@ function Chat({
         const descText = newGroupDesc.trim() || 'No messages yet';
 
         if (showAddModal.type === 'classroom') {
-            const newClassroomObj = {
-                id: itemId,
-                name: newGroupName,
-                subtitle: descText,
-                isClassroom: true,
-                time: ''
-            };
-            setClassrooms(prev => [...prev, newClassroomObj]);
-            setMessagesByGroup(prev => ({
-                ...prev,
-                [itemId]: [{ id: `sys-${Date.now()}`, type: 'system', text: `Classroom "${newGroupName}" created` }]
-            }));
-            setActiveId(itemId);
+            fetch(`${API_BASE_URL}/chat/groups`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newGroupName,
+                    description: descText,
+                    icon: '🏫',
+                    color: '#10b981',
+                    memberIds: ['gs']
+                })
+            })
+            .then(res => res.json())
+            .then(g => {
+                const newClassroomObj = {
+                    id: g.id,
+                    name: g.name,
+                    subtitle: g.description || 'No messages yet',
+                    isClassroom: true,
+                    time: ''
+                };
+                setClassrooms(prev => [...prev, newClassroomObj]);
+                setMessagesByGroup(prev => ({
+                    ...prev,
+                    [g.id]: [{ id: `sys-${Date.now()}`, type: 'system', text: `Classroom "${newGroupName}" created` }]
+                }));
+                setActiveId(g.id);
+            })
+            .catch(err => console.error('Failed to create classroom:', err));
         } else {
             const tempId = itemId;
             const newGroupObj = {
@@ -1723,7 +2250,7 @@ function Chat({
             {/* Float Toast Notification */}
             {toastMessage && (
                 <div className="toast-notification">
-                    <span>🔗</span>
+                    <span>{toastEmoji}</span>
                     <span>{toastMessage}</span>
                 </div>
             )}
@@ -2478,7 +3005,19 @@ function Chat({
                 )}
 
                 {/* Conversation Message Pane */}
-                <div className="conversation-pane" ref={conversationPaneRef}>
+                <div className="conversation-pane" ref={conversationPaneRef} style={{ position: 'relative', userSelect: dragRect ? 'none' : undefined }}>
+                    {/* Drag-to-select rubber-band overlay */}
+                    {dragRect && (
+                        <div
+                            className="drag-select-rect"
+                            style={{
+                                top:    dragRect.ry,
+                                left:   dragRect.rx,
+                                width:  dragRect.rw,
+                                height: dragRect.rh,
+                            }}
+                        />
+                    )}
                     {activeMessages.length > 0 ? (
                         activeMessages.map((msg, index) => {
                             if (msg.type === 'system') {
@@ -2492,16 +3031,28 @@ function Chat({
                             return (
                                 <div
                                     key={msg.id}
-                                    className={`message-row ${msg.incoming ? 'incoming' : 'outgoing'}`}
-                                    onContextMenu={(e) => handleContextMenu(e, msg)}
+                                    data-msgid={msg.id}
+                                    className={`message-row ${msg.incoming ? 'incoming' : 'outgoing'}${isSelectionMode && selectedMessageIds.has(msg.id) ? ' selected' : ''}`}
+                                    onContextMenu={(e) => { if (!isSelectionMode) handleContextMenu(e, msg); }}
+                                    onClick={() => { if (isSelectionMode) toggleMessageSelection(msg.id); }}
+                                    style={isSelectionMode ? { cursor: 'pointer' } : {}}
                                 >
+                                    {isSelectionMode && (
+                                        <div
+                                            className={`selection-checkbox ${selectedMessageIds.has(msg.id) ? 'checked' : ''}`}
+                                            onClick={(e) => { e.stopPropagation(); toggleMessageSelection(msg.id); }}
+                                        >
+                                            {selectedMessageIds.has(msg.id) && <Check size={12} color="white" />}
+                                        </div>
+                                    )}
                                     {msg.incoming && (
                                         <div className={`message-avatar ${msg.avatarClass}`}>
                                             {msg.initials}
                                         </div>
                                     )}
                                     <div className="message-content-wrapper">
-                                        {/* Hover Quick-Reaction Bar */}
+                                        {/* Hover Quick-Reaction Bar — hidden in selection mode */}
+                                        {!isSelectionMode && (
                                         <div className="message-reaction-bar">
                                             {['👍', '❤️', '😂', '💪', '🔥', '✅'].map((emoji) => (
                                                 <button
@@ -2536,9 +3087,10 @@ function Chat({
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
+                                        )}
 
                                         {msg.incoming && (
-                                            <span className={`sender-name ${msg.sender.startsWith('Abebe') ? 'abebe' : 'yonas'}`}>
+                                            <span className="sender-name" style={{ color: msg.avatarBg || 'var(--active-item-border)' }}>
                                                 {msg.sender}
                                             </span>
                                         )}
@@ -2580,30 +3132,51 @@ function Chat({
                                             )}
 
                                             {/* Document Attachment bubble */}
-                                            {msg.type === 'document' && (
-                                                <div className="document-attachment-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', backgroundColor: msg.incoming ? 'var(--search-bg)' : 'rgba(255,255,255,0.15)', borderRadius: '12px', marginTop: '6px', border: '1px solid var(--border-color)', minWidth: '220px' }}>
-                                                    <div style={{ fontSize: '24px', backgroundColor: 'var(--sidebar-bg)', width: '42px', height: '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                                                        {msg.fileIcon || '📄'}
+                                            {msg.type === 'document' && (() => {
+                                                const docIsImage = isImageFile(msg.fileName, msg.fileIcon);
+                                                const docSrc = msg.fileDataUrl || msg.text;
+                                                return (
+                                                    <div
+                                                        className="document-attachment-card"
+                                                        style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', backgroundColor: msg.incoming ? 'var(--search-bg)' : 'rgba(255,255,255,0.15)', borderRadius: '12px', marginTop: '6px', border: '1px solid var(--border-color)', minWidth: '220px', cursor: docIsImage ? 'pointer' : 'default' }}
+                                                        onClick={() => {
+                                                            if (docIsImage && docSrc) {
+                                                                const w = window.open();
+                                                                w.document.write(`<img src="${docSrc}" style="max-width:100%;max-height:100%;display:block;margin:auto;background:#000;" />`);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {docIsImage && docSrc ? (
+                                                            <img
+                                                                src={docSrc}
+                                                                alt={msg.fileName}
+                                                                style={{ width: '42px', height: '42px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }}
+                                                            />
+                                                        ) : (
+                                                            <div style={{ fontSize: '24px', backgroundColor: 'var(--sidebar-bg)', width: '42px', height: '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', flexShrink: 0 }}>
+                                                                {msg.fileIcon || '📄'}
+                                                            </div>
+                                                        )}
+                                                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                                                            <span className="file-name" style={{ fontSize: '13px', fontWeight: '600', color: msg.incoming ? 'var(--text-main)' : '#ffffff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                                                {msg.fileName}
+                                                            </span>
+                                                            <span className="file-size" style={{ fontSize: '11px', color: msg.incoming ? 'var(--text-muted)' : 'rgba(255,255,255,0.7)', marginTop: '2px' }}>
+                                                                {msg.fileSize}{docIsImage ? ' · Tap to open' : ''}
+                                                            </span>
+                                                        </div>
+                                                        {!docIsImage && (
+                                                            docSrc ? (
+                                                                <a href={docSrc} download={msg.fileName} onClick={e => e.stopPropagation()} style={{ fontSize: '18px', color: msg.incoming ? 'var(--active-item-border)' : '#ffffff', cursor: 'pointer', textDecoration: 'none' }}>
+                                                                    📥
+                                                                </a>
+                                                            ) : (
+                                                                <span style={{ fontSize: '18px', opacity: 0.6, cursor: 'default' }}>📄</span>
+                                                            )
+                                                        )}
                                                     </div>
-                                                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                                                        <span className="file-name" style={{ fontSize: '13px', fontWeight: '600', color: msg.incoming ? 'var(--text-main)' : '#ffffff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                                            {msg.fileName}
-                                                        </span>
-                                                        <span className="file-size" style={{ fontSize: '11px', color: msg.incoming ? 'var(--text-muted)' : 'rgba(255,255,255,0.7)', marginTop: '2px' }}>
-                                                            {msg.fileSize}
-                                                        </span>
-                                                    </div>
-                                                    {msg.fileDataUrl ? (
-                                                        <a href={msg.fileDataUrl} download={msg.fileName} style={{ fontSize: '18px', color: msg.incoming ? 'var(--active-item-border)' : '#ffffff', cursor: 'pointer', textDecoration: 'none' }}>
-                                                            📥
-                                                        </a>
-                                                    ) : (
-                                                        <span style={{ fontSize: '18px', opacity: 0.6, cursor: 'default' }}>
-                                                            📄
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
+                                                );
+                                            })()}
 
                                             {/* Grouped album gallery attachments bubble */}
                                             {msg.type === 'grouped' && msg.files && (
@@ -2639,31 +3212,38 @@ function Chat({
                                                 if (!dur || dur === Infinity || isNaN(dur)) {
                                                     dur = getAudioDurationFromFileName(msg.fileName);
                                                 }
+                                                if (!dur && msg.duration) dur = msg.duration;
                                                 const progressPercent = dur > 0 ? (curTime / dur) * 100 : 0;
+                                                const isOutgoing = !msg.incoming;
+                                                const isCurrentlyPlaying = activeAudioPlayingId === msg.id;
 
                                                 return (
                                                     <div className="audio-player-bubble">
                                                         <button
                                                             type="button"
                                                             className="audio-play-btn"
-                                                            onClick={() => {
-                                                                const el = audioPlayerRefs.current[msg.id];
-                                                                if (el) {
-                                                                    if (activeAudioPlayingId === msg.id) {
-                                                                        el.pause();
-                                                                        setActiveAudioPlayingId(null);
-                                                                    } else {
-                                                                        Object.values(audioPlayerRefs.current).forEach(a => a && a.pause());
-                                                                        el.play().catch(err => console.error("Playback failed:", err));
-                                                                        setActiveAudioPlayingId(msg.id);
-                                                                    }
-                                                                }
-                                                            }}
-                                                            title={activeAudioPlayingId === msg.id ? "Pause" : "Play Voice Message"}
+                                                            onClick={() => handlePlayAudioMessage(msg)}
+                                                            title={isCurrentlyPlaying ? "Pause" : "Play Voice Message"}
                                                         >
-                                                            {activeAudioPlayingId === msg.id ? <Pause size={18} /> : <Play size={18} style={{ marginLeft: '2px' }} />}
+                                                            {isCurrentlyPlaying ? <Pause size={18} /> : <Play size={18} style={{ marginLeft: '2px' }} />}
                                                         </button>
                                                         <div className="audio-info">
+                                                            <canvas
+                                                                className="audio-waveform-canvas"
+                                                                width="260"
+                                                                height="44"
+                                                                ref={(canvas) => {
+                                                                    if (canvas) {
+                                                                        audioWaveCanvasRef.current[msg.id] = canvas;
+                                                                        if (activeAudioPlayingId !== msg.id) {
+                                                                            const progress = dur > 0 ? curTime / dur : 0;
+                                                                            drawAudioWave(canvas, false, msg.id, msg.incoming, progress);
+                                                                        }
+                                                                    } else {
+                                                                        delete audioWaveCanvasRef.current[msg.id];
+                                                                    }
+                                                                }}
+                                                            />
                                                             <div
                                                                 className="audio-scrubber-track"
                                                                 onClick={(e) => {
@@ -2671,12 +3251,17 @@ function Chat({
                                                                     if (el) {
                                                                         let clickDur = el.duration;
                                                                         if (!clickDur || clickDur === Infinity || isNaN(clickDur)) {
-                                                                            clickDur = getAudioDurationFromFileName(msg.fileName);
+                                                                            clickDur = getAudioDurationFromFileName(msg.fileName) || msg.duration || 0;
                                                                         }
-                                                                        if (clickDur) {
+                                                                        if (clickDur > 0) {
                                                                             const rect = e.currentTarget.getBoundingClientRect();
-                                                                            const pos = (e.clientX - rect.left) / rect.width;
+                                                                            const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                                                                             el.currentTime = pos * clickDur;
+                                                                            setActiveAudioProgress(prev => ({ ...prev, [msg.id]: Date.now() }));
+                                                                            const canvas = audioWaveCanvasRef.current[msg.id];
+                                                                            if (canvas) {
+                                                                                drawAudioWave(canvas, activeAudioPlayingId === msg.id, msg.id, msg.incoming, pos);
+                                                                            }
                                                                         }
                                                                     }
                                                                 }}
@@ -2686,17 +3271,69 @@ function Chat({
                                                                     style={{ width: `${progressPercent}%` }}
                                                                 />
                                                             </div>
-                                                            <div className="audio-time-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                                            <div className="audio-time-row" style={{ color: isOutgoing ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}>
                                                                 <span>{formatAudioTime(curTime)} / {formatAudioTime(dur)}</span>
-                                                                <span>{msg.fileSize || 'Audio'}</span>
+                                                                <span>{msg.fileSize || 'Voice Note'}</span>
                                                             </div>
                                                             <audio
-                                                                ref={el => (audioPlayerRefs.current[msg.id] = el)}
+                                                                ref={el => {
+                                                                    if (el) {
+                                                                        audioPlayerRefs.current[msg.id] = el;
+                                                                    } else {
+                                                                        delete audioPlayerRefs.current[msg.id];
+                                                                    }
+                                                                }}
                                                                 src={msg.audioUrl || msg.text}
+                                                                preload="metadata"
+                                                                onLoadedMetadata={(e) => {
+                                                                    setActiveAudioProgress(prev => ({ ...prev, [msg.id]: Date.now() }));
+                                                                    const canvas = audioWaveCanvasRef.current[msg.id];
+                                                                    if (canvas && activeAudioPlayingId !== msg.id) {
+                                                                        let d = e.target.duration;
+                                                                        if (!d || d === Infinity || isNaN(d)) {
+                                                                            d = getAudioDurationFromFileName(msg.fileName) || msg.duration || 0;
+                                                                        }
+                                                                        const p = d > 0 ? e.target.currentTime / d : 0;
+                                                                        drawAudioWave(canvas, false, msg.id, msg.incoming, p);
+                                                                    }
+                                                                }}
                                                                 onTimeUpdate={() => {
                                                                     setActiveAudioProgress(prev => ({ ...prev, [msg.id]: Date.now() }));
                                                                 }}
-                                                                onEnded={() => setActiveAudioPlayingId(null)}
+                                                                onPause={() => {
+                                                                    if (activeAudioPlayingIdRef.current === msg.id) {
+                                                                        activeAudioPlayingIdRef.current = null;
+                                                                        setActiveAudioPlayingId(null);
+                                                                        stopAudioWaveAnim();
+                                                                        const canvas = audioWaveCanvasRef.current[msg.id];
+                                                                        const el = audioPlayerRefs.current[msg.id];
+                                                                        if (canvas && el) {
+                                                                            let d = el.duration;
+                                                                            if (!d || d === Infinity || isNaN(d)) {
+                                                                                d = getAudioDurationFromFileName(msg.fileName) || msg.duration || 1;
+                                                                            }
+                                                                            drawAudioWave(canvas, false, msg.id, msg.incoming, el.currentTime / d);
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                onEnded={() => {
+                                                                    activeAudioPlayingIdRef.current = null;
+                                                                    setActiveAudioPlayingId(null);
+                                                                    stopAudioWaveAnim();
+                                                                    const canvas = audioWaveCanvasRef.current[msg.id];
+                                                                    if (canvas) {
+                                                                        drawAudioWave(canvas, false, msg.id, msg.incoming, 0);
+                                                                    }
+                                                                    setActiveAudioProgress(prev => ({ ...prev, [msg.id]: Date.now() }));
+                                                                }}
+                                                                onError={(e) => {
+                                                                    console.error("Audio failed to load:", msg.id, e);
+                                                                    if (activeAudioPlayingIdRef.current === msg.id) {
+                                                                        setActiveAudioPlayingId(null);
+                                                                        activeAudioPlayingIdRef.current = null;
+                                                                        stopAudioWaveAnim();
+                                                                    }
+                                                                }}
                                                                 style={{ display: 'none' }}
                                                             />
                                                         </div>
@@ -3015,7 +3652,7 @@ function Chat({
                         });
                         setMessagesByGroup(prev => ({
                             ...prev,
-                            [g.id]: [
+                            [`${g.id}-${topicId}`]: [
                                 { id: `sys-create-${Date.now()}`, type: 'system', text: `You created the study group "${groupDetails.name}" with study topic "${groupDetails.topic || 'StatefulWidget Lifecycle'}"` },
                                 ...(joinedText ? [{ id: `sys-added-${Date.now()}`, type: 'system', text: joinedText }] : [])
                             ]
@@ -3078,12 +3715,51 @@ function Chat({
             )}
 
             {/* Custom Context Menu */}
+            {/* Selection Action Bar */}
+            {isSelectionMode && (
+                <div className="selection-action-bar">
+                    <button className="selection-cancel-btn" onClick={exitSelectionMode} title="Cancel">
+                        <X size={18} />
+                    </button>
+                    <span className="selection-count">
+                        {selectedMessageIds.size} selected
+                    </span>
+                    <div className="selection-actions">
+                        {selectedMessageIds.size === 1 && (() => {
+                            const selMsg = activeMessages.find(m => selectedMessageIds.has(m.id));
+                            return selMsg ? (
+                                <button className="selection-action-btn" onClick={() => { setForwardingMessage(selMsg); exitSelectionMode(); }} title="Forward">
+                                    <Forward size={16} /> Forward
+                                </button>
+                            ) : null;
+                        })()}
+                        <button
+                            className="selection-action-btn danger"
+                            onClick={handleDeleteSelected}
+                            disabled={selectedMessageIds.size === 0}
+                            title="Delete selected"
+                        >
+                            <Trash2 size={16} /> Delete ({selectedMessageIds.size})
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {contextMenu.visible && (
                 <div
                     className="custom-context-menu"
                     style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
                     onClick={(e) => e.stopPropagation()}
                 >
+                    <button
+                        className="context-menu-item"
+                        onClick={() => {
+                            enterSelectionMode(contextMenu.message?.id);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <Check size={16} /> Select
+                    </button>
                     <button
                         className="context-menu-item"
                         onClick={() => {

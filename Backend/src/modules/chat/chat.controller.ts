@@ -28,11 +28,15 @@ const uploadStorage = diskStorage({
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     let ext = extname(file.originalname || '');
     if (!ext && file.mimetype) {
-      if (file.mimetype.includes('audio')) ext = '.webm';
+      if (file.mimetype.includes('mp4') || file.mimetype.includes('aac')) ext = '.mp4';
+      else if (file.mimetype.includes('ogg')) ext = '.ogg';
+      else if (file.mimetype.includes('wav')) ext = '.wav';
+      else if (file.mimetype.includes('audio') || file.mimetype.includes('webm')) ext = '.webm';
       else if (file.mimetype.includes('png')) ext = '.png';
-      else if (file.mimetype.includes('jpeg')) ext = '.jpg';
+      else if (file.mimetype.includes('jpeg') || file.mimetype.includes('jpg')) ext = '.jpg';
+      else if (file.mimetype.includes('pdf')) ext = '.pdf';
     }
-    cb(null, `${uniqueSuffix}${ext || '.bin'}`);
+    cb(null, `${uniqueSuffix}${ext || '.webm'}`);
   },
 });
 
@@ -97,6 +101,48 @@ export class ChatController {
     return updated;
   }
 
+  @Delete('messages/:id')
+  async deleteMessage(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const deleted = await this.chatService.deleteMessage(id);
+    if (deleted && body?.roomId) {
+      this.chatGateway.server.to(body.roomId).emit('messageDeleted', { messageId: id });
+    }
+    return { success: !!deleted };
+  }
+
+  @Put('messages/:id')
+  async editMessage(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const updated = await this.chatService.editMessage(id, body.text);
+    if (updated && body?.roomId) {
+      this.chatGateway.server.to(body.roomId).emit('messageUpdated', {
+        messageId: id,
+        text: body.text,
+      });
+    }
+    return updated;
+  }
+
+  @Post('messages/:id/reactions')
+  async toggleReaction(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const reactions = await this.chatService.toggleReaction(id, body.userId || 'gs', body.emoji);
+    if (body?.roomId) {
+      this.chatGateway.server.to(body.roomId).emit('reactionToggled', {
+        messageId: id,
+        reactions,
+      });
+    }
+    return reactions;
+  }
+
   @Put('groups/:groupId/members/:userId/role')
   async updateMemberRole(
     @Param('groupId') groupId: string,
@@ -129,3 +175,4 @@ export class ChatController {
     return deleted;
   }
 }
+

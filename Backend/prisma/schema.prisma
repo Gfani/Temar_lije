@@ -48,23 +48,38 @@ model GroupMember {
 }
 
 model Message {
-  id            String      @id @default(uuid())
+  id            String            @id @default(uuid())
   text          String?
   image         String?
-  type          String      @default("text")
+  type          String            @default("text")
   fileName      String?
   fileSize      String?
   fileIcon      String?
   replyToId     String?
   forwardedFrom String?
-  isPinned      Boolean     @default(false)
-  createdAt     DateTime    @default(now())
-  
+  isPinned      Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @default(now()) @updatedAt
+
   senderId      String
-  sender        User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  
+  sender        User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
   groupId       String
-  group         StudyGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group         StudyGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  reactions     MessageReaction[]
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  emoji     String
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
 }
 
 model Classroom {

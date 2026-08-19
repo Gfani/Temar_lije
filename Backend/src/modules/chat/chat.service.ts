@@ -99,10 +99,24 @@ export class ChatService {
       orderBy: { createdAt: 'asc' },
       include: {
         sender: true,
+        reactions: true,
       },
     });
 
     await this.attachReplies(messages);
+
+    // Attach grouped reactions
+    for (const msg of messages) {
+      const grouped: Record<string, { emoji: string; count: number; userIds: string[] }> = {};
+      for (const r of (msg as any).reactions || []) {
+        if (!grouped[r.emoji]) {
+          grouped[r.emoji] = { emoji: r.emoji, count: 0, userIds: [] };
+        }
+        grouped[r.emoji].count++;
+        grouped[r.emoji].userIds.push(r.userId);
+      }
+      (msg as any).reactionsGrouped = Object.values(grouped);
+    }
 
     return messages;
   }
@@ -150,6 +164,16 @@ export class ChatService {
 
     await this.ensureUserExists(senderId);
 
+    const isStaleBlobAudio =
+      data.type === 'audio' &&
+      typeof data.text === 'string' &&
+      data.text.startsWith('blob:');
+
+    if (isStaleBlobAudio) {
+      console.warn(`Refusing to persist voice note with blob URL from ${senderId}`);
+      return null;
+    }
+
     const savedMessage = await this.db.message.create({
       data: {
         text: data.text,
@@ -169,6 +193,7 @@ export class ChatService {
       },
       include: {
         sender: true,
+        reactions: true,
       },
     });
 
@@ -210,8 +235,76 @@ export class ChatService {
       data: { isPinned: !!isPinned },
       include: {
         sender: true,
+        reactions: true,
       },
     });
+  }
+
+  async deleteMessage(messageId: string) {
+    try {
+      return await this.db.message.delete({
+        where: { id: messageId },
+      });
+    } catch (err: any) {
+      console.warn(`Could not delete message ${messageId}:`, err.message);
+      return null;
+    }
+  }
+
+  async editMessage(messageId: string, text: string) {
+    try {
+      return await this.db.message.update({
+        where: { id: messageId },
+        data: { text },
+        include: {
+          sender: true,
+          reactions: true,
+        },
+      });
+    } catch (err: any) {
+      console.warn(`Could not edit message ${messageId}:`, err.message);
+      return null;
+    }
+  }
+
+  async toggleReaction(messageId: string, userId: string, emoji: string) {
+    await this.ensureUserExists(userId);
+
+    const existing = await this.db.messageReaction.findUnique({
+      where: {
+        messageId_userId_emoji: { messageId, userId, emoji },
+      },
+    });
+
+    if (existing) {
+      await this.db.messageReaction.delete({
+        where: { id: existing.id },
+      });
+    } else {
+      // Remove any other reaction from this user on this message first (one reaction per user)
+      await this.db.messageReaction.deleteMany({
+        where: { messageId, userId },
+      });
+      await this.db.messageReaction.create({
+        data: { messageId, userId, emoji },
+      });
+    }
+
+    // Return grouped reactions for this message
+    const allReactions = await this.db.messageReaction.findMany({
+      where: { messageId },
+    });
+
+    const grouped: Record<string, { emoji: string; count: number; userIds: string[] }> = {};
+    for (const r of allReactions) {
+      if (!grouped[r.emoji]) {
+        grouped[r.emoji] = { emoji: r.emoji, count: 0, userIds: [] };
+      }
+      grouped[r.emoji].count++;
+      grouped[r.emoji].userIds.push(r.userId);
+    }
+
+    return Object.values(grouped);
   }
 
   async deleteGroup(id: string) {

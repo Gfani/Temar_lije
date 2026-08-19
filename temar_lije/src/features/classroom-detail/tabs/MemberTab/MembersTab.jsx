@@ -3,8 +3,11 @@ import { Search, Moon, Plus, Users, Code, Sparkles, ArrowLeft, Trash2 } from 'lu
 import './membersTab.css';
 import Chat from '../../../chat/chat.jsx';
 import { API_BASE_URL } from '../../../../config/constants';
+import { useAuth } from '../../../../context/AuthContext';
 
 export default function MembersTab({ darkMode, setDarkMode }) {
+  const { accessToken } = useAuth();
+  const authHeaders = { Authorization: `Bearer ${accessToken}` };
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -12,7 +15,7 @@ export default function MembersTab({ darkMode, setDarkMode }) {
   const tabs = ['Members', 'Study Groups'];
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/chat/groups`)
+    fetch(`${API_BASE_URL}/chat/groups`, { headers: authHeaders })
       .then(res => res.json())
       .then(data => {
         if (data && Array.isArray(data)) {
@@ -40,7 +43,8 @@ export default function MembersTab({ darkMode, setDarkMode }) {
     if (e) e.stopPropagation();
     if (window.confirm('Are you sure you want to delete this study group?')) {
       fetch(`${API_BASE_URL}/chat/groups/${groupId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: authHeaders
       })
       .then(() => {
         setStudyGroups(prev => prev.filter(g => g.id !== groupId));

@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, BadRequestException, UseGuards } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
+import * as JwtAuthGuardModule from '../../common/guards/JwtAuthGuard';
 
 /**
  * Controller providing REST API endpoints for attendance reporting and check-in.
  */
 @Controller('attendance')
+@UseGuards(JwtAuthGuardModule.JwtAuthGuard)
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 

@@ -10,7 +10,7 @@ const { GoogleStrategy } = require('./strategies/google.strategy');
 const { PrismaService } = require('../../database/prisma.service');
 
 @Module({
-  imports: [PassportModule, JwtModule.register({})],
+  imports: [PassportModule, JwtModule.register({ global: true })],
   controllers: [AuthController],
   providers: [
     AuthService,

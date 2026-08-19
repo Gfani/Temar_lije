@@ -103,6 +103,12 @@ export function AuthProvider({ children }) {
     }
   }, [accessToken]);
 
+  const refreshAccessToken = useCallback(async () => {
+    const result = await authApi.refresh();
+    handleAuthSuccess(result);
+    return result?.accessToken || null;
+  }, [handleAuthSuccess]);
+
   const value = {
     user,
     accessToken,
@@ -111,6 +117,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    refreshAccessToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

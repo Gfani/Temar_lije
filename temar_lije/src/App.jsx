@@ -14,6 +14,14 @@ function MainApp() {
     const path = window.location.pathname;
     const search = window.location.search;
     if (path.includes('/oauth/callback')) return 'classrooms';
+    if (path.includes('/join/')) {
+      // Stash the invite id; chat.jsx consumes it once groups are loaded
+      const inviteId = decodeURIComponent(path.split('/join/')[1].split('/')[0]);
+      if (inviteId) {
+        sessionStorage.setItem('pending_join_id', inviteId);
+      }
+      return localStorage.getItem('temar_user') ? 'classrooms' : 'signin';
+    }
     if (path.includes('/signin') || search.includes('error=oauth_failed')) return 'signin';
     return localStorage.getItem('temar_user') ? 'classrooms' : 'landing';
   });

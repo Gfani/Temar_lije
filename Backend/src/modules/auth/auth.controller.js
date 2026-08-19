@@ -9,13 +9,18 @@ const {
   HttpCode,
   HttpStatus,
   Dependencies,
+  BadRequestException,
 } = require('@nestjs/common');
 const { Throttle } = require('@nestjs/throttler');
 const { ConfigService } = require('@nestjs/config');
 const { JwtService } = require('@nestjs/jwt');
+const { validate } = require('class-validator');
+const { plainToInstance } = require('class-transformer');
 const crypto = require('crypto');
 
 const { AuthService } = require('./auth.service');
+const { RegisterDto } = require('./dto/register.dto');
+const { LoginDto } = require('./dto/login.dto');
 const { JwtAuthGuard } = require('../../common/guards/JwtAuthGuard');
 const { JwtRefreshGuard } = require('../../common/guards/JwtRefreshGuard');
 const { GoogleAuthGuard } = require('../../common/guards/GoogleAuthGuard');
@@ -56,18 +61,39 @@ class AuthController {
     return { accessToken: result.accessToken, user: result.user };
   }
 
+  /**
+   * Validate an incoming request body against a class-validator DTO.
+   * The global ValidationPipe cannot infer DTO metatypes in plain-JS
+   * controllers, so we validate explicitly here and return a 400 with
+   * the readable constraint messages instead of a 500.
+   */
+  async _validateDto(dtoClass, value) {
+    const errors = await validate(plainToInstance(dtoClass, value || {}), {
+      whitelist: true,
+      forbidNonWhitelisted: false,
+    });
+    if (errors.length > 0) {
+      const messages = errors.flatMap((error) =>
+        Object.values(error.constraints || {}),
+      );
+      throw new BadRequestException(messages);
+    }
+  }
+
   @Throttle({ default: { limit: 5, ttl: 300000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() dto, @Res({ passthrough: true }) res) {
+    await this._validateDto(RegisterDto, dto);
     const result = await this.authService.register(dto);
     return this._sendAuthResult(res, result);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 300000 } })
+  @Throttle({ default: { limit: 10, ttl: 300000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto, @Res({ passthrough: true }) res) {
+    await this._validateDto(LoginDto, dto);
     const result = await this.authService.login(dto);
     return this._sendAuthResult(res, result);
   }

@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
 @Injectable()
@@ -16,17 +20,96 @@ export class ChatService {
     });
 
     if (existing) {
+      const derivedName = existing.name || existing.fullName || name || `User ${userId}`;
+
+      if (!existing.name || !existing.initials || !existing.avatarBg) {
+        return this.db.user.update({
+          where: { id: userId },
+          data: {
+            ...(!existing.name ? { name: derivedName } : {}),
+            ...(!existing.initials
+              ? { initials: initials || this._deriveInitials(derivedName) }
+              : {}),
+            ...(!existing.avatarBg ? { avatarBg: avatarBg || '#3b82f6' } : {}),
+          },
+        });
+      }
+
       return existing;
     }
 
-    return this.db.user.create({
-      data: {
-        id: userId,
-        name: name || `User ${userId}`,
-        initials: initials || userId.substring(0, 2).toUpperCase(),
-        avatarBg: avatarBg || '#3b82f6',
+    try {
+      return await this.db.user.create({
+        data: {
+          id: userId,
+          name: name || `User ${userId}`,
+          initials: initials || this._deriveInitials(name || userId),
+          avatarBg: avatarBg || '#3b82f6',
+        },
+      });
+    } catch (err: any) {
+      // Concurrent creation race — the other request won; return its row
+      if (err?.code === 'P2002') {
+        const winner = await this.db.user.findUnique({
+          where: { id: userId },
+        });
+        if (winner) {
+          return winner;
+        }
+      }
+      throw err;
+    }
+  }
+
+  private _deriveInitials(name?: string) {
+    const parts = (name || 'U').trim().split(/\s+/).filter(Boolean);
+    return parts.map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  }
+
+  /**
+   * A group is accessible to a user when the user is a member, OR when
+   * the group has no members at all (legacy/demo/classroom groups that
+   * predate per-user membership stay public).
+   */
+  private async _assertGroupAccess(groupId: string, userId: string) {
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          select: { userId: true, role: true },
+        },
       },
     });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    if (
+      group.members.length > 0 &&
+      !group.members.some((m) => m.userId === userId)
+    ) {
+      throw new ForbiddenException('You are not a member of this group');
+    }
+
+    return group;
+  }
+
+  /**
+   * Membership checks that require the OWNER role. Zero-member (legacy)
+   * groups have no owner, so any accessible user may manage them.
+   */
+  private async _assertOwner(groupId: string, userId: string) {
+    const group = await this._assertGroupAccess(groupId, userId);
+
+    const membership = group.members.find((m) => m.userId === userId);
+    if (membership && membership.role !== 'OWNER') {
+      throw new ForbiddenException(
+        'Only the group owner can perform this action',
+      );
+    }
+
+    return group;
   }
 
   async createGroup(
@@ -36,21 +119,56 @@ export class ChatService {
     color?: string,
     memberIds: string[] = [],
     id?: string,
+    creatorId?: string,
   ) {
-    for (const memberId of memberIds) {
-      await this.ensureUserExists(memberId);
+    const groupId = id || undefined;
+
+    // Topics are child groups (`parentId-slug`) — inherit the parent's
+    // members so topics behave as subchannels of the parent group.
+    const inherited: { userId: string; role: string }[] = [];
+    if (groupId) {
+      const allGroups = await this.db.studyGroup.findMany({
+        select: { id: true },
+      });
+      const parent = allGroups.find(
+        (g) => groupId.startsWith(g.id + '-') && g.id !== groupId,
+      );
+      if (parent) {
+        const parentMembers = await this.db.groupMember.findMany({
+          where: { groupId: parent.id },
+          select: { userId: true, role: true },
+        });
+        inherited.push(...parentMembers);
+      }
+    }
+
+    const memberMap = new Map<string, string>();
+    for (const m of inherited) {
+      memberMap.set(m.userId, m.role);
+    }
+    if (creatorId) {
+      memberMap.set(creatorId, 'OWNER');
+    }
+    for (const memberId of memberIds || []) {
+      if (!memberMap.has(memberId)) {
+        memberMap.set(memberId, 'MEMBER');
+      }
+    }
+
+    for (const userId of memberMap.keys()) {
+      await this.ensureUserExists(userId);
     }
 
     return this.db.studyGroup.create({
       data: {
-        id: id || undefined,
+        id: groupId,
         name,
         description,
         icon: icon || '📚',
         color: color || '#6366f1',
         members: {
-          create: memberIds.map((userId) => ({
-            role: userId === 'gs' ? 'OWNER' : 'MEMBER',
+          create: [...memberMap.entries()].map(([userId, role]) => ({
+            role,
             user: {
               connect: { id: userId },
             },
@@ -67,7 +185,16 @@ export class ChatService {
     });
   }
 
-  async updateMemberRole(groupId: string, userId: string, role: string) {
+  async updateMemberRole(
+    groupId: string,
+    userId: string,
+    role: string,
+    actorId?: string,
+  ) {
+    if (actorId) {
+      await this._assertOwner(groupId, actorId);
+    }
+
     return this.db.groupMember.update({
       where: {
         userId_groupId: {
@@ -81,8 +208,14 @@ export class ChatService {
     });
   }
 
-  async getGroups() {
+  async getGroups(userId: string) {
     return this.db.studyGroup.findMany({
+      where: {
+        OR: [
+          { members: { some: { userId } } },
+          { members: { none: {} } },
+        ],
+      },
       include: {
         members: {
           include: {
@@ -93,7 +226,9 @@ export class ChatService {
     });
   }
 
-  async getChatHistory(groupId: string) {
+  async getChatHistory(groupId: string, userId: string) {
+    await this._assertGroupAccess(groupId, userId);
+
     const messages = await this.db.message.findMany({
       where: { groupId },
       orderBy: { createdAt: 'asc' },
@@ -124,6 +259,11 @@ export class ChatService {
   async saveMessage(groupId: string, senderId: string, data: any) {
     const existingGroup = await this.db.studyGroup.findUnique({
       where: { id: groupId },
+      include: {
+        members: {
+          select: { userId: true },
+        },
+      },
     });
 
     if (!existingGroup) {
@@ -160,6 +300,11 @@ export class ChatService {
           },
         });
       }
+    } else if (
+      existingGroup.members.length > 0 &&
+      !existingGroup.members.some((m) => m.userId === senderId)
+    ) {
+      throw new ForbiddenException('You are not a member of this group');
     }
 
     await this.ensureUserExists(senderId);
@@ -246,8 +391,10 @@ export class ChatService {
         where: { id: messageId },
       });
     } catch (err: any) {
-      console.warn(`Could not delete message ${messageId}:`, err.message);
-      return null;
+      if (err?.code === 'P2025') {
+        throw new NotFoundException('Message not found');
+      }
+      throw err;
     }
   }
 
@@ -262,8 +409,10 @@ export class ChatService {
         },
       });
     } catch (err: any) {
-      console.warn(`Could not edit message ${messageId}:`, err.message);
-      return null;
+      if (err?.code === 'P2025') {
+        throw new NotFoundException('Message not found');
+      }
+      throw err;
     }
   }
 
@@ -307,7 +456,11 @@ export class ChatService {
     return Object.values(grouped);
   }
 
-  async deleteGroup(id: string) {
+  async deleteGroup(id: string, userId?: string) {
+    if (userId) {
+      await this._assertOwner(id, userId);
+    }
+
     try {
       // Delete all sub-topics whose ID starts with "id-"
       await this.db.studyGroup.deleteMany({
@@ -327,7 +480,11 @@ export class ChatService {
     }
   }
 
-  async removeMember(groupId: string, userId: string) {
+  async removeMember(groupId: string, userId: string, actorId?: string) {
+    if (actorId) {
+      await this._assertOwner(groupId, actorId);
+    }
+
     try {
       return await this.db.groupMember.deleteMany({
         where: {

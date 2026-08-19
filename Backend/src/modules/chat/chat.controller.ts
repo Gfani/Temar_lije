@@ -6,8 +6,11 @@ import {
   Delete,
   Body,
   Param,
+  Req,
+  UseGuards,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -15,6 +18,45 @@ import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
+import * as JwtAuthGuardModule from '../../common/guards/JwtAuthGuard';
+
+const MAX_UPLOAD_SIZE = 20 * 1024 * 1024; // 20 MB
+
+const ALLOWED_MIME_TYPES = new Set([
+  // images
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  // audio (incl. MediaRecorder voice notes)
+  'audio/webm',
+  'audio/ogg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/aac',
+  // video
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-matroska',
+  // documents
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/rtf',
+  'text/plain',
+  // archives
+  'application/zip',
+  'application/x-rar-compressed',
+  'application/x-tar',
+  'application/gzip',
+  'application/x-7z-compressed',
+]);
 
 const uploadStorage = diskStorage({
   destination: (req, file, cb) => {
@@ -41,6 +83,7 @@ const uploadStorage = diskStorage({
 });
 
 @Controller('chat')
+@UseGuards(JwtAuthGuardModule.JwtAuthGuard)
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
@@ -48,12 +91,27 @@ export class ChatController {
   ) {}
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
-  async uploadFile(@UploadedFile() file: any) {
+  @UseInterceptors(FileInterceptor('file', {
+    storage: uploadStorage,
+    limits: { fileSize: MAX_UPLOAD_SIZE, files: 1 },
+    fileFilter: (req, file, cb) => {
+      if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+        return cb(null, true);
+      }
+      cb(
+        new BadRequestException(
+          `File type "${file.mimetype || 'unknown'}" is not allowed`,
+        ),
+        false,
+      );
+    },
+  }))
+  async uploadFile(@UploadedFile() file: any, @Req() req: any) {
     if (!file) {
       return { error: 'No file uploaded' };
     }
-    const fileUrl = `http://localhost:3000/uploads/${file.filename}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const fileUrl = `${baseUrl}/uploads/${file.filename}`;
     return {
       url: fileUrl,
       filename: file.filename,
@@ -64,7 +122,7 @@ export class ChatController {
   }
 
   @Post('groups')
-  async createGroup(@Body() createGroupDto: any) {
+  async createGroup(@Body() createGroupDto: any, @Req() req: any) {
     const group = await this.chatService.createGroup(
       createGroupDto.name,
       createGroupDto.description,
@@ -72,19 +130,20 @@ export class ChatController {
       createGroupDto.color,
       createGroupDto.memberIds || [],
       createGroupDto.id,
+      req.user?.id,
     );
     this.chatGateway.server.emit('groupCreated', group);
     return group;
   }
 
   @Get('groups')
-  async getGroups() {
-    return this.chatService.getGroups();
+  async getGroups(@Req() req: any) {
+    return this.chatService.getGroups(req.user?.id);
   }
 
   @Get('history/:groupId')
-  async getChatHistory(@Param('groupId') groupId: string) {
-    return this.chatService.getChatHistory(groupId);
+  async getChatHistory(@Param('groupId') groupId: string, @Req() req: any) {
+    return this.chatService.getChatHistory(groupId, req.user?.id);
   }
 
   @Put('messages/:id/pin')
@@ -106,11 +165,11 @@ export class ChatController {
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    const deleted = await this.chatService.deleteMessage(id);
-    if (deleted && body?.roomId) {
+    await this.chatService.deleteMessage(id);
+    if (body?.roomId) {
       this.chatGateway.server.to(body.roomId).emit('messageDeleted', { messageId: id });
     }
-    return { success: !!deleted };
+    return { success: true };
   }
 
   @Put('messages/:id')
@@ -119,7 +178,7 @@ export class ChatController {
     @Body() body: any,
   ) {
     const updated = await this.chatService.editMessage(id, body.text);
-    if (updated && body?.roomId) {
+    if (body?.roomId) {
       this.chatGateway.server.to(body.roomId).emit('messageUpdated', {
         messageId: id,
         text: body.text,
@@ -132,8 +191,16 @@ export class ChatController {
   async toggleReaction(
     @Param('id') id: string,
     @Body() body: any,
+    @Req() req: any,
   ) {
-    const reactions = await this.chatService.toggleReaction(id, body.userId || 'gs', body.emoji);
+    if (!body?.emoji) {
+      throw new BadRequestException('emoji is required');
+    }
+    const reactions = await this.chatService.toggleReaction(
+      id,
+      req.user?.id,
+      body.emoji,
+    );
     if (body?.roomId) {
       this.chatGateway.server.to(body.roomId).emit('reactionToggled', {
         messageId: id,
@@ -148,8 +215,14 @@ export class ChatController {
     @Param('groupId') groupId: string,
     @Param('userId') userId: string,
     @Body() body: any,
+    @Req() req: any,
   ) {
-    const updated = await this.chatService.updateMemberRole(groupId, userId, body.role);
+    const updated = await this.chatService.updateMemberRole(
+      groupId,
+      userId,
+      body.role,
+      req.user?.id,
+    );
     this.chatGateway.server.emit('roleUpdated', {
       groupId,
       userId,
@@ -159,8 +232,8 @@ export class ChatController {
   }
 
   @Delete('groups/:id')
-  async deleteGroup(@Param('id') id: string) {
-    const deleted = await this.chatService.deleteGroup(id);
+  async deleteGroup(@Param('id') id: string, @Req() req: any) {
+    const deleted = await this.chatService.deleteGroup(id, req.user?.id);
     this.chatGateway.broadcastGroupDeleted(id);
     return deleted;
   }
@@ -169,8 +242,13 @@ export class ChatController {
   async removeMember(
     @Param('groupId') groupId: string,
     @Param('userId') userId: string,
+    @Req() req: any,
   ) {
-    const deleted = await this.chatService.removeMember(groupId, userId);
+    const deleted = await this.chatService.removeMember(
+      groupId,
+      userId,
+      req.user?.id,
+    );
     this.chatGateway.server.emit('memberRemoved', { groupId, userId });
     return deleted;
   }

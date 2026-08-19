@@ -6,7 +6,11 @@ import {
   ConnectedSocket,
   WsException,
 } from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { AttendanceService } from './attendance.service';
+import { createSocketAuthMiddleware } from '../../common/socket-auth';
 
 /**
  * Socket.io gateway under 'live-class' namespace handling real-time attendance check-in.
@@ -21,22 +25,31 @@ export class AttendanceGateway {
   @WebSocketServer()
   server: any;
 
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(
+    private readonly attendanceService: AttendanceService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  afterInit(server: Server) {
+    server.use(createSocketAuthMiddleware(this.jwtService, this.configService));
+  }
 
   /**
    * Listens for 'joinLiveSession' event, extracts client IP, joins room, records check-in,
    * and emits 'attendanceUpdated' event to the classroom room.
    *
-   * @param {Object} data - Payload containing { classId, studentId }.
+   * @param {Object} data - Payload containing { classId }.
    * @param {Object} client - Socket connection object.
    */
   @SubscribeMessage('joinLiveSession')
-  async handleJoinLiveSession(@MessageBody() data, @ConnectedSocket() client) {
+  async handleJoinLiveSession(@MessageBody() data, @ConnectedSocket() client: Socket) {
     try {
-      const { classId, studentId } = data || {};
+      const { classId } = data || {};
+      const userId = (client.data as any).user?.sub;
 
-      if (!classId || !studentId) {
-        throw new WsException('classId and studentId are required');
+      if (!classId || !userId) {
+        throw new WsException('classId is required and authentication is required');
       }
 
       // Extract client IP address from socket connection headers or handshake address
@@ -51,10 +64,10 @@ export class AttendanceGateway {
       // Join the socket room for this class
       client.join(classId);
 
-      // Record student check-in
+      // Record student check-in with the authenticated user's identity
       const record = await this.attendanceService.recordCheckIn(
         classId,
-        studentId,
+        userId,
         rawIp,
       );
 

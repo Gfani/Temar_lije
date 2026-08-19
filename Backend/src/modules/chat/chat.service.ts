@@ -180,7 +180,7 @@ export class ChatService {
       data: {
         id: groupId,
         name,
-        description,
+        description: typeof description === 'string' ? description : (Array.isArray(description) ? null : (description ? String(description) : null)),
         icon: icon || '📚',
         color: color || '#6366f1',
         classroomId: classroomId ? String(classroomId) : null,

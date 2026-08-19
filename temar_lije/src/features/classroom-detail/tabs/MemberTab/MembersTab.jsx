@@ -120,11 +120,10 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     setShowSendInvitationModal(true);
   };
 
-  const handleConfirmSendInvitations = (topicName, invitedMembers) => {
+  const handleConfirmSendInvitations = (invitedMembers) => {
     if (!pendingGroupDetails) return;
     const groupDetails = {
       ...pendingGroupDetails,
-      topic: topicName || pendingGroupDetails.topic,
       members: invitedMembers || pendingGroupDetails.members
     };
 
@@ -139,7 +138,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
       headers,
       body: JSON.stringify({
         name: groupDetails.name,
-        description: groupDetails.topic || 'No messages yet',
+        description: 'Study group discussion',
         icon: groupDetails.icon || '📚',
         color: groupDetails.color || '#6366f1',
         classroomId: classroomId,
@@ -154,7 +153,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         const newGroupObj = {
           id: g.id,
           name: g.name,
-          subtitle: groupDetails.topic || 'No messages yet',
+          subtitle: 'No messages yet',
           isClassroom: false,
           time: '',
           icon: g.icon || '📚',
@@ -168,8 +167,8 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
             inviterId: effectiveUserId,
             inviterName: effectiveUserName,
             inviterInitials: currentUserInitials,
-            topicName: groupDetails.topic || 'StatefulWidget Lifecycle',
-            categoryName: `${groupDetails.name} · ${classroom?.title || 'Study Group'}`,
+            topicName: groupDetails.name,
+            categoryName: `${classroom?.title || 'Classroom'} · Study Group`,
             invitedMembers: groupDetails.members || [],
             groupId: g.id
           });
@@ -177,7 +176,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
           // Post initial system invitation message in the study group chat
           socketRef.current.emit('sendMessage', {
             roomId: g.id,
-            text: `👋 ${effectiveUserName} created the study group "${groupDetails.name}" on topic "${groupDetails.topic || 'StatefulWidget Lifecycle'}" and sent invitations to ${groupDetails.members?.length || 0} classmates.`,
+            text: `👋 ${effectiveUserName} created the study group "${groupDetails.name}" and sent invitations to ${groupDetails.members?.length || 0} classmates.`,
             type: 'system'
           });
         }
@@ -517,7 +516,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
           setShowSendInvitationModal(false);
           setPendingGroupDetails(null);
         }}
-        topicName={pendingGroupDetails?.topic || 'StatefulWidget Lifecycle'}
+        groupName={pendingGroupDetails?.name || 'Study Group'}
         invitedMembers={pendingGroupDetails?.members || []}
         userProfiles={USER_PROFILES}
         onSend={handleConfirmSendInvitations}

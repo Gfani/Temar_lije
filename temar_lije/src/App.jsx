@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Landingpage from './features/landing/landing.jsx';
 import SignInPage from './features/auth/signin/signin.jsx';
 import CreateAccountPage from './features/auth/create_account/create_account.jsx';
+import ForgotPasswordPage from './features/auth/forgot_password/forgot_password.jsx';
+import ResetPasswordPage from './features/auth/reset_password/reset_password.jsx';
+import VerifyEmailPage from './features/auth/verify_email/verify_email.jsx';
 import Classrooms from './features/classrooms/classrooms.jsx';
 import ClassroomDetail from './features/classroom-detail/classroom_detail.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
@@ -9,14 +12,24 @@ import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 function MainApp() {
   const { user, login, register, logout, isAuthenticated, isLoading } = useAuth();
 
-  // Track active screen: 'landing' | 'signin' | 'create_account' | 'classrooms' | 'classroom_detail'
+  // Extract query params and tokens on initial load
+  const [urlToken, setUrlToken] = useState(() => {
+    return new URLSearchParams(window.location.search).get('token') || '';
+  });
+
+  // Track active screen: 'landing' | 'signin' | 'create_account' | 'forgot_password' | 'reset_password' | 'verify_email' | 'classrooms' | 'classroom_detail'
   const [currentScreen, setCurrentScreen] = useState(() => {
     const path = window.location.pathname;
     const search = window.location.search;
     if (path.includes('/oauth/callback')) return 'classrooms';
+    if (path.includes('/verify-email')) return 'verify_email';
+    if (path.includes('/reset-password')) return 'reset_password';
+    if (path.includes('/forgot-password')) return 'forgot_password';
+    if (path.includes('/signup') || path.includes('/create-account')) return 'create_account';
     if (path.includes('/signin') || search.includes('error=oauth_failed')) return 'signin';
     return localStorage.getItem('temar_user') ? 'classrooms' : 'landing';
   });
+
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
   const [initialEmail, setInitialEmail] = useState('');
@@ -56,20 +69,40 @@ function MainApp() {
     await login({ email, password });
     setAuthNotice('');
     setCurrentScreen('classrooms');
+    window.history.replaceState({}, '', '/');
   };
 
   const handleCreateAccount = async ({ fullName, role, email, password }) => {
-    // Register without auto-login so user gets redirected to sign-in page
     await register({ fullName, role, email, password, autoLogin: false });
     setInitialEmail(email);
-    setAuthNotice('Account created successfully! Please sign in with your credentials.');
+    setAuthNotice('Registration successful. Please check your email to verify your account before signing in.');
     setCurrentScreen('signin');
+    window.history.replaceState({}, '', '/signin');
+  };
+
+  const handleVerifyEmailSuccess = (msg) => {
+    setAuthNotice(msg || 'Email verified successfully! You can now sign in.');
+    setCurrentScreen('signin');
+    window.history.replaceState({}, '', '/signin');
+  };
+
+  const handleResetPasswordSuccess = (result) => {
+    if (result?.user) {
+      setAuthNotice('');
+      setCurrentScreen('classrooms');
+      window.history.replaceState({}, '', '/');
+    } else {
+      setAuthNotice('Password reset successfully! Please sign in with your new password.');
+      setCurrentScreen('signin');
+      window.history.replaceState({}, '', '/signin');
+    }
   };
 
   const handleLogout = async () => {
     await logout();
     setAuthNotice('');
     setCurrentScreen('landing');
+    window.history.replaceState({}, '', '/');
   };
 
   const currentUser = user
@@ -90,11 +123,11 @@ function MainApp() {
           }} 
           onStartTeaching={() => {
             setAuthNotice('');
-            setCurrentScreen('signin');
+            setCurrentScreen('create_account');
           }}
           onJoinClass={() => {
             setAuthNotice('');
-            setCurrentScreen('signin');
+            setCurrentScreen('create_account');
           }}
         />
       )}
@@ -102,10 +135,17 @@ function MainApp() {
       {currentScreen === 'signin' && (
         <SignInPage 
           onSignIn={handleSignIn}
-          onBackToLanding={() => setCurrentScreen('landing')} 
+          onBackToLanding={() => {
+            setAuthNotice('');
+            setCurrentScreen('landing');
+          }} 
           onSwitchToCreateAccount={() => {
             setAuthNotice('');
             setCurrentScreen('create_account');
+          }}
+          onForgotPassword={() => {
+            setAuthNotice('');
+            setCurrentScreen('forgot_password');
           }}
           initialEmail={initialEmail}
           noticeMessage={authNotice}
@@ -119,6 +159,34 @@ function MainApp() {
             setAuthNotice('');
             setCurrentScreen('signin');
           }} 
+        />
+      )}
+
+      {currentScreen === 'forgot_password' && (
+        <ForgotPasswordPage 
+          onBackToSignIn={() => {
+            setAuthNotice('');
+            setCurrentScreen('signin');
+          }}
+        />
+      )}
+
+      {currentScreen === 'reset_password' && (
+        <ResetPasswordPage 
+          token={urlToken}
+          onResetSuccess={handleResetPasswordSuccess}
+          onBackToSignIn={() => {
+            setAuthNotice('');
+            setCurrentScreen('signin');
+          }}
+        />
+      )}
+
+      {currentScreen === 'verify_email' && (
+        <VerifyEmailPage 
+          token={urlToken}
+          onVerified={() => handleVerifyEmailSuccess('Email verified successfully! You can now sign in.')}
+          onGoToSignIn={(msg) => handleVerifyEmailSuccess(msg)}
         />
       )}
 

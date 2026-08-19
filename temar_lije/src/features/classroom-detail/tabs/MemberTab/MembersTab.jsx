@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Users, Code, Sparkles, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Plus, Users, Code, Sparkles, Trash2, CheckCircle2 } from 'lucide-react';
+import io from 'socket.io-client';
 import './membersTab.css';
 import Chat from '../../../chat/chat.jsx';
 import { API_BASE_URL } from '../../../../config/constants';
 import { useAuth } from '../../../../context/AuthContext';
 import CreateGroup from '../../../../components/layout/create_group/create_group.jsx';
+import StudyInvitation from '../../../../components/layout/study_invitation/study_invitation.jsx';
 
 // Static classroom roster (mock — no classroom-members API exists).
 // The authenticated user is injected at render time from useAuth() and
@@ -35,7 +37,42 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [studyGroups, setStudyGroups] = useState([]);
+  const [invitationToast, setInvitationToast] = useState('');
+  const [invitationData, setInvitationData] = useState({
+    isOpen: false,
+    inviterName: '',
+    inviterInitials: '',
+    topicName: '',
+    categoryName: '',
+    groupId: ''
+  });
+  const socketRef = useRef(null);
   const tabs = ['Members', 'Study Groups'];
+
+  useEffect(() => {
+    const socket = io(API_BASE_URL.replace('/api', ''), {
+      auth: { token: accessToken },
+      transports: ['websocket', 'polling']
+    });
+    socketRef.current = socket;
+
+    socket.on('studyInvitation', (data) => {
+      if (data.invitedMembers?.includes(effectiveUserId) && data.inviterId !== effectiveUserId) {
+        setInvitationData({
+          isOpen: true,
+          inviterName: data.inviterName || 'Classmate',
+          inviterInitials: data.inviterInitials || 'CM',
+          topicName: data.topicName || 'Study Session',
+          categoryName: data.categoryName || `${classroom?.title || 'Classroom'} · Study Group`,
+          groupId: data.groupId
+        });
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [effectiveUserId, accessToken, classroom]);
 
   const fetchStudyGroups = () => {
     const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
@@ -54,7 +91,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
             isClassroom: false,
             time: '',
             icon: g.icon || '📚',
-            color: g.color || '#8b5cf6',
+            color: g.color || '#6366f1',
             members: g.members?.map(m => m.userId) || []
           }));
           setStudyGroups(mappedGroups);
@@ -94,7 +131,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         const newGroupObj = {
           id: g.id,
           name: g.name,
-          subtitle: g.description || 'No messages yet',
+          subtitle: groupDetails.topic || 'No messages yet',
           isClassroom: false,
           time: '',
           icon: g.icon || '📚',
@@ -132,9 +169,32 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
           })
         }).catch(() => {});
 
+        // Emit WebSocket studyInvitation to all invited classmates
+        if (socketRef.current) {
+          socketRef.current.emit('studyInvitation', {
+            inviterId: effectiveUserId,
+            inviterName: effectiveUserName,
+            inviterInitials: currentUserInitials,
+            topicName: groupDetails.topic || 'StatefulWidget Lifecycle',
+            categoryName: `${groupDetails.name} · ${classroom?.title || 'Study Group'}`,
+            invitedMembers: groupDetails.members || [],
+            groupId: g.id
+          });
+
+          // Post initial system invitation message in the general chat
+          socketRef.current.emit('sendMessage', {
+            roomId: `${g.id}-general`,
+            text: `👋 ${effectiveUserName} created the study group "${groupDetails.name}" on topic "${groupDetails.topic || 'StatefulWidget Lifecycle'}" and sent invitations to ${groupDetails.members?.length || 0} classmates.`,
+            type: 'system'
+          });
+        }
+
         setStudyGroups(prev => [...prev.filter(item => item.id !== g.id), newGroupObj]);
         setShowCreateGroup(false);
         setSelectedGroupId(g.id);
+
+        setInvitationToast(`🎉 Study group "${groupDetails.name}" created & invitations sent!`);
+        setTimeout(() => setInvitationToast(''), 4000);
       })
       .catch(err => {
         console.error('Failed to create group in MembersTab:', err);
@@ -456,6 +516,49 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         onClose={() => setShowCreateGroup(false)}
         onCreate={handleCreateGroup}
       />
+
+      <StudyInvitation
+        isOpen={invitationData.isOpen}
+        onClose={() => setInvitationData(prev => ({ ...prev, isOpen: false }))}
+        inviterName={invitationData.inviterName}
+        inviterInitials={invitationData.inviterInitials}
+        topicName={invitationData.topicName}
+        categoryName={invitationData.categoryName}
+        onJoin={() => {
+          if (invitationData.groupId) {
+            setSelectedGroupId(invitationData.groupId);
+          }
+          setInvitationData(prev => ({ ...prev, isOpen: false }));
+        }}
+        onDecline={() => {
+          setInvitationData(prev => ({ ...prev, isOpen: false }));
+        }}
+      />
+
+      {invitationToast && (
+        <div 
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: '#0d9488',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            zIndex: 99999,
+            fontWeight: 600,
+            fontSize: '14px',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          <CheckCircle2 size={18} />
+          <span>{invitationToast}</span>
+        </div>
+      )}
     </div>
   );
 }

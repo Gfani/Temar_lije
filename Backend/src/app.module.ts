@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { LiveClassModule } from './modules/live-class/live-class.module';
+import { SyncModule } from './modules/sync/sync.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { QuizzesModule } from './modules/quizzes/quizzes.module';
@@ -28,6 +29,7 @@ import { QuizzesModule } from './modules/quizzes/quizzes.module';
     ChatModule,
     AttendanceModule,
     LiveClassModule,
+    SyncModule,
     MaterialsModule,
     AssignmentsModule,
     QuizzesModule,

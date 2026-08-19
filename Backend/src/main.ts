@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import cookieParser from 'cookie-parser';
+const cookieParser = require('cookie-parser');
 import express from 'express';
 import path from 'path';
 import fs from 'fs';

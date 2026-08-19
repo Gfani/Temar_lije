@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { Loader2, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Loader2, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import logo from '../../../assets/classmind-logo.png';
 import styles from './signin.module.css';
 import { authApi } from '../../../lib/api';
@@ -29,6 +29,7 @@ export default function SignIn({
   onSignIn,
   onGoogleSignIn,
   onSwitchToCreateAccount,
+  onForgotPassword,
   initialEmail = '',
   noticeMessage = '',
 }) {
@@ -40,6 +41,8 @@ export default function SignIn({
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [successNotice, setSuccessNotice] = useState(noticeMessage);
+  const [isUnverified, setIsUnverified] = useState(false);
+  const [resendStatus, setResendStatus] = useState('');
 
   useEffect(() => {
     if (initialEmail) {
@@ -71,6 +74,8 @@ export default function SignIn({
       event.preventDefault();
       if (busy) return;
       setFormError('');
+      setIsUnverified(false);
+      setResendStatus('');
 
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         setFormError('Please enter a valid email address.');
@@ -91,7 +96,10 @@ export default function SignIn({
         }
       } catch (err) {
         const msg = err?.message || '';
-        if (msg.toLowerCase().includes('invalid credentials')) {
+        if (msg.toLowerCase().includes('verify your email')) {
+          setIsUnverified(true);
+          setFormError(msg);
+        } else if (msg.toLowerCase().includes('invalid credentials')) {
           setFormError('Incorrect email or password. Please verify your credentials and try again.');
         } else {
           setFormError(msg || 'Could not sign in. Check your email and password and try again.');
@@ -103,6 +111,16 @@ export default function SignIn({
     [busy, email, password, onSignIn]
   );
 
+  const handleResendVerification = useCallback(async () => {
+    if (!email) return;
+    try {
+      const res = await authApi.resendVerification({ email });
+      setResendStatus(res?.message || 'Verification email resent! Please check your inbox.');
+    } catch (err) {
+      setResendStatus(err?.message || 'Could not resend email. Please try again later.');
+    }
+  }, [email]);
+
   const handleGoogleSignIn = useCallback(() => {
     if (busy) return;
     setIsGoogleLoading(true);
@@ -110,7 +128,7 @@ export default function SignIn({
     if (onGoogleSignIn) {
       onGoogleSignIn();
     } else {
-      // Full-page browser navigation to Google consent screen (no role param for sign-in)
+      // Full-page browser navigation to Google consent screen
       window.location.href = authApi.getGoogleAuthUrl();
     }
   }, [busy, onGoogleSignIn]);
@@ -140,7 +158,7 @@ export default function SignIn({
 
         {successNotice && (
           <div className={styles.inlineSuccess}>
-            <CheckCircle size={18} />
+            <CheckCircle2 size={18} className="flex-shrink-0" />
             <span>{successNotice}</span>
           </div>
         )}
@@ -159,6 +177,7 @@ export default function SignIn({
             onChange={(e) => {
               setEmail(e.target.value);
               if (formError) setFormError('');
+              if (successNotice) setSuccessNotice('');
             }}
             onBlur={() => setEmailTouched(true)}
             disabled={busy}
@@ -168,9 +187,22 @@ export default function SignIn({
             <span className={styles.fieldError}>Please enter a valid email format.</span>
           )}
 
-          <label className={styles.fieldLabel} htmlFor="signin-password">
-            Password
-          </label>
+          <div className={styles.passwordLabelRow}>
+            <label className={styles.fieldLabel} htmlFor="signin-password" style={{ margin: 0 }}>
+              Password
+            </label>
+            {onForgotPassword && (
+              <button
+                type="button"
+                className={styles.forgotPasswordLink}
+                onClick={onForgotPassword}
+                tabIndex={0}
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
+
           <div className={styles.inputWrapper}>
             <input
               id="signin-password"
@@ -198,9 +230,24 @@ export default function SignIn({
           </div>
 
           {formError && (
-            <p className={styles.inlineError} role="alert">
-              {formError}
-            </p>
+            <div className={styles.inlineError} role="alert">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+              {isUnverified && (
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className={styles.resendInlineBtn}
+                  >
+                    Resend verification email
+                  </button>
+                  {resendStatus && <p className={styles.resendStatusText}>{resendStatus}</p>}
+                </div>
+              )}
+            </div>
           )}
 
           <button

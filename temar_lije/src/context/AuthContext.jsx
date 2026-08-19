@@ -103,6 +103,24 @@ export function AuthProvider({ children }) {
     }
   }, [accessToken]);
 
+  const verifyEmail = useCallback(async ({ token }) => {
+    return authApi.verifyEmail({ token });
+  }, []);
+
+  const resendVerification = useCallback(async ({ email }) => {
+    return authApi.resendVerification({ email });
+  }, []);
+
+  const forgotPassword = useCallback(async ({ email }) => {
+    return authApi.forgotPassword({ email });
+  }, []);
+
+  const resetPassword = useCallback(async ({ token, newPassword }) => {
+    const result = await authApi.resetPassword({ token, newPassword });
+    handleAuthSuccess(result);
+    return result;
+  }, [handleAuthSuccess]);
+
   const value = {
     user,
     accessToken,
@@ -111,6 +129,10 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    verifyEmail,
+    resendVerification,
+    forgotPassword,
+    resetPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

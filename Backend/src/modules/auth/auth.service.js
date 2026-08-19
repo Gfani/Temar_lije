@@ -10,18 +10,22 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 const { PrismaService } = require('../../database/prisma.service');
+const { EmailService } = require('../email/email.service');
 
 const BCRYPT_SALT_ROUNDS = 12;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 @Injectable()
-@Dependencies(PrismaService, JwtService, ConfigService)
+@Dependencies(PrismaService, JwtService, ConfigService, EmailService)
 class AuthService {
-  constructor(prisma, jwtService, configService) {
+  constructor(prisma, jwtService, configService, emailService) {
     this.prisma = prisma;
     this.jwtService = jwtService;
     this.configService = configService;
+    this.emailService = emailService;
 
     this._dummyHashPromise = this._hashPassword(
       'a-constant-placeholder-value-never-used-as-a-real-password',
@@ -30,6 +34,21 @@ class AuthService {
 
   _hashPassword(plain) {
     return bcrypt.hash(plain, BCRYPT_SALT_ROUNDS);
+  }
+
+  /**
+   * Generates a high-entropy random token, returning both the raw
+   * value (sent to the user, never stored) and its SHA-256 hash
+   * (stored, never sent).
+   */
+  _generateSecureToken(ttlMs) {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+    const expiresAt = new Date(Date.now() + ttlMs);
+    return { rawToken, tokenHash, expiresAt };
   }
 
   async _registerFailedLoginAttempt(user) {
@@ -68,6 +87,11 @@ class AuthService {
     return { accessToken, refreshToken };
   }
 
+  /**
+   * Registers a new STUDENT or TEACHER account. As of email
+   * verification being added: this NO LONGER logs the user in.
+   * Returns a plain confirmation message instead of an AuthResult.
+   */
   async register(dto) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -79,6 +103,9 @@ class AuthService {
     }
 
     const passwordHash = await this._hashPassword(dto.password);
+    const { rawToken, tokenHash, expiresAt } = this._generateSecureToken(
+      EMAIL_VERIFICATION_TOKEN_TTL_MS,
+    );
 
     let user;
     try {
@@ -88,23 +115,182 @@ class AuthService {
           email: dto.email,
           passwordHash,
           role: dto.role,
+          isEmailVerified: false,
+          emailVerificationTokenHash: tokenHash,
+          emailVerificationExpiresAt: expiresAt,
         },
       });
     } catch {
       throw new ConflictException('An account with this email already exists');
     }
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    await this.emailService.sendVerificationEmail(user, rawToken);
+
+    return {
+      message:
+        'Registration successful. Please check your email to verify your account before signing in.',
+    };
+  }
+
+  /**
+   * Confirms a user's email using the raw token from the link they clicked.
+   */
+  async verifyEmail(rawToken) {
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+
+    const user = await this.prisma.user.findFirst({
+      where: { emailVerificationTokenHash: tokenHash },
+    });
+
+    if (
+      !user ||
+      !user.emailVerificationExpiresAt ||
+      user.emailVerificationExpiresAt < new Date()
+    ) {
+      throw new UnauthorizedException('Invalid or expired verification link');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isEmailVerified: true,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+      },
+    });
+
+    return { message: 'Email verified successfully. You can now sign in.' };
+  }
+
+  /**
+   * Always returns the same generic message regardless of whether
+   * the email exists, is already verified, or genuinely gets a new token.
+   */
+  async resendVerificationEmail(email) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    const generic = {
+      message:
+        'If an account with that email exists and is unverified, a new link has been sent.',
+    };
+
+    if (!user || user.isEmailVerified) {
+      return generic;
+    }
+
+    const { rawToken, tokenHash, expiresAt } = this._generateSecureToken(
+      EMAIL_VERIFICATION_TOKEN_TTL_MS,
+    );
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationTokenHash: tokenHash,
+        emailVerificationExpiresAt: expiresAt,
+      },
+    });
+
+    await this.emailService.sendVerificationEmail(user, rawToken);
+    return generic;
+  }
+
+  /**
+   * Always returns the same generic response regardless of what's
+   * true about the account (non-existent, OAuth-only, or local password).
+   * For OAuth accounts, sends an informational notice instead of a reset link.
+   */
+  async forgotPassword(email) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    const generic = {
+      message:
+        'If an account with that email exists, password reset instructions have been sent.',
+    };
+
+    if (!user) {
+      return generic;
+    }
+
+    if (!user.passwordHash) {
+      // OAuth-only account (Google, or any future provider)
+      await this.emailService.sendOAuthAccountNotice(user);
+      return generic;
+    }
+
+    const { rawToken, tokenHash, expiresAt } = this._generateSecureToken(
+      PASSWORD_RESET_TOKEN_TTL_MS,
+    );
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpiresAt: expiresAt,
+      },
+    });
+
+    await this.emailService.sendPasswordResetEmail(user, rawToken);
+    return generic;
+  }
+
+  /**
+   * Consumes a reset token and sets a new password.
+   * On success, invalidates existing refresh tokens and clears lockout.
+   */
+  async resetPassword(rawToken, newPassword) {
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+
+    const user = await this.prisma.user.findFirst({
+      where: { passwordResetTokenHash: tokenHash },
+    });
+
+    if (
+      !user ||
+      !user.passwordResetExpiresAt ||
+      user.passwordResetExpiresAt < new Date()
+    ) {
+      throw new UnauthorizedException('Invalid or expired reset link');
+    }
+
+    if (!user.passwordHash) {
+      throw new UnauthorizedException(
+        'This account does not use a password. Sign in with Google instead.',
+      );
+    }
+
+    const passwordHash = await this._hashPassword(newPassword);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+        refreshTokenHash: null, // force re-login everywhere else
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    const payload = {
+      sub: updatedUser.id,
+      email: updatedUser.email,
+      role: updatedUser.role,
+    };
     const { accessToken, refreshToken } = await this._issueTokenPair(payload);
 
     return {
       accessToken,
       refreshToken,
       user: {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
+        id: updatedUser.id,
+        fullName: updatedUser.fullName,
+        email: updatedUser.email,
+        role: updatedUser.role,
       },
     };
   }
@@ -134,6 +320,14 @@ class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Placed here deliberately — AFTER the password has already been
+    // proven correct, to prevent enumeration.
+    if (!user.isEmailVerified) {
+      throw new UnauthorizedException(
+        'Please verify your email before signing in. Check your inbox or request a new link.',
+      );
+    }
+
     if (user.failedLoginAttempts > 0 || user.lockedUntil) {
       await this.prisma.user.update({
         where: { id: user.id },
@@ -158,14 +352,7 @@ class AuthService {
 
   /**
    * Finds or creates a user from a verified Google profile, then
-   * issues the same access+refresh pair as password login. Three
-   * distinct paths, in order:
-   *
-   * @param {{googleId: string, email: string, fullName: string, emailVerified: boolean}} googleProfile
-   * @param {'STUDENT'|'TEACHER'|null} requestedRole - decoded from the
-   * signed OAuth state, meaningful only for brand-new accounts. An
-   * existing user's role is never altered by this parameter — role
-   * is set once, at account creation, full stop.
+   * issues the same access+refresh pair as password login.
    */
   async loginWithGoogle(googleProfile, requestedRole) {
     const { googleId, email, fullName, emailVerified } = googleProfile;
@@ -175,12 +362,7 @@ class AuthService {
 
     if (!user) {
       // Path 2: no googleId match, but an email/password account
-      // already owns this email — link rather than create a
-      // duplicate row under the same address. Linking is gated on
-      // Google itself reporting the email as verified: Google is the
-      // party asserting ownership here, so an *unverified* Google
-      // email can't be used to attach a new identity to someone
-      // else's existing password account.
+      // already owns this email — link rather than create a duplicate.
       const existingByEmail = await this.prisma.user.findUnique({
         where: { email },
       });
@@ -193,17 +375,10 @@ class AuthService {
         }
         user = await this.prisma.user.update({
           where: { id: existingByEmail.id },
-          data: { googleId, isEmailVerified: true }, // Google's verification satisfies ours too, going forward
+          data: { googleId, isEmailVerified: true },
         });
       } else {
-        // Path 3: genuinely new user. requestedRole is no longer
-        // attacker-editable at this point — it survived a signature
-        // check to get here — but it's still validated against the
-        // same whitelist RegisterDto enforces rather than trusted
-        // blindly, and the signin page's Google button intentionally
-        // sends no role at all, which lands here too: a stranger's
-        // email with nothing to identify them as student or teacher
-        // is a genuinely ambiguous case, rejected rather than guessed.
+        // Path 3: genuinely new user.
         if (requestedRole !== 'STUDENT' && requestedRole !== 'TEACHER') {
           throw new UnauthorizedException(
             'No account found for this Google email. Please create an account first and select your role.',
@@ -217,22 +392,12 @@ class AuthService {
             googleId,
             role: requestedRole,
             isEmailVerified: emailVerified,
-            passwordHash: null, // Google-only account — see schema note on passwordHash nullability
+            passwordHash: null,
           },
         });
       }
     }
 
-    // Successful Google auth is proof of identity via a completely
-    // different factor than password guessing — clear any
-    // accumulated lockout state rather than leaving it in place.
-    //
-    // Deliberately NOT gating this whole method behind a lockedUntil
-    // check the way login() is: lockout exists specifically to slow
-    // down password brute-forcing. Blocking an unrelated, already-
-    // secure auth method behind that same lock would punish the
-    // legitimate account owner during exactly the moment they'd want
-    // a working alternate way in.
     if (user.failedLoginAttempts > 0 || user.lockedUntil) {
       user = await this.prisma.user.update({
         where: { id: user.id },

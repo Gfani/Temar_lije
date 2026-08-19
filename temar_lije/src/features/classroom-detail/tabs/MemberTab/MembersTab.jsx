@@ -183,10 +183,13 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         </div>
 
         <div className="sidebar-section">
-          <div className="section-header">CLASSROOMS</div>
+          <div className="section-header">CLASSROOM CHATS</div>
           <div 
-            className={`sidebar-item ${selectedGroupId === null ? 'active' : ''}`}
-            onClick={() => { setSelectedGroupId(null); setActiveTab('Members'); }}
+            className={`sidebar-item ${selectedGroupId === ((classroom?.title || 'flutter').toLowerCase().replace(/\s+/g, '-')) ? 'active' : ''}`}
+            onClick={() => {
+              const classSlug = (classroom?.title || 'flutter').toLowerCase().replace(/\s+/g, '-');
+              setSelectedGroupId(classSlug);
+            }}
             style={{ cursor: 'pointer' }}
           >
             <div className="item-icon green-bg">
@@ -194,16 +197,16 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
             </div>
             <div className="item-content">
               <div className="item-title-row">
-                <span className="item-title">{classroom?.title || 'Flutter'}</span>
+                <span className="item-title">{classroom?.title || 'Flutter'} (General)</span>
                 <span className="item-time">1:56 PM</span>
               </div>
-              <p className="item-subtitle">Samuel: Post your lifecycle qu...</p>
+              <p className="item-subtitle">Main class discussion & voice</p>
             </div>
           </div>
 
           <div 
-            className="sidebar-item"
-            onClick={() => { setSelectedGroupId(null); setActiveTab('Members'); }}
+            className={`sidebar-item ${selectedGroupId === 'react-native' ? 'active' : ''}`}
+            onClick={() => setSelectedGroupId('react-native')}
             style={{ cursor: 'pointer' }}
           >
             <div className="item-icon purple-bg">
@@ -213,7 +216,23 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
               <div className="item-title-row">
                 <span className="item-title">React Native</span>
               </div>
-              <p className="item-subtitle">Mobile development</p>
+              <p className="item-subtitle">Mobile development chat</p>
+            </div>
+          </div>
+
+          <div 
+            className={`sidebar-item ${selectedGroupId === null ? 'active' : ''}`}
+            onClick={() => { setSelectedGroupId(null); setActiveTab('Members'); }}
+            style={{ cursor: 'pointer', borderTop: '1px dashed var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}
+          >
+            <div className="item-icon" style={{ backgroundColor: '#0ea5e9' }}>
+              <Users size={16} />
+            </div>
+            <div className="item-content">
+              <div className="item-title-row">
+                <span className="item-title">Classroom Overview</span>
+              </div>
+              <p className="item-subtitle">Members roster & study groups</p>
             </div>
           </div>
         </div>

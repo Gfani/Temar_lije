@@ -4,9 +4,9 @@ import logo from '../../../assets/classmind-logo.png';
 import { LayoutGrid, Sparkles, LogOut, MessageSquare, Sun, Moon } from 'lucide-react';
 
 export default function Header({
-    userName = "Gelila Sintayehu",
+    userName = "User",
     role = "Student",
-    userInitials = "GS",
+    userInitials = "U",
     currentTab = "classrooms",
     onTabChange,
     onLogout,
@@ -30,6 +30,15 @@ export default function Header({
                     >
                         <LayoutGrid size={18} />
                         <span>Classrooms</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`nav-item ${currentTab === 'chat' ? 'active' : ''}`}
+                        onClick={() => onTabChange?.('chat')}
+                    >
+                        <MessageSquare size={18} />
+                        <span>Group Chats</span>
                     </button>
 
                     <button

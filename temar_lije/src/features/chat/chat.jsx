@@ -13,8 +13,8 @@ import StudyInvitation from '../../components/layout/study_invitation/study_invi
 const CURATED_EMOJIS = ['😄', '😂', '👍', '❤️', '🔥', '💪', '✅', '🎨', '💻', '🚀', '📚', '📝', '💡', '👑', '🌟', '👏', '🎉', '👋'];
 
 const USER_PROFILES = {
-    'gs': { name: 'Gelila Sintayehu', initials: 'GS', avatarBg: '#3b82f6', online: true },
-    'at': { name: 'Fanuel Goitom', initials: 'FG', avatarBg: '#8b5cf6', online: true },
+    'gs': { name: 'Sara Gebremedhin', initials: 'SG', avatarBg: '#3b82f6', online: true },
+    'at': { name: 'Abebe Tadesse', initials: 'AT', avatarBg: '#8b5cf6', online: true },
     'yb': { name: 'Yonas Bekele', initials: 'YB', avatarBg: '#0d9488', online: true },
     'mh': { name: 'Meron Haile', initials: 'MH', avatarBg: '#f97316', online: false },
     'ta': { name: 'Tigist Alemu', initials: 'TA', avatarBg: '#a855f7', online: true }
@@ -28,6 +28,7 @@ function Chat({
     onCloseCreateGroupDirectly,
     studyGroups: propStudyGroups,
     setStudyGroups: propSetStudyGroups,
+    classroomId,
     darkMode: propDarkMode,
     setDarkMode: propSetDarkMode
 }) {
@@ -44,9 +45,9 @@ function Chat({
     // ('gs') only when no session exists (dev/demo mode).
     const currentUser = {
         id: authUser?.id || 'gs',
-        name: authUser?.fullName || 'Gelila Sintayehu',
-        initials: (authUser?.fullName || 'GS').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U',
-        avatarBg: '#3b82f6'
+        name: authUser?.fullName || 'Sara Gebremedhin',
+        initials: authUser?.initials || (authUser?.fullName || 'SG').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U',
+        avatarBg: authUser?.avatarBg || '#3b82f6'
     };
     const currentUserRef = useRef(currentUser);
     currentUserRef.current = currentUser;
@@ -963,7 +964,7 @@ function Chat({
         });
 
         // Fetch persisted study groups
-        apiFetch(`${API_BASE_URL}/chat/groups`)
+        apiFetch(`${API_BASE_URL}/chat/groups${classroomId ? `?classroomId=${encodeURIComponent(classroomId)}` : ''}`)
             .then(res => res.json())
             .then(data => {
                 if (data && Array.isArray(data)) {
@@ -976,25 +977,49 @@ function Chat({
                         return isTopic;
                     });
 
-                    // Merge default classrooms and loaded classrooms
-                    // (demo mode only — logged-in users start empty)
-                    const defaultClassrooms = isAuthedRef.current ? [] : [
-                        { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM' },
-                        { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '' }
+                    // Load all classrooms dynamically from localStorage and defaults
+                    let localStoredClassrooms = [];
+                    try {
+                        const raw = localStorage.getItem('temar_classrooms');
+                        if (raw) {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                localStoredClassrooms = parsed.map(c => ({
+                                    id: (c.title || '').toLowerCase().replace(/\s+/g, '-'),
+                                    name: c.title,
+                                    subtitle: c.subject || c.description || 'Classroom chat',
+                                    isClassroom: true,
+                                    icon: '🏫',
+                                    time: ''
+                                }));
+                            }
+                        }
+                    } catch (e) {}
+
+                    const defaultClassrooms = [
+                        { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM', icon: '🏫' },
+                        { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '', icon: '🏫' },
+                        { id: 'react', name: 'React', subtitle: 'Modern Frontend Architecture', isClassroom: true, time: '', icon: '🏫' }
                     ];
                     const mergedClassrooms = [...defaultClassrooms];
+                    localStoredClassrooms.forEach(lsc => {
+                        if (!mergedClassrooms.some(dc => dc.id === lsc.id)) {
+                            mergedClassrooms.push(lsc);
+                        }
+                    });
+
                     const loadedClassrooms = [];
                     const mappedGroups = [];
 
                     mainGroups.forEach(g => {
-                        const isClassroom = g.icon === '🏫' || g.id === 'flutter' || g.id === 'react-native';
+                        const isClassroom = g.icon === '🏫' || g.id === 'flutter' || g.id === 'react-native' || g.id === 'react';
                         const item = {
                             id: g.id,
                             name: g.name,
                             subtitle: g.description || 'No messages yet',
                             isClassroom: isClassroom,
                             time: '',
-                            icon: g.icon || '👥',
+                            icon: isClassroom ? '🏫' : (g.icon || '👥'),
                             color: g.color || '#8b5cf6',
                             members: g.members?.map(m => m.userId) || []
                         };
@@ -1005,9 +1030,12 @@ function Chat({
                         }
                     });
 
-                    // Merge default classrooms and loaded classrooms
+                    // Merge loaded server classrooms
                     loadedClassrooms.forEach(lc => {
-                        if (!mergedClassrooms.some(dc => dc.id === lc.id)) {
+                        const existingIdx = mergedClassrooms.findIndex(dc => dc.id === lc.id);
+                        if (existingIdx >= 0) {
+                            mergedClassrooms[existingIdx] = { ...mergedClassrooms[existingIdx], ...lc };
+                        } else {
                             mergedClassrooms.push(lc);
                         }
                     });
@@ -2261,6 +2289,7 @@ function Chat({
                     description: descText,
                     icon: '🏫',
                     color: '#10b981',
+                    classroomId: classroomId || undefined,
                     memberIds: [currentUser.id]
                 })
             })
@@ -2309,6 +2338,7 @@ function Chat({
                     id: tempId,
                     name: newGroupName,
                     description: descText,
+                    classroomId: classroomId || undefined,
                     memberIds: [currentUser.id]
                 })
             })
@@ -2324,6 +2354,7 @@ function Chat({
                         description: 'General chat room',
                         icon: '#',
                         color: '#64748b',
+                        classroomId: classroomId || undefined,
                         memberIds: []
                     })
                 });
@@ -3686,6 +3717,7 @@ function Chat({
                             description: groupDetails.topic || 'No messages yet',
                             icon: groupDetails.icon || '👥',
                             color: groupDetails.color || '#6366f1',
+                            classroomId: classroomId || undefined,
                             memberIds: memberList
                         })
                     })
@@ -4445,6 +4477,7 @@ function Chat({
                             description: `Topic room for ${topicName}`,
                             icon: '#',
                             color: '#0d9488',
+                            classroomId: classroomId || undefined,
                             memberIds: []
                         })
                     })

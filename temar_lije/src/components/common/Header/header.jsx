@@ -34,15 +34,6 @@ export default function Header({
 
                     <button
                         type="button"
-                        className={`nav-item ${currentTab === 'chat' ? 'active' : ''}`}
-                        onClick={() => onTabChange?.('chat')}
-                    >
-                        <MessageSquare size={18} />
-                        <span>Group Chats</span>
-                    </button>
-
-                    <button
-                        type="button"
                         className={`nav-item ${currentTab === 'study-buddy' ? 'active' : ''}`}
                         onClick={() => onTabChange?.('study-buddy')}
                     >

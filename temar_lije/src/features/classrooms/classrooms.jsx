@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, Sparkles, LogOut, Plus, Users, KeyRound, CheckCircle2, MessageSquare } from 'lucide-react';
+import { LayoutGrid, Sparkles, LogOut, Plus, Users, KeyRound, CheckCircle2 } from 'lucide-react';
 import './classrooms.css';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
 import JoinClassRoom from '../../components/layout/join_class_room/join_class_room';
 import Header from '../../components/common/Header/header.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
-import Chat from '../chat/chat.jsx';
 
 const DEFAULT_CLASSROOMS = [
   {
@@ -38,7 +37,6 @@ export default function Classrooms({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('classrooms');
-  const [selectedChatClassroomId, setSelectedChatClassroomId] = useState('flutter');
   const [copiedCode, setCopiedCode] = useState('');
   
   const [classroomsList, setClassroomsList] = useState(() => {
@@ -183,53 +181,26 @@ export default function Classrooms({
                         <span>{isTeacher ? 'Host / Teacher' : 'Enrolled Student'}</span>
                       </div>
 
-                      <div className="card-actions-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          className="btn-card-chat"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const classSlug = (classroom.title || '').toLowerCase().replace(/\s+/g, '-');
-                            setSelectedChatClassroomId(classSlug);
-                            setActiveTab('chat');
-                          }}
-                          title={`Open ${classroom.title} Group Chat`}
+                      {isTeacher ? (
+                        <span 
+                          className="card-code" 
+                          onClick={(e) => handleCopyCode(e, classroom.code)}
+                          title="Click to copy invitation code for students"
+                          style={{ cursor: 'pointer' }}
                         >
-                          <MessageSquare size={13} /> Chat
-                        </button>
-
-                        {isTeacher ? (
-                          <span 
-                            className="card-code" 
-                            onClick={(e) => handleCopyCode(e, classroom.code)}
-                            title="Click to copy invitation code for students"
-                            style={{ cursor: 'pointer' }}
-                          >
-                            {copiedCode === classroom.code ? 'Copied!' : classroom.code}
-                          </span>
-                        ) : (
-                          <span className="card-code" style={{ opacity: 0.85 }}>
-                            Code: {classroom.code}
-                          </span>
-                        )}
-                      </div>
+                          {copiedCode === classroom.code ? 'Copied!' : classroom.code}
+                        </span>
+                      ) : (
+                        <span className="card-code" style={{ opacity: 0.85 }}>
+                          Code: {classroom.code}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </>
-        )}
-
-        {activeTab === 'chat' && (
-          <div className="classrooms-chat-wrapper" style={{ height: 'calc(100vh - 120px)', borderRadius: '16px', overflow: 'hidden' }}>
-            <Chat 
-              activeId={selectedChatClassroomId || 'flutter'} 
-              propActiveId={selectedChatClassroomId || 'flutter'} 
-              darkMode={darkMode} 
-              setDarkMode={setDarkMode} 
-            />
-          </div>
         )}
 
         {activeTab === 'study-buddy' && (

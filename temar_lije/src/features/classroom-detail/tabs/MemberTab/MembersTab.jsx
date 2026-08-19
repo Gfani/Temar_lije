@@ -7,6 +7,14 @@ import { API_BASE_URL } from '../../../../config/constants';
 import { useAuth } from '../../../../context/AuthContext';
 import CreateGroup from '../../../../components/layout/create_group/create_group.jsx';
 import StudyInvitation from '../../../../components/layout/study_invitation/study_invitation.jsx';
+import SendInvitation from '../../../../components/layout/send_invitation/send_invitation.jsx';
+
+const USER_PROFILES = {
+  'at': { name: 'Abebe Tadesse', initials: 'AT', avatarBg: '#8b5cf6', online: true },
+  'mh': { name: 'Meron Haile', initials: 'MH', avatarBg: '#f97316', online: false },
+  'yb': { name: 'Yonas Bekele', initials: 'YB', avatarBg: '#0d9488', online: true },
+  'ta': { name: 'Tigist Alemu', initials: 'TA', avatarBg: '#a855f7', online: true },
+};
 
 // Static classroom roster (mock — no classroom-members API exists).
 // The authenticated user is injected at render time from useAuth() and
@@ -36,6 +44,8 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showSendInvitationModal, setShowSendInvitationModal] = useState(false);
+  const [pendingGroupDetails, setPendingGroupDetails] = useState(null);
   const [studyGroups, setStudyGroups] = useState([]);
   const [invitationToast, setInvitationToast] = useState('');
   const [invitationData, setInvitationData] = useState({
@@ -105,6 +115,19 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
   }, [classroomId, accessToken]);
 
   const handleCreateGroup = (groupDetails) => {
+    setPendingGroupDetails(groupDetails);
+    setShowCreateGroup(false);
+    setShowSendInvitationModal(true);
+  };
+
+  const handleConfirmSendInvitations = (topicName, invitedMembers) => {
+    if (!pendingGroupDetails) return;
+    const groupDetails = {
+      ...pendingGroupDetails,
+      topic: topicName || pendingGroupDetails.topic,
+      members: invitedMembers || pendingGroupDetails.members
+    };
+
     const memberList = [effectiveUserId, ...(groupDetails.members || [])];
     const headers = {
       'Content-Type': 'application/json',
@@ -190,7 +213,8 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         }
 
         setStudyGroups(prev => [...prev.filter(item => item.id !== g.id), newGroupObj]);
-        setShowCreateGroup(false);
+        setShowSendInvitationModal(false);
+        setPendingGroupDetails(null);
         setSelectedGroupId(g.id);
 
         setInvitationToast(`🎉 Study group "${groupDetails.name}" created & invitations sent!`);
@@ -515,6 +539,18 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         isOpen={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
         onCreate={handleCreateGroup}
+      />
+
+      <SendInvitation
+        isOpen={showSendInvitationModal}
+        onClose={() => {
+          setShowSendInvitationModal(false);
+          setPendingGroupDetails(null);
+        }}
+        topicName={pendingGroupDetails?.topic || 'StatefulWidget Lifecycle'}
+        invitedMembers={pendingGroupDetails?.members || []}
+        userProfiles={USER_PROFILES}
+        onSend={handleConfirmSendInvitations}
       />
 
       <StudyInvitation

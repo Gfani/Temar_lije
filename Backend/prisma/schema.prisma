@@ -226,15 +226,15 @@ model AttendanceRecord {
 model StudyGroup {
   id          String             @id @default(uuid())
   name        String
-  classroomId String             @map("classroom_id")
-  createdById String             @map("created_by_id")
+  classroomId String?            @map("classroom_id")
+  createdById String?            @map("created_by_id")
   icon        String?
   colorAccent String?            @map("color_accent")
   createdAt   DateTime           @default(now()) @map("created_at")
   messages    ChatMessage[]
   members     StudyGroupMember[]
-  classroom   Classroom          @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-  createdBy   User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  classroom   Classroom?         @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  createdBy   User?              @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
   @@map("study_groups")
 }

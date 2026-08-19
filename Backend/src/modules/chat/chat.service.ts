@@ -35,7 +35,16 @@ export class ChatService {
   }
 
   private formatMessage(msg: any) {
-    const attachments = (typeof msg.attachments === 'object' && msg.attachments) ? msg.attachments : {};
+    let attachments: any = {};
+    if (typeof msg.attachments === 'string') {
+      try {
+        attachments = JSON.parse(msg.attachments);
+      } catch {
+        attachments = {};
+      }
+    } else if (typeof msg.attachments === 'object' && msg.attachments) {
+      attachments = msg.attachments;
+    }
     const senderObj = msg.sender ? {
       id: msg.sender.id,
       name: msg.sender.fullName || `User ${msg.sender.id}`,
@@ -148,9 +157,26 @@ export class ChatService {
     return this._assertGroupAccess(groupId, userId);
   }
 
-  private async ensureDefaultClassroom(creatorId: string): Promise<string> {
-    const validCreatorId = toUuid(creatorId);
-    await this.ensureUserExists(creatorId);
+  private async ensureClassroomExists(classroomId?: string, creatorId?: string): Promise<string> {
+    const validCreatorId = toUuid(creatorId || 'gs');
+    await this.ensureUserExists(creatorId || 'gs');
+    if (classroomId) {
+      const validClassId = toUuid(classroomId);
+      const existing = await this.db.classroom.findUnique({
+        where: { id: validClassId },
+      });
+      if (existing) return existing.id;
+      const created = await this.db.classroom.create({
+        data: {
+          id: validClassId,
+          title: `Classroom ${classroomId}`,
+          inviteCode: 'CLS' + Math.floor(100 + Math.random() * 900),
+          createdById: validCreatorId,
+        },
+      });
+      return created.id;
+    }
+
     const existing = await this.db.classroom.findFirst();
     if (existing) return existing.id;
     const created = await this.db.classroom.create({
@@ -179,7 +205,9 @@ export class ChatService {
       await this.ensureUserExists(memberId);
     }
 
-    const effectiveClassroomId = classroomId ? String(classroomId) : await this.ensureDefaultClassroom(effectiveCreatorId);
+    const effectiveClassroomId = classroomId
+      ? await this.ensureClassroomExists(classroomId, effectiveCreatorId)
+      : undefined;
     const groupUuid = id ? toUuid(id) : undefined;
 
     const createdGroup = await this.db.studyGroup.create({
@@ -188,13 +216,11 @@ export class ChatService {
         name,
         icon: icon || '📚',
         colorAccent: color || '#6366f1',
-        classroomId: toUuid(effectiveClassroomId),
+        classroomId: effectiveClassroomId || undefined,
         createdById: toUuid(effectiveCreatorId),
         members: {
           create: memberIds.map((userId) => ({
-            user: {
-              connect: { id: toUuid(userId) },
-            },
+            userId: toUuid(userId),
           })),
         },
       },
@@ -237,6 +263,7 @@ export class ChatService {
             OR: [
               ...(userId ? [{ members: { some: { userId: toUuid(userId) } } }] : []),
               { members: { none: {} } },
+              { classroomId: null },
             ],
           },
       include: {
@@ -277,7 +304,7 @@ export class ChatService {
     if (!existingGroup) {
       const creatorId = senderId;
       await this.ensureUserExists(creatorId);
-      const classroomId = await this.ensureDefaultClassroom(creatorId);
+      const classroomId = await this.ensureClassroomExists(undefined, creatorId);
 
       const allGroups = await this.db.studyGroup.findMany({ select: { id: true } });
       const parentGroup = allGroups.find(
@@ -333,7 +360,7 @@ export class ChatService {
         content: data.text || '',
         senderId: senderUuid,
         studyGroupId: groupUuid,
-        attachments,
+        attachments: JSON.stringify(attachments),
       },
       include: {
         sender: true,

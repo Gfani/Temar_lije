@@ -25,7 +25,7 @@ const OFFLINE_CLASSMATES = [
 
 export default function MembersTab({ darkMode, setDarkMode, classroom, currentUser }) {
   const { user, accessToken } = useAuth();
-  const classroomId = classroom?.id || classroom?.code || 'flutter';
+  const classroomId = String(classroom?.id || classroom?.code || 'flutter');
   const effectiveUserId = user?.id || currentUser?.id || 'gs';
   const effectiveUserName = user?.fullName || currentUser?.name || 'Sara Gebremedhin';
   const currentUserInitials = user?.initials

@@ -183,7 +183,7 @@ export class ChatService {
         description,
         icon: icon || '📚',
         color: color || '#6366f1',
-        classroomId: classroomId || null,
+        classroomId: classroomId ? String(classroomId) : null,
         members: {
           create: [...memberMap.entries()].map(([userId, role]) => ({
             role,
@@ -226,12 +226,13 @@ export class ChatService {
     });
   }
 
-  async getGroups(userId?: string, classroomId?: string) {
+  async getGroups(userId?: string, classroomId?: string | number) {
+    const classIdStr = classroomId ? String(classroomId) : undefined;
     return this.db.studyGroup.findMany({
-      where: classroomId
+      where: classIdStr
         ? {
             OR: [
-              { classroomId },
+              { classroomId: classIdStr },
               { classroomId: null },
             ],
           }

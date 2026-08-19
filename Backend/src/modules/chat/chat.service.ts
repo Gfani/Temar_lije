@@ -412,12 +412,17 @@ export class ChatService {
 
     if (!existing) return null;
 
-    const attachments: any = (typeof existing.attachments === 'object' && existing.attachments) ? existing.attachments : {};
+    let attachments: any = {};
+    if (typeof existing.attachments === 'string') {
+      try { attachments = JSON.parse(existing.attachments); } catch { attachments = {}; }
+    } else if (typeof existing.attachments === 'object' && existing.attachments) {
+      attachments = existing.attachments;
+    }
     attachments.isPinned = !!isPinned;
 
     const updated = await this.db.chatMessage.update({
       where: { id: messageUuid },
-      data: { attachments },
+      data: { attachments: JSON.stringify(attachments) },
       include: { sender: true },
     });
 
@@ -462,7 +467,12 @@ export class ChatService {
 
     if (!message) return [];
 
-    const attachments: any = (typeof message.attachments === 'object' && message.attachments) ? message.attachments : {};
+    let attachments: any = {};
+    if (typeof message.attachments === 'string') {
+      try { attachments = JSON.parse(message.attachments); } catch { attachments = {}; }
+    } else if (typeof message.attachments === 'object' && message.attachments) {
+      attachments = message.attachments;
+    }
     let reactions: Array<{ userId: string; emoji: string }> = attachments.reactions || [];
 
     const existingIdx = reactions.findIndex((r) => r.userId === userId && r.emoji === emoji);
@@ -478,7 +488,7 @@ export class ChatService {
 
     await this.db.chatMessage.update({
       where: { id: messageUuid },
-      data: { attachments },
+      data: { attachments: JSON.stringify(attachments) },
     });
 
     return this.groupReactions(reactions);

@@ -251,25 +251,8 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
             <div className="item-content">
               <div className="item-title-row">
                 <span className="item-title">{classroom?.title || 'Flutter'} (General)</span>
-                <span className="item-time">1:56 PM</span>
               </div>
               <p className="item-subtitle">Main class discussion & voice</p>
-            </div>
-          </div>
-
-          <div 
-            className={`sidebar-item ${selectedGroupId === 'react-native' ? 'active' : ''}`}
-            onClick={() => setSelectedGroupId('react-native')}
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="item-icon purple-bg">
-              <Code size={18} />
-            </div>
-            <div className="item-content">
-              <div className="item-title-row">
-                <span className="item-title">React Native</span>
-              </div>
-              <p className="item-subtitle">Mobile development chat</p>
             </div>
           </div>
 
@@ -302,44 +285,50 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
               <Plus size={16} />
             </button>
           </div>
-          {studyGroups.map((group) => (
-            <div 
-              key={group.id}
-              className={`sidebar-item ${selectedGroupId === group.id ? 'active' : ''}`}
-              onClick={() => setSelectedGroupId(group.id)}
-              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-            >
-              <div className="item-icon purple-bg" style={{ backgroundColor: group.color || '#8b5cf6' }}>
-                {group.icon ? <span style={{ fontSize: '18px' }}>{group.icon}</span> : <Sparkles size={18} />}
-              </div>
-              <div className="item-content" style={{ flex: 1 }}>
-                <div className="item-title-row">
-                  <span className="item-title">{group.name}</span>
-                  <span className="item-time">{group.time}</span>
-                </div>
-                <p className="item-subtitle">{group.subtitle}</p>
-              </div>
-              <button
-                className="delete-group-btn"
-                onClick={(e) => handleDeleteGroup(group.id, e)}
-                title="Delete study group"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#ef4444',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '6px',
-                  marginLeft: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Trash2 size={15} />
-              </button>
+          {studyGroups.length === 0 ? (
+            <div style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>
+              No groups created yet.
             </div>
-          ))}
+          ) : (
+            studyGroups.map((group) => (
+              <div 
+                key={group.id}
+                className={`sidebar-item ${selectedGroupId === group.id ? 'active' : ''}`}
+                onClick={() => setSelectedGroupId(group.id)}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <div className="item-icon purple-bg" style={{ backgroundColor: group.color || '#8b5cf6' }}>
+                  {group.icon ? <span style={{ fontSize: '18px' }}>{group.icon}</span> : <Sparkles size={18} />}
+                </div>
+                <div className="item-content" style={{ flex: 1 }}>
+                  <div className="item-title-row">
+                    <span className="item-title">{group.name}</span>
+                    <span className="item-time">{group.time}</span>
+                  </div>
+                  <p className="item-subtitle">{group.subtitle}</p>
+                </div>
+                <button
+                  className="delete-group-btn"
+                  onClick={(e) => handleDeleteGroup(group.id, e)}
+                  title="Delete study group"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    marginLeft: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </aside>
 
@@ -485,7 +474,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
                       </div>
                       <div className="banner-text">
                         <h3 className="banner-title">Classroom Study Groups</h3>
-                        <p className="banner-desc">Select a study group from the sidebar to start collaborating.</p>
+                        <p className="banner-desc">Collaborate with peers on class projects and group study.</p>
                       </div>
                     </div>
                     <button 
@@ -497,6 +486,48 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
                       <Plus size={16} /> New Group
                     </button>
                   </div>
+
+                  {studyGroups.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+                      <Users size={40} style={{ margin: '0 auto 12px auto', color: '#94a3b8', display: 'block' }} />
+                      <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 600, color: 'var(--text-main, #1e293b)' }}>No study groups created yet</h4>
+                      <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>Click "New Group" above to start your first peer study session.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginTop: '20px' }}>
+                      {studyGroups.map(group => (
+                        <div 
+                          key={group.id}
+                          onClick={() => setSelectedGroupId(group.id)}
+                          style={{
+                            padding: '16px',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border-color, #e2e8f0)',
+                            backgroundColor: 'var(--card-bg, #ffffff)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: group.color || '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#ffffff' }}>
+                              {group.icon || '📚'}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>{group.name}</h4>
+                              <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.subtitle || 'Study group'}</p>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid var(--border-color, #f1f5f9)' }}>
+                            <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: 600 }}>Open Chat →</span>
+                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>{group.members?.length || 1} members</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -608,18 +608,11 @@ function Chat({
         }
     };
 
-    // Mock list of Classrooms (demo mode only — logged-in users start empty)
-    const [classrooms, setClassrooms] = useState(authUser ? [] : [
-        { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM' },
-        { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '' }
-    ]);
+    // Classrooms list (populated strictly from backend data)
+    const [classrooms, setClassrooms] = useState([]);
 
-    // Study Groups (demo mode only — logged-in users start empty)
-    const [localStudyGroups, setLocalStudyGroups] = useState(authUser ? [] : [
-        { id: 'widget-kings', name: 'Widget Kings 👑', subtitle: 'Abebe: Deadline Sunday midni...', isClassroom: false, time: '2:54 PM', members: ['gs', 'at', 'yb'], icon: '🦋', color: '#6366f1' },
-        { id: 'vd', name: 'vd', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '💻', color: '#0d9488' },
-        { id: 'packages', name: 'packages', subtitle: 'No messages yet', isClassroom: false, time: '', members: ['gs'], icon: '📚', color: '#06b6d4' }
-    ]);
+    // Study Groups (populated strictly from backend data)
+    const [localStudyGroups, setLocalStudyGroups] = useState([]);
     const studyGroups = propStudyGroups !== undefined ? propStudyGroups : localStudyGroups;
     const setStudyGroups = propSetStudyGroups !== undefined ? propSetStudyGroups : setLocalStudyGroups;
 
@@ -635,7 +628,7 @@ function Chat({
     // Pick a sensible fallback channel when the active one disappears
     const fallbackGroupId = (excludeId) => {
         const remaining = (studyGroupsRef.current || []).filter(g => g.id !== excludeId);
-        return remaining[0]?.id || (authUser ? '' : 'widget-kings');
+        return remaining[0]?.id || '';
     };
 
     // Keep studyGroupsRef in sync with studyGroups
@@ -643,22 +636,7 @@ function Chat({
         studyGroupsRef.current = studyGroups;
     }, [studyGroups]);
 
-    const [topicsByGroup, setTopicsByGroup] = useState(authUser ? {} : {
-        'widget-kings': [
-            { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'You: Perfect, that leaves me UI patch and...', time: 'Mon' },
-            { id: 'project', name: 'Project', icon: 'P', color: '#ef4444', subtitle: 'Lala G: In addition to this next to the .jsx file...', time: '9:18 PM' },
-            { id: 'profile', name: 'profile', icon: 'p', color: '#f97316', subtitle: 'Fikrte: Fikrte Gebretsadkan CTC-5776-26', time: 'Fri' },
-            { id: 'resources', name: 'Resources', icon: 'R', color: '#10b981', subtitle: 'Lala G: Here is flutte11e ppt', time: 'Thu' },
-            { id: 'tools', name: 'Tools', icon: 'T', color: '#84cc16', subtitle: 'Lala G: this is base 44, used to give you...', time: 'Tue' },
-            { id: 'daily-challenges', name: 'Daily challenges', icon: 'D', color: '#be185d', subtitle: 'Fikrte: 📷 Photo', time: '8/1/2026' }
-        ],
-        'vd': [
-            { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'No messages yet', time: '' }
-        ],
-        'packages': [
-            { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'No messages yet', time: '' }
-        ]
-    });
+    const [topicsByGroup, setTopicsByGroup] = useState({});
 
     // Initialize socket connection and load groups
     useEffect(() => {
@@ -995,31 +973,18 @@ function Chat({
                             }
                         }
                     } catch (e) {}
-
-                    const defaultClassrooms = [
-                        { id: 'flutter', name: 'Flutter', subtitle: 'Samuel: Post your lifecycle qu...', isClassroom: true, time: '1:56 PM', icon: '🏫' },
-                        { id: 'react-native', name: 'React Native', subtitle: 'Mobile development', isClassroom: true, time: '', icon: '🏫' },
-                        { id: 'react', name: 'React', subtitle: 'Modern Frontend Architecture', isClassroom: true, time: '', icon: '🏫' }
-                    ];
-                    const mergedClassrooms = [...defaultClassrooms];
-                    localStoredClassrooms.forEach(lsc => {
-                        if (!mergedClassrooms.some(dc => dc.id === lsc.id)) {
-                            mergedClassrooms.push(lsc);
-                        }
-                    });
-
                     const loadedClassrooms = [];
                     const mappedGroups = [];
 
                     mainGroups.forEach(g => {
-                        const isClassroom = g.icon === '🏫' || g.id === 'flutter' || g.id === 'react-native' || g.id === 'react';
+                        const isClassroom = g.icon === '🏫' || g.classroomId !== null || g.id === 'flutter';
                         const item = {
                             id: g.id,
                             name: g.name,
                             subtitle: g.description || 'No messages yet',
                             isClassroom: isClassroom,
                             time: '',
-                            icon: isClassroom ? '🏫' : (g.icon || '👥'),
+                            icon: isClassroom ? '🏫' : (g.icon || '📚'),
                             color: g.color || '#8b5cf6',
                             members: g.members?.map(m => m.userId) || []
                         };
@@ -1030,17 +995,8 @@ function Chat({
                         }
                     });
 
-                    // Merge loaded server classrooms
-                    loadedClassrooms.forEach(lc => {
-                        const existingIdx = mergedClassrooms.findIndex(dc => dc.id === lc.id);
-                        if (existingIdx >= 0) {
-                            mergedClassrooms[existingIdx] = { ...mergedClassrooms[existingIdx], ...lc };
-                        } else {
-                            mergedClassrooms.push(lc);
-                        }
-                    });
-
-                    setClassrooms(mergedClassrooms);
+                    setClassrooms(loadedClassrooms);
+                    setStudyGroups(mappedGroups);
                     
                     const rolesMap = {};
                     data.forEach(g => {

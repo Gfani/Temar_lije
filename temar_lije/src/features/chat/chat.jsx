@@ -977,7 +977,7 @@ function Chat({
                     const mappedGroups = [];
 
                     mainGroups.forEach(g => {
-                        const isClassroom = g.icon === '🏫' || g.classroomId !== null || g.id === 'flutter';
+                        const isClassroom = g.icon === '🏫' || g.id === 'flutter' || g.id.startsWith('class-');
                         const item = {
                             id: g.id,
                             name: g.name,
@@ -1253,7 +1253,7 @@ function Chat({
     const activeItem =
         studyGroups.find(g => g.id === activeId) ||
         classrooms.find(c => c.id === activeId) ||
-        { name: 'Select Conversation', subtitle: '' };
+        { id: activeId || '', name: 'Study Group', subtitle: '', icon: '📚', color: '#6366f1', isClassroom: false, members: [] };
 
     const activeMessagesKey = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
     const activeMessages = useMemo(() => {
@@ -2345,6 +2345,8 @@ function Chat({
                 alert(`Invite Link: ${inviteLink}`);
             });
     };
+
+
 
 
 

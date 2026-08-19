@@ -229,33 +229,20 @@ export class ChatService {
   async getGroups(userId?: string, classroomId?: string | number) {
     const classIdStr = classroomId ? String(classroomId) : undefined;
     return this.db.studyGroup.findMany({
-      where: {
-        AND: [
-          {
-            NOT: {
-              OR: [
-                { id: { endsWith: '-general' } },
-                { description: { startsWith: 'Topic room for ' } },
-                { description: 'General chat room' },
-              ],
-            },
+      where: classIdStr
+        ? {
+            OR: [
+              { classroomId: classIdStr },
+              { classroomId: null },
+            ],
+          }
+        : {
+            OR: [
+              ...(userId ? [{ members: { some: { userId } } }] : []),
+              { members: { none: {} } },
+              { classroomId: null },
+            ],
           },
-          classIdStr
-            ? {
-                OR: [
-                  { classroomId: classIdStr },
-                  { classroomId: null },
-                ],
-              }
-            : {
-                OR: [
-                  ...(userId ? [{ members: { some: { userId } } }] : []),
-                  { members: { none: {} } },
-                  { classroomId: null },
-                ],
-              },
-        ],
-      },
       include: {
         members: {
           include: {
@@ -264,7 +251,7 @@ export class ChatService {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: 'asc',
       },
     });
   }

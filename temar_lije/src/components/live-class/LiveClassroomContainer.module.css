@@ -1,0 +1,299 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 85vh;
+  background: #090d16;
+  color: #f8fafc;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.headerTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.liveIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.liveDot {
+  width: 14px;
+  height: 14px;
+  color: #ef4444;
+}
+
+.liveLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #ef4444;
+  text-transform: uppercase;
+}
+
+.classTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.headerControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.healthBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.wifiOnlineIcon {
+  width: 16px;
+  height: 16px;
+  color: #10b981;
+}
+
+.wifiOfflineIcon {
+  width: 16px;
+  height: 16px;
+  color: #ef4444;
+}
+
+.healthText {
+  color: #cbd5e1;
+}
+
+.latencyText {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.goodLatency {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.highLatency {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.modeBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.jitsiMode {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.fallbackMode {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badgeIcon {
+  width: 14px;
+  height: 14px;
+}
+
+.modeSelector {
+  display: flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.selectButton {
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.selectButton:hover {
+  color: #f8fafc;
+}
+
+.selectedPref {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+.closeButton {
+  padding: 6px 14px;
+  border: none;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.closeButton:hover {
+  background: #b91c1c;
+}
+
+.fallbackBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px;
+  background: rgba(245, 158, 11, 0.15);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bannerIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.mainView {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 16px;
+  height: 100%;
+}
+
+.jitsiContainer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 650px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0b0f19;
+  display: flex;
+  flex-direction: column;
+}
+
+.jitsiLoadingSpinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  min-height: 650px;
+  background: #0b0f19;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.spinnerIcon {
+  width: 32px;
+  height: 32px;
+  color: #3b82f6;
+}
+
+.errorFallbackContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  width: 100%;
+  min-height: 500px;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  text-align: center;
+}
+
+.errorIcon {
+  width: 44px;
+  height: 44px;
+  color: #f59e0b;
+}
+
+.retryButton {
+  margin-top: 8px;
+  padding: 10px 20px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.retryButton:hover {
+  background: #1d4ed8;
+}
+
+.fallbackContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+}
+
+.audioSection {
+  width: 100%;
+}
+
+.whiteboardSection {
+  flex: 1;
+  width: 100%;
+  min-height: 480px;
+}

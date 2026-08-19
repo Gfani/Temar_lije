@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Video, UserPlus, Sparkles, Loader2, CheckCircle2, Radio } from 'lucide-react';
 import { startLiveSession, endLiveSession, getLiveToken, recordCheckIn } from '../../../../services/apiClient';
+import LiveClassroomContainer from '../../../../components/live-class/LiveClassroomContainer';
 import styles from './LiveClassTab.module.css';
 
 /**
  * LiveClassTab
  * Renders the "Live class" tab panel of a classroom: the meeting-room
  * entry card on the left, and the Attendance + Live quiz utilities on the right.
+ * When a session is started or joined, it renders LiveClassroomContainer (Jitsi + Offline WebSockets Fallback).
  */
 export default function LiveClassTab({
   classId = '66666666-6666-4666-8666-666666666666',
@@ -152,6 +154,19 @@ export default function LiveClassTab({
       setIsCreatingQuiz(false);
     }
   }, [isTeacher, isCreatingQuiz]);
+
+  if (isSessionActive || isLiveActive) {
+    return (
+      <div style={{ width: '100%', height: '100%' }}>
+        <LiveClassroomContainer
+          classId={classId}
+          isTeacher={isTeacher}
+          currentUser={currentUser}
+          onClose={handleToggleLiveSession}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>

@@ -39,7 +39,7 @@ export class MaterialsService {
         title,
         fileUrl: filePath,
         fileType: (fileType as any) || 'PDF',
-        fileSizeBytes: fileSizeBytes ? BigInt(fileSizeBytes) : null,
+        fileSizeBytes: fileSizeBytes ? Number(fileSizeBytes) : null,
         classroomId: classId,
         uploadedById: uId,
       },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare, Phone, Mic, MicOff, Volume2, LogOut, Pin, PinOff, Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
 import './chat.css';
 import { io } from 'socket.io-client';
@@ -652,9 +652,23 @@ function Chat({
                 const existing = prev[key] || [];
                 // If we already have this server-confirmed id, skip
                 if (existing.some(m => m.id === msg.id)) return prev;
-                // Replace optimistic placeholder using _optimisticId for precision
-                if (msg.senderId === 'gs' && msg._optimisticId) {
-                    const optimisticIdx = existing.findIndex(m => m.id === msg._optimisticId);
+
+                // Replace optimistic placeholder using _optimisticId for precision or matching content
+                if (msg.senderId === 'gs') {
+                    let optimisticIdx = -1;
+                    if (msg._optimisticId) {
+                        optimisticIdx = existing.findIndex(m => m.id === msg._optimisticId);
+                    }
+                    if (optimisticIdx === -1) {
+                        optimisticIdx = existing.findIndex(m =>
+                            m.id && String(m.id).startsWith('optimistic-') &&
+                            (
+                                (mappedMsg.text && m.text === mappedMsg.text) ||
+                                (mappedMsg.audioUrl && (m.audioUrl === mappedMsg.audioUrl || m.text === mappedMsg.audioUrl)) ||
+                                (mappedMsg.fileName && m.fileName === mappedMsg.fileName)
+                            )
+                        );
+                    }
                     if (optimisticIdx !== -1) {
                         const updated = [...existing];
                         updated[optimisticIdx] = mappedMsg;
@@ -1046,10 +1060,20 @@ function Chat({
                         });
                     });
                     
-                    setMessagesByGroup(prev => ({
-                        ...prev,
-                        [roomId]: mappedMessages
-                    }));
+                    setMessagesByGroup(prev => {
+                        const current = prev[roomId] || [];
+                        const pendingOptimistic = current.filter(m => m.id && String(m.id).startsWith('optimistic-'));
+                        const remainingOptimistic = pendingOptimistic.filter(opt =>
+                            !mappedMessages.some(serverMsg =>
+                                (serverMsg.text && opt.text && serverMsg.text === opt.text) ||
+                                (serverMsg.audioUrl && opt.audioUrl && serverMsg.audioUrl === opt.audioUrl)
+                            )
+                        );
+                        return {
+                            ...prev,
+                            [roomId]: [...mappedMessages, ...remainingOptimistic]
+                        };
+                    });
                 }
             })
             .catch(err => console.error('Failed to load chat history:', err));
@@ -1159,7 +1183,18 @@ function Chat({
         { name: 'Select Conversation', subtitle: '' };
 
     const activeMessagesKey = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
-    const activeMessages = messagesByGroup[activeMessagesKey] || messagesByGroup[activeId] || [];
+    const activeMessages = useMemo(() => {
+        const rawList = messagesByGroup[activeMessagesKey] || messagesByGroup[activeId] || [];
+        const seenIds = new Set();
+        const deduped = [];
+        for (const m of rawList) {
+            if (!m || !m.id) continue;
+            if (seenIds.has(m.id)) continue;
+            seenIds.add(m.id);
+            deduped.push(m);
+        }
+        return deduped;
+    }, [messagesByGroup, activeMessagesKey, activeId]);
 
     const pinnedMessage = activeMessages.find(m => m.isPinned);
 

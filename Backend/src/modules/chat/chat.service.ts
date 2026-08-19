@@ -19,7 +19,7 @@ function toUuid(id: string): string {
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private groupReactions(reactions: Array<{ userId: string; emoji: string }>) {
     const grouped: Record<string, { emoji: string; count: number; userIds: string[] }> = {};
@@ -144,7 +144,7 @@ export class ChatService {
             userId: toUuid(userId),
             studyGroupId: group.id,
           },
-        }).catch(() => {});
+        }).catch(() => { });
         return group;
       }
       throw new ForbiddenException('You are not a member of this group');
@@ -260,12 +260,12 @@ export class ChatService {
       where: classIdStr
         ? { classroomId: toUuid(classIdStr) }
         : {
-            OR: [
-              ...(userId ? [{ members: { some: { userId: toUuid(userId) } } }] : []),
-              { members: { none: {} } },
-              { classroomId: null },
-            ],
-          },
+          OR: [
+            ...(userId ? [{ members: { some: { userId: toUuid(userId) } } }] : []),
+            { members: { none: {} } },
+            { classroomId: null },
+          ],
+        },
       include: {
         members: {
           include: {

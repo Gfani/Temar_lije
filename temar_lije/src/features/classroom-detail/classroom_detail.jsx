@@ -14,13 +14,15 @@ export default function ClassroomDetail({
   classroom = { title: "Flutter", subject: "Widget · widget structure" },
   currentUser = { name: "Gelila Sintayehu", role: "Student" },
   onBackToClassrooms,
-  onLogout
+  onLogout,
+  darkMode,
+  setDarkMode
 }) {
+  const isTeacher = (currentUser?.role || '').toLowerCase() === 'teacher';
   const [currentNavTab, setCurrentNavTab] = useState('classrooms');
   const [activeDetailTab, setActiveDetailTab] = useState('materials');
 
-  const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'GS';
-  const isTeacher = currentUser?.role?.toLowerCase() === 'teacher';
+  const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U';
 
   const handleHeaderTabChange = (tab) => {
     if (tab === 'classrooms' && currentNavTab === 'classrooms') {
@@ -30,8 +32,18 @@ export default function ClassroomDetail({
     }
   };
 
+  const defaultClassId = classroom.id || '66666666-6666-4666-8666-666666666666';
+  const defaultUserId = currentUser.id || '33333333-3333-4333-8333-333333333333';
+
   return (
-    <div className="classroom-detail-page" style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+    <div 
+      className="classroom-detail-page" 
+      style={{ 
+        minHeight: '100vh', 
+        backgroundColor: darkMode ? '#121824' : '#f9fafb',
+        color: darkMode ? '#f8fafc' : '#111827'
+      }}
+    >
       {/* Top Header */}
       <Header
         userName={currentUser.name}
@@ -40,52 +52,71 @@ export default function ClassroomDetail({
         currentTab={currentNavTab}
         onTabChange={handleHeaderTabChange}
         onLogout={onLogout}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
       />
 
       {currentNavTab === 'study-buddy' ? (
         <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
-          <StudyBuddy />
+          <StudyBuddy isTeacher={isTeacher} />
         </main>
       ) : (
         <>
           {/* Classroom Title & Navigation Tabs Header */}
           <ClassroomHeader
             title={classroom.title}
-            subject={classroom.subject}
+            subject={`${classroom.subject} · ${isTeacher ? 'Teacher View' : 'Student View'}`}
             activeTab={activeDetailTab}
-            invitationCode={classroom.code || "DB7GLU"}
-            isTeacher={isTeacher}
             onTabChange={setActiveDetailTab}
             onBack={onBackToClassrooms}
           />
 
-          {/* Detail Tab Contents */}
+          {/* Detail Tab Contents with Integrated Props */}
           <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
             {activeDetailTab === 'materials' && (
-              <MaterialsTab classId={classroom.id || '66666666-6666-4666-8666-666666666666'} />
+              <MaterialsTab 
+                classId={defaultClassId} 
+                isTeacher={isTeacher} 
+                currentUser={currentUser} 
+              />
             )}
             {activeDetailTab === 'live-class' && (
               <LiveClassTab
-                classId={classroom.id || '66666666-6666-4666-8666-666666666666'}
-                studentId={currentUser.id || '33333333-3333-4333-8333-333333333333'}
+                classId={defaultClassId}
+                studentId={defaultUserId}
+                isTeacher={isTeacher}
+                currentUser={currentUser}
               />
             )}
             {activeDetailTab === 'assignments' && (
               <AssignmentsTab
-                classId={classroom.id || '66666666-6666-4666-8666-666666666666'}
+                classId={defaultClassId}
                 isTeacher={isTeacher}
-                currentUserId={currentUser.id || '33333333-3333-4333-8333-333333333333'}
+                currentUserId={defaultUserId}
+                currentUser={currentUser}
               />
             )}
             {activeDetailTab === 'attendance' && (
               <AttendanceTab
-                classId={classroom.id || '66666666-6666-4666-8666-666666666666'}
-                studentId={currentUser.id || '33333333-3333-4333-8333-333333333333'}
+                classId={defaultClassId}
+                studentId={defaultUserId}
+                isTeacher={isTeacher}
+                currentUser={currentUser}
               />
             )}
-            {activeDetailTab === 'quizzes' && <QuizzesTab />}
+            {activeDetailTab === 'quizzes' && (
+              <QuizzesTab 
+                classId={defaultClassId}
+                isTeacher={isTeacher} 
+                currentUser={currentUser} 
+              />
+            )}
             {activeDetailTab === 'members' && (
-              isTeacher ? <TeacherMemberTab /> : <MembersTab />
+              isTeacher ? (
+                <TeacherMemberTab darkMode={darkMode} />
+              ) : (
+                <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} />
+              )
             )}
           </main>
         </>

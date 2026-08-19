@@ -6,12 +6,15 @@ import './AttendanceTab.css';
 export default function AttendanceTab({
   classId = '66666666-6666-4666-8666-666666666666',
   studentId = '33333333-3333-4333-8333-333333333333',
+  isTeacher = false,
+  currentUser = { name: 'User', role: 'Student' },
 }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkInMessage, setCheckInMessage] = useState('');
   const [checkInError, setCheckInError] = useState('');
+  const [sessionTopic, setSessionTopic] = useState('');
 
   const loadAttendance = useCallback(async () => {
     setLoading(true);
@@ -30,7 +33,7 @@ export default function AttendanceTab({
   }, [loadAttendance]);
 
   const handleCheckIn = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (isSubmitting) return;
 
     setIsSubmitting(true);
@@ -38,7 +41,8 @@ export default function AttendanceTab({
     setCheckInError('');
 
     try {
-      const res = await recordCheckIn(classId, studentId);
+      const targetUserId = currentUser?.id || studentId;
+      const res = await recordCheckIn(classId, targetUserId);
       setCheckInMessage(`Checked in successfully! Status: ${res.status || 'PRESENT'}`);
       await loadAttendance();
     } catch (err) {
@@ -56,24 +60,44 @@ export default function AttendanceTab({
     <div className="classroom-detail-container">
       {/* Attendance Control Card */}
       <div className="attendance-control-card">
-        <form onSubmit={handleCheckIn} className="attendance-action-row">
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#16181b' }}>
-              Classroom Wi-Fi Hotspot Attendance Check-In
-            </span>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#8b9491' }}>
-              Connect to your classroom Wi-Fi and click to register your presence.
-            </p>
-          </div>
-          <button type="submit" className="attendance-btn" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <Loader2 className="attendance-btn-icon animate-spin" />
-            ) : (
-              <ClipboardCheck className="attendance-btn-icon" />
-            )}
-            <span>{isSubmitting ? 'Checking in...' : 'Check-In Now'}</span>
-          </button>
-        </form>
+        {isTeacher ? (
+          <form onSubmit={handleCheckIn} className="attendance-action-row">
+            <input
+              type="text"
+              className="attendance-input"
+              placeholder="Session topic or check-in title (e.g. Session 5 - Live Coding)"
+              value={sessionTopic}
+              onChange={(e) => setSessionTopic(e.target.value)}
+            />
+            <button type="submit" className="attendance-btn" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="attendance-btn-icon animate-spin" />
+              ) : (
+                <ClipboardCheck className="attendance-btn-icon" />
+              )}
+              <span>{isSubmitting ? 'Logging...' : 'Log Session Attendance'}</span>
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleCheckIn} className="attendance-action-row">
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#16181b' }}>
+                Classroom Wi-Fi Hotspot Attendance Check-In
+              </span>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#8b9491' }}>
+                Connect to your classroom Wi-Fi network and click to register your presence.
+              </p>
+            </div>
+            <button type="submit" className="attendance-btn" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="attendance-btn-icon animate-spin" />
+              ) : (
+                <ClipboardCheck className="attendance-btn-icon" />
+              )}
+              <span>{isSubmitting ? 'Checking in...' : 'Check-In Now'}</span>
+            </button>
+          </form>
+        )}
 
         {checkInMessage && (
           <div
@@ -118,7 +142,7 @@ export default function AttendanceTab({
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '16px',
-          marginBottom: '24px',
+          margin: '24px 0',
         }}
       >
         <div style={{ background: '#fff', border: '1px solid #e3e9e6', borderRadius: '10px', padding: '16px' }}>
@@ -154,7 +178,7 @@ export default function AttendanceTab({
       ) : allRecords.length === 0 ? (
         <div className="attendance-empty-state-card">
           <p className="attendance-empty-state-text">
-            No check-ins yet. Start one while you teach live.
+            No check-ins recorded yet. Connect to classroom Wi-Fi to submit attendance.
           </p>
         </div>
       ) : (

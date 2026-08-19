@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, Sparkles, LogOut, Plus, Users } from 'lucide-react';
+import { LayoutGrid, Sparkles, LogOut, Plus, Users, KeyRound, CheckCircle2 } from 'lucide-react';
 import './classrooms.css';
-import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
-import JoinClassRoom from '../../components/layout/join_class_room/join_class_room.jsx';
+import JoinClassRoom from '../../components/layout/join_class_room/join_class_room';
 import Header from '../../components/common/Header/header.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
 
@@ -11,31 +10,35 @@ const DEFAULT_CLASSROOMS = [
   {
     id: 1,
     title: 'React',
-    subject: 'xzvfdgxacds',
-    description: 'sdwr',
-    code: 'RRWC3C'
+    subject: 'Modern Frontend Architecture',
+    description: 'Component lifecycles, state management, and real-time sockets',
+    code: 'RRWC3C',
+    instructor: 'Instructor Gelila',
   },
   {
     id: 2,
     title: 'Flutter',
-    subject: 'Widget',
-    description: 'widget structure',
-    code: 'DB7GLU'
+    subject: 'Widget · Widget Structure',
+    description: 'Cross-platform mobile and hybrid UI development',
+    code: 'DB7GLU',
+    instructor: 'Instructor Fuad',
   }
 ];
 
 export default function Classrooms({ 
-  currentUser = { name: 'Gelila Sintayehu', role: 'Student' }, 
+  currentUser = { name: 'User', role: 'Teacher' }, 
   initialClassrooms = DEFAULT_CLASSROOMS,
   onLogout = () => alert('Signing out...'),
-  onSelectClassroom
+  onSelectClassroom,
+  darkMode,
+  setDarkMode
 }) {
+  const isTeacher = (currentUser?.role || '').toLowerCase() === 'teacher';
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('classrooms');
-
-  const isTeacher = currentUser?.role?.toLowerCase() === 'teacher';
-
+  const [copiedCode, setCopiedCode] = useState('');
+  
   const [classroomsList, setClassroomsList] = useState(() => {
     const saved = localStorage.getItem('temar_classrooms');
     if (saved) {
@@ -61,26 +64,38 @@ export default function Classrooms({
       title: newClassroomData.title,
       subject: newClassroomData.subject,
       description: newClassroomData.description,
-      code: randomCode
+      code: randomCode,
+      instructor: currentUser.name,
     };
 
-    setClassroomsList((prev) => [...prev, newClass]);
+    setClassroomsList((prev) => [newClass, ...prev]);
   };
 
-  const handleJoinClassroom = (code) => {
-    const existing = classroomsList.find(c => c.code.toUpperCase() === code.toUpperCase());
-    if (existing) {
-      alert(`Successfully joined "${existing.title}" classroom!`);
-    } else {
-      alert(`Joined classroom with code: ${code}`);
+  const handleJoinClassroom = (codeToJoin) => {
+    // Look up class in classrooms list
+    const foundClass = classroomsList.find(
+      (c) => (c.code || '').toUpperCase() === codeToJoin.toUpperCase()
+    );
+
+    if (!foundClass) {
+      // Check if it's one of default classrooms
+      const fallback = DEFAULT_CLASSROOMS.find(
+        (c) => (c.code || '').toUpperCase() === codeToJoin.toUpperCase()
+      );
+      if (!fallback) {
+        return { error: `No classroom found with code "${codeToJoin}". Please check with your teacher.` };
+      }
     }
-    setIsJoinModalOpen(false);
+
+    alert(`Successfully enrolled in ${foundClass?.title || codeToJoin}!`);
+    return { success: true };
   };
 
   const handleCopyCode = (e, code) => {
     e.stopPropagation();
     navigator.clipboard.writeText(code);
-    alert(`Classroom invitation code "${code}" copied to clipboard!`);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(''), 2000);
   };
 
   return (
@@ -93,6 +108,8 @@ export default function Classrooms({
         currentTab={activeTab} 
         onTabChange={setActiveTab} 
         onLogout={onLogout} 
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
       />
 
       {/* Main Content Area */}
@@ -101,11 +118,13 @@ export default function Classrooms({
           <>
             <div className="main-top-bar">
               <div>
-                <h1 className="page-title">Your classrooms</h1>
+                <h1 className="page-title">
+                  {isTeacher ? 'Your classrooms (Teacher Portal)' : 'Enrolled classrooms (Student Portal)'}
+                </h1>
                 <p className="page-subtitle">
-                  {isTeacher 
-                    ? 'Create a classroom, share the invitation code and upload lesson materials.'
-                    : 'View your enrolled classrooms and access lesson materials.'}
+                  {isTeacher
+                    ? 'Create classrooms, share invitation codes, and manage your lesson materials.'
+                    : 'Join classrooms using your invitation code to access live sessions and learning materials.'}
                 </p>
               </div>
 
@@ -113,6 +132,7 @@ export default function Classrooms({
                 <button 
                   className="btn-new-classroom"
                   onClick={() => setIsCreateModalOpen(true)}
+                  id="teacher-new-classroom-btn"
                 >
                   <Plus size={16} /> New classroom
                 </button>
@@ -120,8 +140,10 @@ export default function Classrooms({
                 <button 
                   className="btn-new-classroom"
                   onClick={() => setIsJoinModalOpen(true)}
+                  id="student-join-classroom-btn"
+                  style={{ backgroundColor: '#14785c' }}
                 >
-                  <Plus size={16} /> Join classroom
+                  <KeyRound size={16} /> Join classroom
                 </button>
               )}
             </div>
@@ -132,9 +154,9 @@ export default function Classrooms({
                 <Users size={48} className="empty-icon" />
                 <h3>No classrooms yet</h3>
                 <p>
-                  {isTeacher 
+                  {isTeacher
                     ? 'Create your first classroom to get started with live teaching and materials.'
-                    : 'Join your first classroom using an invitation code from your teacher.'}
+                    : 'Enter an invitation code from your teacher to join your first class.'}
                 </p>
               </div>
             ) : (
@@ -156,17 +178,21 @@ export default function Classrooms({
                     <div className="card-footer">
                       <div className="card-type">
                         <Users size={14} />
-                        <span>Classroom</span>
+                        <span>{isTeacher ? 'Host / Teacher' : 'Enrolled Student'}</span>
                       </div>
 
-                      {isTeacher && (
+                      {isTeacher ? (
                         <span 
                           className="card-code" 
                           onClick={(e) => handleCopyCode(e, classroom.code)}
-                          title="Click to copy code"
+                          title="Click to copy invitation code for students"
                           style={{ cursor: 'pointer' }}
                         >
-                          {classroom.code}
+                          {copiedCode === classroom.code ? 'Copied!' : classroom.code}
+                        </span>
+                      ) : (
+                        <span className="card-code" style={{ opacity: 0.85 }}>
+                          Code: {classroom.code}
                         </span>
                       )}
                     </div>
@@ -176,22 +202,27 @@ export default function Classrooms({
             )}
           </>
         ) : (
-          <StudyBuddy />
+          <StudyBuddy isTeacher={isTeacher} />
         )}
       </main>
 
-      {/* Modal Popups */}
-      <CreateClassRoom 
-        isOpen={isCreateModalOpen} 
-        onClose={() => setIsCreateModalOpen(false)} 
-        onCreate={handleCreateClassroom}
-      />
+      {/* Teacher Modal Popup */}
+      {isTeacher && (
+        <CreateClassRoom 
+          isOpen={isCreateModalOpen} 
+          onClose={() => setIsCreateModalOpen(false)} 
+          onCreate={handleCreateClassroom}
+        />
+      )}
 
-      <JoinClassRoom
-        isOpen={isJoinModalOpen}
-        onClose={() => setIsJoinModalOpen(false)}
-        onJoin={handleJoinClassroom}
-      />
+      {/* Student Modal Popup */}
+      {!isTeacher && (
+        <JoinClassRoom
+          isOpen={isJoinModalOpen}
+          onClose={() => setIsJoinModalOpen(false)}
+          onJoin={handleJoinClassroom}
+        />
+      )}
     </div>
   );
 }

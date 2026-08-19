@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { Calendar, Trash2, Loader2, Upload, Link, FileText, CheckCircle } from 'lucide-react';
+import { Calendar, Trash2, Loader2, Upload, Link, FileText, CheckCircle, CheckCircle2, Megaphone } from 'lucide-react';
 import { getAssignments, createAssignment, submitAssignment, getSubmissions, getFileUrl } from '../../../../services/apiClient';
 import styles from './AssignmentsTab.module.css';
 
@@ -19,6 +19,7 @@ export default function AssignmentsTab({
   classId = '66666666-6666-4666-8666-666666666666',
   isTeacher = true,
   currentUserId = '33333333-3333-4333-8333-333333333333',
+  currentUser,
 }) {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +28,6 @@ export default function AssignmentsTab({
   const [deadline, setDeadline] = useState('');
   const [isAnnouncing, setIsAnnouncing] = useState(false);
   const [announceError, setAnnounceError] = useState('');
-  const [deletingId, setDeletingId] = useState(null);
 
   // Student submission modal state
   const [submittingAssignment, setSubmittingAssignment] = useState(null);
@@ -41,20 +41,6 @@ export default function AssignmentsTab({
   const [viewingSubmissionsAssignment, setViewingSubmissionsAssignment] = useState(null);
   const [submissionsList, setSubmissionsList] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
-
-  const handleOpenSubmissions = async (assignment) => {
-    setViewingSubmissionsAssignment(assignment);
-    setLoadingSubmissions(true);
-    try {
-      const data = await getSubmissions(assignment.id);
-      setSubmissionsList(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-      setSubmissionsList([]);
-    } finally {
-      setLoadingSubmissions(false);
-    }
-  };
 
   const loadAssignments = useCallback(async () => {
     setLoading(true);
@@ -72,6 +58,20 @@ export default function AssignmentsTab({
   useEffect(() => {
     loadAssignments();
   }, [loadAssignments]);
+
+  const handleOpenSubmissions = async (assignment) => {
+    setViewingSubmissionsAssignment(assignment);
+    setLoadingSubmissions(true);
+    try {
+      const data = await getSubmissions(assignment.id);
+      setSubmissionsList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setSubmissionsList([]);
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
 
   const handleAnnounceSubmit = useCallback(
     async (e) => {
@@ -204,12 +204,17 @@ export default function AssignmentsTab({
         </div>
       ) : assignments.length === 0 ? (
         <div className={styles.emptyCard}>
-          <p className={styles.emptyState}>No assignments yet. Announce one for your class.</p>
+          <p className={styles.emptyState}>
+            {isTeacher
+              ? 'No assignments announced yet. Announce one for your class.'
+              : 'No assignments assigned yet. Check back soon!'}
+          </p>
         </div>
       ) : (
         <ul className={styles.assignmentList}>
           {assignments.map((assignment) => {
             const count = assignment._count?.submissions ?? assignment.submissionCount ?? 0;
+
             return (
               <li key={assignment.id} className={styles.assignmentCard}>
                 <div className={styles.assignmentHeader}>

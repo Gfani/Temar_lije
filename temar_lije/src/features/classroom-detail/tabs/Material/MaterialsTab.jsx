@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Upload, FileText, Download, Loader2, X } from 'lucide-react';
+import { Search, Upload, FileText, Download, Loader2, X, Eye, BookOpen } from 'lucide-react';
 import { getMaterials, uploadMaterial, getFileUrl } from '../../../../services/apiClient';
 import './MaterialsTab.css';
 
-export default function MaterialsTab({ classId = '66666666-6666-4666-8666-666666666666' }) {
+export default function MaterialsTab({
+  classId = '66666666-6666-4666-8666-666666666666',
+  isTeacher = false,
+  currentUser,
+  onUploadMaterial,
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +38,14 @@ export default function MaterialsTab({ classId = '66666666-6666-4666-8666-666666
   useEffect(() => {
     loadMaterials();
   }, [loadMaterials]);
+
+  const handleOpenUpload = () => {
+    if (onUploadMaterial) {
+      onUploadMaterial();
+    } else {
+      setShowUploadModal(true);
+    }
+  };
 
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
@@ -77,35 +90,39 @@ export default function MaterialsTab({ classId = '66666666-6666-4666-8666-666666
           <input
             type="text"
             className="materials-search-input"
-            placeholder="Search materials..."
+            placeholder="Search materials by title..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <button className="materials-upload-btn" onClick={() => setShowUploadModal(true)}>
-          <Upload className="materials-upload-icon" />
-          Upload material
-        </button>
+        {isTeacher && (
+          <button className="materials-upload-btn" onClick={handleOpenUpload}>
+            <Upload className="materials-upload-icon" />
+            Upload material
+          </button>
+        )}
       </div>
 
       {error && <p style={{ color: '#dc2626', marginBottom: '1rem' }}>{error}</p>}
 
-      {/* Loading state */}
+      {/* Loading & Empty State */}
       {loading ? (
         <div className="materials-empty-state-card">
           <Loader2 className="materials-spinner animate-spin" style={{ margin: '0 auto 1rem' }} />
           <p className="materials-empty-state-text">Loading course materials...</p>
         </div>
       ) : filteredMaterials.length === 0 ? (
-        /* Empty State Card */
         <div className="materials-empty-state-card">
+          <BookOpen size={40} style={{ opacity: 0.5, marginBottom: '12px' }} />
           <p className="materials-empty-state-text">
-            No materials yet. Upload PDFs, slides, documents or images for this class.
+            {isTeacher
+              ? 'No materials yet. Upload PDFs, slides, documents or images for this class.'
+              : 'No materials uploaded yet. Your teacher will share lesson notes and slides here.'}
           </p>
         </div>
       ) : (
         /* Materials List Grid */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
           {filteredMaterials.map((item) => {
             const downloadLink = getFileUrl(item.fileUrl || item.filePath);
             return (
@@ -120,37 +137,77 @@ export default function MaterialsTab({ classId = '66666666-6666-4666-8666-666666
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <FileText style={{ color: '#14785c', width: '24px', height: '24px' }} />
+                  <div
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '10px',
+                      background: '#e0f2fe',
+                      color: '#0284c7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <FileText size={20} />
+                  </div>
                   <div>
-                    <h4 style={{ margin: 0, fontSize: '15px', color: '#16181b' }}>{item.title}</h4>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '600', color: '#16181b' }}>
+                      {item.title}
+                    </h4>
                     {item.fileType && (
-                      <span style={{ fontSize: '12px', color: '#8b9491' }}>{item.fileType}</span>
+                      <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>{item.fileType}</span>
                     )}
                   </div>
                 </div>
+
                 {downloadLink && (
-                  <a
-                    href={downloadLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      backgroundColor: '#f3f7f5',
-                      color: '#14785c',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <Download size={14} /> Download / View
-                  </a>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <a
+                      href={downloadLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #d1d5db',
+                        backgroundColor: '#ffffff',
+                        color: '#374151',
+                        fontWeight: 500,
+                        fontSize: '0.85rem',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <Eye size={14} /> View
+                    </a>
+                    <a
+                      href={downloadLink}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: '#14785c',
+                        color: '#ffffff',
+                        fontWeight: 500,
+                        fontSize: '0.85rem',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <Download size={14} /> Download
+                    </a>
+                  </div>
                 )}
               </div>
             );

@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Loader2, Check, X, Eye, EyeOff } from 'lucide-react';
 import logo from '../../../assets/classmind-logo.png';
 import styles from './create_account.module.css';
+import { authApi } from '../../../lib/api';
 
 const GoogleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
@@ -24,33 +25,67 @@ const GoogleIcon = ({ className }) => (
   </svg>
 );
 
-/**
- * CreateAccount
- * Auth page for new users. The Sign in / Create account segmented
- * control at the top is for navigating between the two auth pages —
- * wire onSwitchToSignIn to your router. Required fields rely on native
- * HTML5 validation (the browser's own "Please fill out this field"
- * bubble) rather than a custom tooltip. Form submission and Google
- * auth are exposed as async callbacks with loading/disabled treatment
- * and inline error feedback.
- */
 export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitchToSignIn }) {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
   const busy = isSubmitting || isGoogleLoading;
 
+  // Email format validation helper
+  const isEmailValid = useMemo(() => {
+    if (!email) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }, [email]);
+
+  // Password strength checklist rules
+  const passwordChecks = useMemo(() => {
+    return {
+      length: password.length >= 8,
+      upper: /[A-Z]/.test(password),
+      lower: /[a-z]/.test(password),
+      number: /\d/.test(password),
+      special: /[^A-Za-z0-9]/.test(password),
+    };
+  }, [password]);
+
+  const passedCount = useMemo(() => {
+    return Object.values(passwordChecks).filter(Boolean).length;
+  }, [passwordChecks]);
+
+  // Calculate strength level
+  const strengthInfo = useMemo(() => {
+    if (password.length === 0) return { label: '', level: 0, class: '' };
+    if (passedCount <= 2) return { label: 'Weak', level: 1, class: styles.strengthWeak };
+    if (passedCount <= 4) return { label: 'Fair', level: 2, class: styles.strengthFair };
+    return { label: 'Strong', level: 3, class: styles.strengthStrong };
+  }, [password, passedCount]);
+
   const handleSubmit = useCallback(
     async (event) => {
       event.preventDefault();
       if (busy) return;
-      setIsSubmitting(true);
       setFormError('');
+
+      // Validate email format
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setFormError('Please enter a valid email address (e.g. name@example.com).');
+        return;
+      }
+
+      // Validate password strength criteria
+      if (passedCount < 5) {
+        setFormError('Password must meet all 5 security requirements below.');
+        return;
+      }
+
+      setIsSubmitting(true);
       try {
         if (onCreateAccount) {
           await onCreateAccount({ fullName, role, email, password });
@@ -58,28 +93,24 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
           await new Promise((resolve) => setTimeout(resolve, 900));
         }
       } catch (err) {
-        setFormError('Could not create your account. Please try again.');
+        setFormError(err?.message || 'Could not create your account. Please try again.');
       } finally {
         setIsSubmitting(false);
       }
     },
-    [busy, fullName, role, email, password, onCreateAccount]
+    [busy, fullName, role, email, password, passedCount, onCreateAccount]
   );
 
-  const handleGoogleSignIn = useCallback(async () => {
+  const handleGoogleSignIn = useCallback(() => {
     if (busy) return;
     setIsGoogleLoading(true);
     setFormError('');
-    try {
-      if (onGoogleSignIn) {
-        await onGoogleSignIn(role);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 900));
-      }
-    } catch (err) {
-      setFormError('Google sign-in failed. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
+    if (onGoogleSignIn) {
+      onGoogleSignIn({ role });
+    } else {
+      // Full-page browser navigation to Google consent screen (attaching selected role)
+      const targetRole = (role || 'student').toUpperCase();
+      window.location.href = authApi.getGoogleAuthUrl({ role: targetRole });
     }
   }, [busy, role, onGoogleSignIn]);
 
@@ -106,7 +137,7 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
           </button>
         </div>
 
-        <form className={styles.form} onSubmit={handleSubmit}>
+        <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <label className={styles.fieldLabel} htmlFor="ca-full-name">
             Full name
           </label>
@@ -153,27 +184,102 @@ export default function CreateAccount({ onCreateAccount, onGoogleSignIn, onSwitc
             id="ca-email"
             type="email"
             required
+            placeholder="amina@example.com"
             className={styles.textInput}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (formError) setFormError('');
+            }}
+            onBlur={() => setEmailTouched(true)}
             disabled={busy}
             autoComplete="email"
           />
+          {emailTouched && !isEmailValid && (
+            <span className={styles.fieldError}>Please enter a valid email format.</span>
+          )}
 
           <label className={styles.fieldLabel} htmlFor="ca-password">
             Password
           </label>
-          <input
-            id="ca-password"
-            type="password"
-            required
-            minLength={8}
-            className={styles.textInput}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-            autoComplete="new-password"
-          />
+          <div className={styles.inputWrapper}>
+            <input
+              id="ca-password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              placeholder="••••••••"
+              className={styles.textInput}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (formError) setFormError('');
+              }}
+              disabled={busy}
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className={styles.togglePasswordBtn}
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+
+          {/* Real-time Password Strength Meter & Checklist */}
+          {password.length > 0 && (
+            <div className={styles.passwordStrength}>
+              <div className={styles.strengthHeader}>
+                <span>Password Strength</span>
+                <span className={`${styles.strengthBadge} ${strengthInfo.class}`}>
+                  {strengthInfo.label}
+                </span>
+              </div>
+
+              <div className={styles.strengthMeter}>
+                <span
+                  className={`${styles.strengthSegment} ${
+                    passedCount >= 1 ? (passedCount === 5 ? styles.segStrong : passedCount >= 3 ? styles.segFair : styles.segWeak) : ''
+                  }`}
+                />
+                <span
+                  className={`${styles.strengthSegment} ${
+                    passedCount >= 3 ? (passedCount === 5 ? styles.segStrong : styles.segFair) : ''
+                  }`}
+                />
+                <span
+                  className={`${styles.strengthSegment} ${
+                    passedCount >= 5 ? styles.segStrong : ''
+                  }`}
+                />
+              </div>
+
+              <ul className={styles.reqList}>
+                <li className={`${styles.reqItem} ${passwordChecks.length ? styles.reqMet : styles.reqUnmet}`}>
+                  {passwordChecks.length ? <Check className={styles.reqIcon} /> : <X className={styles.reqIcon} />}
+                  <span>8+ characters</span>
+                </li>
+                <li className={`${styles.reqItem} ${passwordChecks.upper ? styles.reqMet : styles.reqUnmet}`}>
+                  {passwordChecks.upper ? <Check className={styles.reqIcon} /> : <X className={styles.reqIcon} />}
+                  <span>Uppercase (A-Z)</span>
+                </li>
+                <li className={`${styles.reqItem} ${passwordChecks.lower ? styles.reqMet : styles.reqUnmet}`}>
+                  {passwordChecks.lower ? <Check className={styles.reqIcon} /> : <X className={styles.reqIcon} />}
+                  <span>Lowercase (a-z)</span>
+                </li>
+                <li className={`${styles.reqItem} ${passwordChecks.number ? styles.reqMet : styles.reqUnmet}`}>
+                  {passwordChecks.number ? <Check className={styles.reqIcon} /> : <X className={styles.reqIcon} />}
+                  <span>Number (0-9)</span>
+                </li>
+                <li className={`${styles.reqItem} ${passwordChecks.special ? styles.reqMet : styles.reqUnmet}`}>
+                  {passwordChecks.special ? <Check className={styles.reqIcon} /> : <X className={styles.reqIcon} />}
+                  <span>Symbol (!@#$%^&*)</span>
+                </li>
+              </ul>
+            </div>
+          )}
 
           {formError && (
             <p className={styles.inlineError} role="alert">

@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useCallback, useState, useEffect } from 'react';
+import { Loader2, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import logo from '../../../assets/classmind-logo.png';
 import styles from './signin.module.css';
+import { authApi } from '../../../lib/api';
 
 const GoogleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
@@ -24,61 +25,113 @@ const GoogleIcon = ({ className }) => (
   </svg>
 );
 
-/**
- * SignIn
- * Auth page for existing users. The Sign in / Create account segmented
- * control at the top is for navigating between the two auth pages —
- * wire onSwitchToCreateAccount to your router. Form submission and
- * Google auth are exposed as async callbacks; both show native
- * disabled/loading treatment and surface errors inline.
- */
-export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccount }) {
-  const [role, setRole] = useState('student');
-  const [email, setEmail] = useState('');
+export default function SignIn({
+  onSignIn,
+  onGoogleSignIn,
+  onSwitchToCreateAccount,
+  onForgotPassword,
+  initialEmail = '',
+  noticeMessage = '',
+}) {
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [successNotice, setSuccessNotice] = useState(noticeMessage);
+  const [isUnverified, setIsUnverified] = useState(false);
+  const [resendStatus, setResendStatus] = useState('');
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
+
+  useEffect(() => {
+    if (noticeMessage) {
+      setSuccessNotice(noticeMessage);
+    }
+  }, [noticeMessage]);
+
+  // Read error query parameters if redirected back from OAuth failure
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'oauth_failed') {
+      const message = params.get('message') || 'Google sign-in failed. Please try again.';
+      setFormError(decodeURIComponent(message));
+    }
+  }, []);
 
   const busy = isSubmitting || isGoogleLoading;
+
+  const isEmailValid = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSubmit = useCallback(
     async (event) => {
       event.preventDefault();
       if (busy) return;
-      setIsSubmitting(true);
       setFormError('');
+      setIsUnverified(false);
+      setResendStatus('');
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setFormError('Please enter a valid email address.');
+        return;
+      }
+
+      if (!password) {
+        setFormError('Please enter your password.');
+        return;
+      }
+
+      setIsSubmitting(true);
       try {
         if (onSignIn) {
-          await onSignIn({ email, password, role });
+          await onSignIn({ email, password });
         } else {
           await new Promise((resolve) => setTimeout(resolve, 900));
         }
       } catch (err) {
-        setFormError('Could not sign in. Check your email and password and try again.');
+        const msg = err?.message || '';
+        if (msg.toLowerCase().includes('verify your email')) {
+          setIsUnverified(true);
+          setFormError(msg);
+        } else if (msg.toLowerCase().includes('invalid credentials')) {
+          setFormError('Incorrect email or password. Please verify your credentials and try again.');
+        } else {
+          setFormError(msg || 'Could not sign in. Check your email and password and try again.');
+        }
       } finally {
         setIsSubmitting(false);
       }
     },
-    [busy, email, password, role, onSignIn]
+    [busy, email, password, onSignIn]
   );
 
-  const handleGoogleSignIn = useCallback(async () => {
+  const handleResendVerification = useCallback(async () => {
+    if (!email) return;
+    try {
+      const res = await authApi.resendVerification({ email });
+      setResendStatus(res?.message || 'Verification email resent! Please check your inbox.');
+    } catch (err) {
+      setResendStatus(err?.message || 'Could not resend email. Please try again later.');
+    }
+  }, [email]);
+
+  const handleGoogleSignIn = useCallback(() => {
     if (busy) return;
     setIsGoogleLoading(true);
     setFormError('');
-    try {
-      if (onGoogleSignIn) {
-        await onGoogleSignIn(role);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 900));
-      }
-    } catch (err) {
-      setFormError('Google sign-in failed. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
+    if (onGoogleSignIn) {
+      onGoogleSignIn();
+    } else {
+      // Full-page browser navigation to Google consent screen
+      window.location.href = authApi.getGoogleAuthUrl();
     }
-  }, [busy, role, onGoogleSignIn]);
+  }, [busy, onGoogleSignIn]);
 
   return (
     <div className={styles.page}>
@@ -103,7 +156,14 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
           </button>
         </div>
 
-        <form className={styles.form} onSubmit={handleSubmit} noValidate={false}>
+        {successNotice && (
+          <div className={styles.inlineSuccess}>
+            <CheckCircle2 size={18} className="flex-shrink-0" />
+            <span>{successNotice}</span>
+          </div>
+        )}
+
+        <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <label className={styles.fieldLabel} htmlFor="signin-email">
             Email
           </label>
@@ -111,31 +171,83 @@ export default function SignIn({ onSignIn, onGoogleSignIn, onSwitchToCreateAccou
             id="signin-email"
             type="email"
             required
+            placeholder="amina@example.com"
             className={styles.textInput}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (formError) setFormError('');
+              if (successNotice) setSuccessNotice('');
+            }}
+            onBlur={() => setEmailTouched(true)}
             disabled={busy}
             autoComplete="email"
           />
+          {emailTouched && !isEmailValid && (
+            <span className={styles.fieldError}>Please enter a valid email format.</span>
+          )}
 
-          <label className={styles.fieldLabel} htmlFor="signin-password">
-            Password
-          </label>
-          <input
-            id="signin-password"
-            type="password"
-            required
-            className={styles.textInput}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-            autoComplete="current-password"
-          />
+          <div className={styles.passwordLabelRow}>
+            <label className={styles.fieldLabel} htmlFor="signin-password" style={{ margin: 0 }}>
+              Password
+            </label>
+            {onForgotPassword && (
+              <button
+                type="button"
+                className={styles.forgotPasswordLink}
+                onClick={onForgotPassword}
+                tabIndex={0}
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
+
+          <div className={styles.inputWrapper}>
+            <input
+              id="signin-password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              placeholder="••••••••"
+              className={styles.textInput}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (formError) setFormError('');
+              }}
+              disabled={busy}
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className={styles.togglePasswordBtn}
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
 
           {formError && (
-            <p className={styles.inlineError} role="alert">
-              {formError}
-            </p>
+            <div className={styles.inlineError} role="alert">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+              {isUnverified && (
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className={styles.resendInlineBtn}
+                  >
+                    Resend verification email
+                  </button>
+                  {resendStatus && <p className={styles.resendStatusText}>{resendStatus}</p>}
+                </div>
+              )}
+            </div>
           )}
 
           <button

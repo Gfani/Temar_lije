@@ -76,27 +76,6 @@ export class ChatService {
     });
 
     if (existing) {
-<<<<<<< HEAD
-      const derivedName = existing.fullName || existing.name || name || `User ${userId}`;
-      const derivedInitials = this._deriveInitials(derivedName);
-      const needsReconcile =
-        existing.name !== derivedName ||
-        existing.initials !== derivedInitials ||
-        !existing.avatarBg;
-
-      if (needsReconcile) {
-        return this.db.user.update({
-          where: { id: userId },
-          data: {
-            name: derivedName,
-            initials: derivedInitials,
-            avatarBg: existing.avatarBg || avatarBg || '#3b82f6',
-          },
-        });
-      }
-
-=======
->>>>>>> 78838cfbfe4b4a8201175167e5737d7d9379e6bc
       return existing;
     }
 
@@ -127,18 +106,9 @@ export class ChatService {
     return parts.map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
   }
 
-<<<<<<< HEAD
-  /**
-   * A group is accessible to a user when the user is a member, OR when
-   * the group has no members at all (legacy/demo/classroom groups that
-   * predate per-user membership stay public).
-   */
   private async _assertGroupAccess(groupId: string, userId?: string) {
-=======
-  private async _assertGroupAccess(groupId: string, userId: string) {
     const validGroupUuid = toUuid(groupId);
-    const validUserUuid = toUuid(userId);
->>>>>>> 78838cfbfe4b4a8201175167e5737d7d9379e6bc
+    const validUserUuid = userId ? toUuid(userId) : undefined;
     const group = await this.db.studyGroup.findUnique({
       where: { id: validGroupUuid },
       include: {
@@ -160,11 +130,10 @@ export class ChatService {
       // Allow seamless access to classroom study groups and default channels
       if (group.classroomId || group.id === 'flutter' || group.id === 'react-native') {
         await this.ensureUserExists(userId);
-        await this.db.groupMember.create({
+        await this.db.studyGroupMember.create({
           data: {
-            userId,
-            groupId,
-            role: 'MEMBER',
+            userId: toUuid(userId),
+            studyGroupId: group.id,
           },
         }).catch(() => {});
         return group;
@@ -217,10 +186,10 @@ export class ChatService {
       data: {
         ...(groupUuid ? { id: groupUuid } : {}),
         name,
-        description: typeof description === 'string' ? description : (Array.isArray(description) ? null : (description ? String(description) : null)),
         icon: icon || '📚',
-        color: color || '#6366f1',
-        classroomId: effectiveClassroomId ? String(effectiveClassroomId) : null,
+        colorAccent: color || '#6366f1',
+        classroomId: toUuid(effectiveClassroomId),
+        createdById: toUuid(effectiveCreatorId),
         members: {
           create: memberIds.map((userId) => ({
             user: {
@@ -263,17 +232,11 @@ export class ChatService {
     const classIdStr = classroomId ? String(classroomId) : undefined;
     return this.db.studyGroup.findMany({
       where: classIdStr
-        ? {
-            OR: [
-              { classroomId: classIdStr },
-              { classroomId: null },
-            ],
-          }
+        ? { classroomId: toUuid(classIdStr) }
         : {
             OR: [
-              ...(userId ? [{ members: { some: { userId: toUuid(userId) } } }, { members: { some: { userId } } }] : []),
+              ...(userId ? [{ members: { some: { userId: toUuid(userId) } } }] : []),
               { members: { none: {} } },
-              { classroomId: null },
             ],
           },
       include: {

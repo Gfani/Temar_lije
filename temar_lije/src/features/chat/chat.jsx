@@ -3760,38 +3760,7 @@ function Chat({
                             });
                         }
 
-                        // Auto-populate topics list inside this study group
                         const topicId = (groupDetails.topic || 'StatefulWidget Lifecycle').toLowerCase().replace(/\s+/g, '-');
-                        
-                        // Persist general topic channel to DB
-                        apiFetch(`${API_BASE_URL}/chat/groups`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                id: `${g.id}-general`,
-                                name: 'General',
-                                description: 'General chat room',
-                                icon: '#',
-                                color: '#64748b',
-                                memberIds: []
-                            })
-                        })
-                        .catch(err => console.error('Failed to create general topic:', err));
-
-                        // Persist initial custom topic channel to DB
-                        apiFetch(`${API_BASE_URL}/chat/groups`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                id: `${g.id}-${topicId}`,
-                                name: groupDetails.topic || 'StatefulWidget Lifecycle',
-                                description: `Topic room for ${groupDetails.topic || 'StatefulWidget Lifecycle'}`,
-                                icon: (groupDetails.topic || 'StatefulWidget Lifecycle')[0].toUpperCase(),
-                                color: '#0d9488',
-                                memberIds: []
-                            })
-                        })
-                        .catch(err => console.error('Failed to create topic:', err));
 
                         setTopicsByGroup(prev => ({
                             ...prev,

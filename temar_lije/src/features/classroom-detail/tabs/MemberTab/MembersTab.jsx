@@ -162,36 +162,6 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
           members: memberList
         };
 
-        // Create initial topic channels for this group
-        const topicId = (groupDetails.topic || 'StatefulWidget Lifecycle').toLowerCase().replace(/\s+/g, '-');
-        fetch(`${API_BASE_URL}/chat/groups`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            id: `${g.id}-general`,
-            name: 'General',
-            description: 'General chat room',
-            icon: '#',
-            color: '#64748b',
-            classroomId,
-            memberIds: []
-          })
-        }).catch(() => {});
-
-        fetch(`${API_BASE_URL}/chat/groups`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            id: `${g.id}-${topicId}`,
-            name: groupDetails.topic || 'StatefulWidget Lifecycle',
-            description: `Topic room for ${groupDetails.topic || 'StatefulWidget Lifecycle'}`,
-            icon: (groupDetails.topic || 'S').charAt(0).toUpperCase(),
-            color: '#0d9488',
-            classroomId,
-            memberIds: []
-          })
-        }).catch(() => {});
-
         // Emit WebSocket studyInvitation to all invited classmates
         if (socketRef.current) {
           socketRef.current.emit('studyInvitation', {
@@ -204,9 +174,9 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
             groupId: g.id
           });
 
-          // Post initial system invitation message in the general chat
+          // Post initial system invitation message in the study group chat
           socketRef.current.emit('sendMessage', {
-            roomId: `${g.id}-general`,
+            roomId: g.id,
             text: `👋 ${effectiveUserName} created the study group "${groupDetails.name}" on topic "${groupDetails.topic || 'StatefulWidget Lifecycle'}" and sent invitations to ${groupDetails.members?.length || 0} classmates.`,
             type: 'system'
           });

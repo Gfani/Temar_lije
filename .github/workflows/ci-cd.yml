@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - master
+      - Fani
   pull_request:
     branches:
       - main
       - master
+      - Fani
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -74,7 +76,7 @@ jobs:
           fi
 
       - name: Log in to Docker Hub
-        if: steps.check-secrets.outputs.has_secrets == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: steps.check-secrets.outputs.has_secrets == 'true' && github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -84,19 +86,18 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME || 'gelila0913' }}/temar_backend
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/temar_backend
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=sha,format=short,prefix=
             type=ref,event=branch
-            type=semver,pattern={{version}}
 
       - name: Build and Push Backend Container Image
         uses: docker/build-push-action@v5
         with:
           context: ./Backend
           file: ./Backend/Dockerfile
-          push: ${{ steps.check-secrets.outputs.has_secrets == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+          push: ${{ steps.check-secrets.outputs.has_secrets == 'true' && github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

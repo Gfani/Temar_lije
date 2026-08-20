@@ -230,4 +230,119 @@ export class AttendanceService {
       },
     };
   }
-}
+
+  /**
+   * Automated live classroom join logging.
+   * Logs student join time and calculates status (PRESENT if joined within 10 min, LATE otherwise).
+   */
+  async recordJoin(classId: string, userId: string) {
+    if (!classId || !userId) return null;
+
+    const validClassId = await this.ensureClassroomExists(classId);
+    const validUserId = await this.ensureUserExists(userId);
+
+    // Check if attendance record already exists for this (classId, userId)
+    const existing = await this.databaseService.attendance.findUnique({
+      where: {
+        classId_userId: {
+          classId: validClassId,
+          userId: validUserId,
+        },
+      },
+    });
+
+    if (existing) return existing;
+
+    // Find active attendance session for this class to determine late status
+    const session = await this.databaseService.attendanceSession.findFirst({
+      where: { classroomId: validClassId, isActive: true },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    const now = new Date();
+    const sessionStart = session?.startedAt || now;
+    const diffMinutes = (now.getTime() - sessionStart.getTime()) / (1000 * 60);
+    const status = diffMinutes <= 10 ? 'PRESENT' : 'LATE';
+
+    return await this.databaseService.attendance.create({
+      data: {
+        classId: validClassId,
+        userId: validUserId,
+        joinedAt: now,
+        status: status as any,
+      },
+      include: {
+        user: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+  }
+
+  /**
+   * Automated live classroom leave logging.
+   * Records leave timestamp and calculates active duration in minutes.
+   */
+  async recordLeave(classId: string, userId: string) {
+    if (!classId || !userId) return null;
+
+    const validClassId = toUuid(classId);
+    const validUserId = toUuid(userId);
+
+    const existing = await this.databaseService.attendance.findUnique({
+      where: {
+        classId_userId: {
+          classId: validClassId,
+          userId: validUserId,
+        },
+      },
+    });
+
+    if (!existing) return null;
+
+    const leftAt = new Date();
+    const joinedAt = existing.joinedAt || leftAt;
+    const durationMinutes = Math.max(
+      1,
+      Math.round((leftAt.getTime() - joinedAt.getTime()) / (1000 * 60)),
+    );
+
+    return await this.databaseService.attendance.update({
+      where: { id: existing.id },
+      data: {
+        leftAt,
+        durationMinutes,
+      },
+    });
+  }
+
+  /**
+   * Retrieves aggregated attendance status records for a live classroom.
+   */
+  async getClassroomAttendance(classId: string) {
+    if (!classId) throw new BadRequestException('classId is required');
+
+    const validClassId = toUuid(classId);
+
+    const records = await this.databaseService.attendance.findMany({
+      where: { classId: validClassId },
+      include: {
+        user: { select: { id: true, fullName: true, email: true, role: true } },
+      },
+      orderBy: { joinedAt: 'desc' },
+    });
+
+    const presentCount = records.filter((r) => r.status === 'PRESENT').length;
+    const lateCount = records.filter((r) => r.status === 'LATE').length;
+    const absentCount = records.filter((r) => r.status === 'ABSENT').length;
+
+    return {
+      classId: validClassId,
+      summary: {
+        totalTracked: records.length,
+        PRESENT: presentCount,
+        LATE: lateCount,
+        ABSENT: absentCount,
+      },
+      records,
+    };
+  }
+}

@@ -41,4 +41,14 @@ export class AttendanceController {
   async getAttendanceReport(@Param('classId') classId: string) {
     return await this.attendanceService.getAttendanceReport(classId);
   }
+
+  /**
+   * GET /attendance/:classId/live-tracking
+   * Retrieves automated live attendance tracking metrics (PRESENT, LATE, ABSENT, durationMinutes).
+   */
+  @Get(':classId/live-tracking')
+  async getClassroomAttendance(@Param('classId') classId: string) {
+    return await this.attendanceService.getClassroomAttendance(classId);
+  }
 }
+

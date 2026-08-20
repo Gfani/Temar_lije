@@ -187,3 +187,18 @@
   width: 14px;
   height: 14px;
 }
+
+.textOverlayInput {
+  position: absolute;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(8px);
+  border: 1px dashed #3b82f6;
+  outline: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: sans-serif;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+  min-width: 140px;
+}

@@ -1,14 +1,14 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Video, UserPlus, Sparkles, Loader2, CheckCircle2, Radio } from 'lucide-react';
-import { startLiveSession, endLiveSession, getLiveToken, recordCheckIn } from '../../../../services/apiClient';
-import LiveClassroomContainer from '../../../../components/live-class/LiveClassroomContainer';
+import { Video, UserPlus, Sparkles, Loader2, CheckCircle2, Radio, Maximize2, PhoneOff } from 'lucide-react';
+import { recordCheckIn } from '../../../../services/apiClient';
+import { useLiveClass } from '../../../../context/LiveClassContext';
 import styles from './LiveClassTab.module.css';
 
 /**
  * LiveClassTab
  * Renders the "Live class" tab panel of a classroom: the meeting-room
  * entry card on the left, and the Attendance + Live quiz utilities on the right.
- * When a session is started or joined, it renders LiveClassroomContainer (Jitsi + Offline WebSockets Fallback).
+ * Interacts directly with LiveClassContext to start, dock, expand, and end sessions.
  */
 export default function LiveClassTab({
   classId = '66666666-6666-4666-8666-666666666666',
@@ -19,11 +19,16 @@ export default function LiveClassTab({
   onTakeAttendance,
   onCreateQuiz,
 }) {
-  // ---- Live Class Session ----
-  const [isSessionActive, setIsSessionActive] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
-  const [isLiveActive, setIsLiveActive] = useState(false);
-  const [sessionToken, setSessionToken] = useState(null);
+  const {
+    isLiveActive,
+    isMinimized,
+    startSession,
+    endSession,
+    setIsMinimized,
+    isConnecting,
+    sessionError,
+  } = useLiveClass();
+
   const [joinError, setJoinError] = useState('');
 
   // ---- Attendance ----
@@ -45,37 +50,26 @@ export default function LiveClassTab({
   const [quizError, setQuizError] = useState('');
 
   const handleToggleLiveSession = useCallback(async () => {
-    if (isJoining) return;
-    setIsJoining(true);
+    if (isConnecting) return;
     setJoinError('');
     try {
       if (onJoinLiveClass) {
         await onJoinLiveClass();
-        setIsSessionActive((prev) => !prev);
+      }
+      if (!isLiveActive) {
+        await startSession({
+          classId,
+          className: 'Live Classroom',
+          teacher: isTeacher,
+          user: currentUser,
+        });
       } else {
-        if (!isSessionActive) {
-          if (isTeacher) {
-            await startLiveSession(classId);
-          }
-          const tokenRes = await getLiveToken(classId, currentUser?.id || studentId);
-          setSessionToken(tokenRes?.token || null);
-          setIsLiveActive(true);
-          setIsSessionActive(true);
-        } else {
-          if (isTeacher) {
-            await endLiveSession(classId);
-          }
-          setIsLiveActive(false);
-          setIsSessionActive(false);
-          setSessionToken(null);
-        }
+        await endSession();
       }
     } catch (err) {
       setJoinError(err.message || 'Could not connect to the live room. Try again.');
-    } finally {
-      setIsJoining(false);
     }
-  }, [isJoining, isSessionActive, isTeacher, classId, studentId, currentUser, onJoinLiveClass]);
+  }, [isConnecting, isLiveActive, isTeacher, classId, currentUser, onJoinLiveClass, startSession, endSession]);
 
   const handleStudentCheckIn = useCallback(async () => {
     if (hasCheckedIn || isTakingAttendance) return;
@@ -155,77 +149,76 @@ export default function LiveClassTab({
     }
   }, [isTeacher, isCreatingQuiz]);
 
-  if (isSessionActive || isLiveActive) {
-    return (
-      <div style={{ width: '100%', height: '100%' }}>
-        <LiveClassroomContainer
-          classId={classId}
-          isTeacher={isTeacher}
-          currentUser={currentUser}
-          onClose={handleToggleLiveSession}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className={styles.container}>
-      {/* Left: live meeting room */}
+      {/* Left: live meeting room card */}
       <section className={styles.mainCard} aria-label="Live class room">
         <div className={styles.mainCardInner}>
           <div className={styles.videoBadge}>
-            {isSessionActive ? <Radio className={styles.videoBadgeIcon} /> : <Video className={styles.videoBadgeIcon} />}
+            {isLiveActive ? <Radio className={`${styles.videoBadgeIcon} animate-pulse`} /> : <Video className={styles.videoBadgeIcon} />}
           </div>
           <h2 className={styles.roomTitle}>
-            {isTeacher
-              ? (isSessionActive ? 'Live Broadcasting in Progress' : 'Host Live Classroom')
-              : (isSessionActive ? 'Connected to Live Session' : 'Live Classroom')}
+            {isLiveActive
+              ? 'Live Classroom Session Active'
+              : isTeacher
+              ? 'Host Live Classroom'
+              : 'Live Classroom'}
           </h2>
           <p className={styles.roomDescription}>
-            {isTeacher
+            {isLiveActive
+              ? isMinimized
+                ? 'Your live stream is currently active and docked in Picture-in-Picture mode. Click expand to return to full screen.'
+                : 'Live video broadcasting & whiteboard active.'
+              : isTeacher
               ? 'Start interactive live teaching with video, audio, whiteboard sharing, and automated attendance logging.'
               : 'Join your teacher’s live session to watch whiteboard presentations, participate in discussions, and ask questions.'}
           </p>
 
-          {sessionToken && isSessionActive && (
-            <code
-              style={{
-                fontSize: '11px',
-                color: '#6b7573',
-                background: '#f3f7f5',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                marginBottom: '12px',
-                display: 'inline-block',
-              }}
+          {isLiveActive ? (
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
+              <button
+                type="button"
+                className={styles.joinButton}
+                onClick={() => setIsMinimized(false)}
+                style={{ backgroundColor: '#2563eb' }}
+              >
+                <Maximize2 className={styles.buttonIcon} style={{ width: '16px', height: '16px' }} />
+                <span>Expand Full Screen</span>
+              </button>
+              <button
+                type="button"
+                className={styles.joinButton}
+                onClick={endSession}
+                style={{ backgroundColor: '#dc2626' }}
+              >
+                <PhoneOff className={styles.buttonIcon} style={{ width: '16px', height: '16px' }} />
+                <span>End Live Session</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={styles.joinButton}
+              onClick={handleToggleLiveSession}
+              disabled={isConnecting}
+              aria-busy={isConnecting}
             >
-              Token: {sessionToken.substring(0, 24)}...
-            </code>
+              {isConnecting ? (
+                <>
+                  <Loader2 className={`${styles.spinner} animate-spin`} />
+                  Connecting&hellip;
+                </>
+              ) : isTeacher ? (
+                'Start Live Class (Host)'
+              ) : (
+                'Join Live Class'
+              )}
+            </button>
           )}
 
-          <button
-            type="button"
-            className={styles.joinButton}
-            onClick={handleToggleLiveSession}
-            disabled={isJoining}
-            aria-busy={isJoining}
-            style={isSessionActive ? { backgroundColor: '#c0402f' } : {}}
-          >
-            {isJoining ? (
-              <>
-                <Loader2 className={`${styles.spinner} animate-spin`} />
-                Connecting&hellip;
-              </>
-            ) : isSessionActive ? (
-              isTeacher ? 'End Live Session' : 'Leave Live Room'
-            ) : (
-              isTeacher ? 'Start Live Class (Host)' : 'Join Live Class'
-            )}
-          </button>
-
-          {joinError && (
+          {(joinError || sessionError) && (
             <p className={styles.inlineError} role="alert">
-              {joinError}
+              {joinError || sessionError}
             </p>
           )}
         </div>

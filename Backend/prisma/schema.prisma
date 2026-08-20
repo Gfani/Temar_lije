@@ -40,6 +40,7 @@ model User {
   quizSubmissions            QuizSubmission[]
   studyGroupMemberships      StudyGroupMember[]
   createdStudyGroups         StudyGroup[]
+  attendances                Attendance[]
 
   @@index([email], map: "idx_users_email")
   @@map("users")
@@ -64,6 +65,7 @@ model Classroom {
   materials          Material[]
   quizzes            Quiz[]
   studyGroups        StudyGroup[]
+  attendances        Attendance[]
 
   @@index([inviteCode], map: "idx_classrooms_invite_code")
   @@map("classrooms")
@@ -315,4 +317,27 @@ enum user_role {
   ADMIN
   TEACHER
   STUDENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+}
+
+model Attendance {
+  id              String           @id @default(uuid()) @db.Uuid
+  classId         String           @db.Uuid
+  userId          String           @db.Uuid
+  joinedAt        DateTime         @default(now())
+  leftAt          DateTime?
+  durationMinutes Int              @default(0)
+  status          AttendanceStatus @default(PRESENT)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  classroom       Classroom        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, userId])
 }

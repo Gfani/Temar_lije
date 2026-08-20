@@ -10,9 +10,11 @@ import {
   Zap,
   Loader2,
   RefreshCw,
+  Minimize2,
 } from 'lucide-react';
 import WhiteboardCanvas from './WhiteboardCanvas';
 import AudioStreamer from './AudioStreamer';
+import { useLiveClass } from '../../context/LiveClassContext';
 import styles from './LiveClassroomContainer.module.css';
 
 const API_BASE_URL =
@@ -74,10 +76,14 @@ export default function LiveClassroomContainer({
   isTeacher = false,
   currentUser = { name: 'User', role: 'Student' },
   onClose,
+  isDocked = false,
 }) {
+  const liveContext = useLiveClass ? useLiveClass() : null;
+  const contextSocket = liveContext?.liveSocket;
+
   // ---- Network & Mode States ----
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
-  const [socketConnected, setSocketConnected] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(Boolean(contextSocket?.connected));
   const [latencyMs, setLatencyMs] = useState(null);
 
   // 'AUTO' | 'JITSI' | 'FALLBACK'
@@ -92,35 +98,53 @@ export default function LiveClassroomContainer({
   const appId = import.meta.env?.VITE_JITSI_APP_ID || '';
   const envDomain = import.meta.env?.VITE_JITSI_DOMAIN || '';
 
+  const safeClassId = String(
+    (typeof classId === 'object' && classId !== null ? classId.id || classId._id : classId) || 'general'
+  );
+  const formattedClassId = safeClassId.replace(/[^a-zA-Z0-9-]/g, '');
+
   const isJaas = Boolean(appId);
   const jitsiDomain = envDomain || (isJaas ? '8x8.vc' : 'meet.jit.si');
-  const baseRoom = `TemarLije-Class-${classId.replace(/[^a-zA-Z0-9-]/g, '')}`;
+  const baseRoom = `TemarLije-Class-${formattedClassId || 'general'}`;
   const jitsiRoomName = isJaas ? `${appId}/${baseRoom}` : baseRoom;
 
-  // ---- Socket Initialization ----
+  // ---- Socket Setup (Consume persistent socket from LiveClassContext if available) ----
   useEffect(() => {
-    const token = localStorage.getItem('temar_token');
-    const socket = io(`${API_BASE_URL}/live-class`, {
-      transports: ['websocket', 'polling'],
-      auth: { token },
-      query: { classId },
-    });
+    let socket = contextSocket;
+    let createdLocalSocket = false;
+
+    if (!socket) {
+      const token = localStorage.getItem('temar_token');
+      socket = io(`${API_BASE_URL}/live-class`, {
+        transports: ['websocket', 'polling'],
+        auth: { token },
+        query: { classId },
+      });
+      createdLocalSocket = true;
+    }
 
     socketRef.current = socket;
 
-    socket.on('connect', () => {
+    const handleConnect = () => {
       setSocketConnected(true);
       socket.emit('joinRoom', { classId });
-    });
+    };
 
-    socket.on('disconnect', () => {
+    const handleDisconnect = () => {
       setSocketConnected(false);
       setLatencyMs(null);
-    });
+    };
+
+    if (socket.connected) {
+      setSocketConnected(true);
+    }
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
 
     // Measure latency ping every 5 seconds
     pingIntervalRef.current = setInterval(() => {
-      if (socket.connected) {
+      if (socket && socket.connected) {
         const start = Date.now();
         socket.emit('ping', () => {
           setLatencyMs(Date.now() - start);
@@ -130,9 +154,13 @@ export default function LiveClassroomContainer({
 
     return () => {
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      socket.disconnect();
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      if (createdLocalSocket) {
+        socket.disconnect();
+      }
     };
-  }, [classId]);
+  }, [classId, contextSocket]);
 
   // ---- Network Detection ----
   useEffect(() => {
@@ -262,6 +290,18 @@ export default function LiveClassroomContainer({
             </button>
           </div>
 
+          {!isDocked && liveContext?.setIsMinimized && (
+            <button
+              type="button"
+              className={styles.dockHeaderBtn}
+              onClick={() => liveContext.setIsMinimized(true)}
+              title="Dock live stream & continue browsing"
+            >
+              <Minimize2 className={styles.badgeIcon} />
+              <span>Dock & Continue Browsing</span>
+            </button>
+          )}
+
           {onClose && (
             <button
               type="button"
@@ -338,7 +378,7 @@ export default function LiveClassroomContainer({
                 getIFrameRef={(iframeRef) => {
                   if (iframeRef) {
                     iframeRef.style.height = '100%';
-                    iframeRef.style.minHeight = '650px';
+                    iframeRef.style.minHeight = '100%';
                     iframeRef.style.width = '100%';
                     iframeRef.style.border = 'none';
                     iframeRef.style.borderRadius = '12px';

@@ -5,15 +5,18 @@ import {
   MessageBody,
   ConnectedSocket,
   WsException,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { createSocketAuthMiddleware } from '../../common/socket-auth';
+import { AttendanceService } from '../attendance/attendance.service';
 
 /**
  * Socket.io gateway handling offline/LAN fallback, low-bandwidth audio streaming,
- * and real-time whiteboard vector stroke synchronization.
+ * real-time whiteboard vector stroke synchronization, and automated attendance tracking.
  */
 @WebSocketGateway({
   namespace: 'live-class',
@@ -21,7 +24,7 @@ import { createSocketAuthMiddleware } from '../../common/socket-auth';
     origin: '*',
   },
 })
-export class LiveClassGateway {
+export class LiveClassGateway implements OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -31,21 +34,43 @@ export class LiveClassGateway {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly attendanceService: AttendanceService,
   ) {}
 
   afterInit(server: Server) {
     server.use(createSocketAuthMiddleware(this.jwtService, this.configService));
   }
 
+  async handleDisconnect(client: Socket) {
+    const { classId, userId } = client.data || {};
+    if (classId && userId) {
+      const record = await this.attendanceService.recordLeave(classId, userId);
+      if (record) {
+        this.server.to(classId).emit('attendanceUpdated', { classId, record });
+      }
+    }
+  }
+
   /**
-   * Handles explicit socket room joining for classroom channels & syncs stroke history.
+   * Handles explicit socket room joining for classroom channels & syncs stroke history & attendance.
    */
   @SubscribeMessage('joinRoom')
   @SubscribeMessage('joinLiveClassRoom')
-  handleJoinRoom(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
-    const classId = data?.classId || data?.roomId || data;
+  async handleJoinRoom(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
+    const classId = data?.classId || data?.roomId || (typeof data === 'string' ? data : null);
+    const userId = data?.userId || client.data?.user?.id || (client.handshake?.query?.userId as string);
+
     if (classId && typeof classId === 'string') {
       client.join(classId);
+      client.data = { ...client.data, classId, userId };
+
+      // Automated attendance join tracking
+      if (userId && typeof userId === 'string') {
+        const record = await this.attendanceService.recordJoin(classId, userId);
+        if (record) {
+          this.server.to(classId).emit('attendanceUpdated', { classId, record });
+        }
+      }
 
       // Emit cached stroke vector history for this classroom to the joining student
       const history = this.whiteboardHistory.get(classId) || [];
@@ -70,6 +95,25 @@ export class LiveClassGateway {
       throw new WsException(
         'classId is required to broadcast whiteboard stroke',
       );
+    }
+
+    // If stroke is an object payload (e.g. text vector)
+    if (data?.type === 'text' || (stroke && typeof stroke === 'object' && !Array.isArray(stroke) && stroke.type === 'text')) {
+      const textPayload = stroke || data;
+      if (!this.whiteboardHistory.has(classId)) {
+        this.whiteboardHistory.set(classId, []);
+      }
+      this.whiteboardHistory.get(classId)!.push(textPayload);
+
+      client.to(classId).emit('receiveWhiteboardStroke', {
+        classId,
+        stroke: textPayload,
+      });
+      client.to(classId).emit('receiveWhiteboardText', {
+        classId,
+        ...textPayload,
+      });
+      return;
     }
 
     const strokePayload = stroke || [
@@ -101,6 +145,45 @@ export class LiveClassGateway {
       y1: strokePayload[3],
       color: strokePayload[4],
       lineWeight: strokePayload[5],
+    });
+  }
+
+  /**
+   * Receives real-time typed text vectors and broadcasts to all other participants.
+   */
+  @SubscribeMessage('sendWhiteboardText')
+  handleSendWhiteboardText(
+    @MessageBody() data: any,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { classId, text, x, y, color, fontSize } = data || {};
+    if (!classId || !text) return;
+
+    const payload = {
+      type: 'text',
+      text,
+      x,
+      y,
+      color: color || '#3b82f6',
+      fontSize: fontSize || 20,
+    };
+
+    if (!this.whiteboardHistory.has(classId)) {
+      this.whiteboardHistory.set(classId, []);
+    }
+    const history = this.whiteboardHistory.get(classId)!;
+    history.push(payload);
+    if (history.length > 2000) {
+      history.shift();
+    }
+
+    client.to(classId).emit('receiveWhiteboardText', {
+      classId,
+      ...payload,
+    });
+    client.to(classId).emit('receiveWhiteboardStroke', {
+      classId,
+      stroke: payload,
     });
   }
 

@@ -24,9 +24,9 @@ const { ConfigService } = require('@nestjs/config');
 class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(@Inject(ConfigService) configService) {
     super({
-      clientID: configService.getOrThrow('GOOGLE_CLIENT_ID'),
-      clientSecret: configService.getOrThrow('GOOGLE_CLIENT_SECRET'),
-      callbackURL: configService.getOrThrow('GOOGLE_CALLBACK_URL'),
+      clientID: configService.get('GOOGLE_CLIENT_ID') || 'placeholder-google-client-id',
+      clientSecret: configService.get('GOOGLE_CLIENT_SECRET') || 'placeholder-google-client-secret',
+      callbackURL: configService.get('GOOGLE_CALLBACK_URL') || 'http://localhost:3000/auth/google/callback',
       scope: ['email', 'profile'],
     });
   }

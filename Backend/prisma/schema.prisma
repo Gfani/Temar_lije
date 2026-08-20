@@ -1,5 +1,3 @@
-// Prisma Schema for Temar Lije Backend (Local Hub & Offline-First)
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -43,6 +41,7 @@ model User {
   quizSubmissions            QuizSubmission[]
   studyGroupMemberships      StudyGroupMember[]
   createdStudyGroups         StudyGroup[]
+  attendances                Attendance[]
 
   @@map("users")
 }
@@ -67,6 +66,7 @@ model Classroom {
   materials          Material[]
   quizzes            Quiz[]
   studyGroups        StudyGroup[]
+  attendances        Attendance[]
 
   @@map("classrooms")
 }
@@ -271,9 +271,27 @@ model SyncLog {
   deviceHubId String   @map("device_hub_id")
   entityName  String   @map("entity_name")
   entityId    String   @map("entity_id")
-  action      String   @map("action") // CREATE, UPDATE, DELETE
+  action      String   @map("action")
   payload     String
   syncedAt    DateTime @default(now()) @map("synced_at")
 
   @@map("sync_logs")
+}
+
+model Attendance {
+  id              String    @id @default(uuid())
+  classId         String    @map("class_id")
+  userId          String    @map("user_id")
+  joinedAt        DateTime  @default(now()) @map("joined_at")
+  leftAt          DateTime? @map("left_at")
+  durationMinutes Int       @default(0) @map("duration_minutes")
+  status          String    @default("PRESENT") // PRESENT, LATE, ABSENT
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  classroom       Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, userId])
+  @@map("attendances")
 }

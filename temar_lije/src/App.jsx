@@ -8,6 +8,8 @@ import VerifyEmailPage from './features/auth/verify_email/verify_email.jsx';
 import Classrooms from './features/classrooms/classrooms.jsx';
 import ClassroomDetail from './features/classroom-detail/classroom_detail.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import { LiveClassProvider } from './context/LiveClassContext.jsx';
+import LiveClassGlobalOverlay from './components/live-class/LiveClassGlobalOverlay.jsx';
 
 function MainApp() {
   const { user, login, register, logout, isAuthenticated, isLoading } = useAuth();
@@ -233,7 +235,10 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <LiveClassProvider>
+        <MainApp />
+        <LiveClassGlobalOverlay />
+      </LiveClassProvider>
     </AuthProvider>
   );
 }

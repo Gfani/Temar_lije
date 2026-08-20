@@ -23,11 +23,13 @@ export default function AssignmentsTab({
 }) {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAnnounceForm, setShowAnnounceForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
   const [isAnnouncing, setIsAnnouncing] = useState(false);
   const [announceError, setAnnounceError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   // Student submission modal state
   const [submittingAssignment, setSubmittingAssignment] = useState(null);
@@ -49,7 +51,7 @@ export default function AssignmentsTab({
       const list = data?.all || (Array.isArray(data) ? data : []);
       setAssignments(list);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load assignments:', err);
     } finally {
       setLoading(false);
     }
@@ -59,7 +61,28 @@ export default function AssignmentsTab({
     loadAssignments();
   }, [loadAssignments]);
 
+  const handleDeleteAssignment = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this assignment?')) return;
+    setDeletingId(id);
+    try {
+      await deleteAssignment(id);
+      await loadAssignments();
+    } catch (err) {
+      alert(err.message || 'Could not delete assignment.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleOpenSubmissions = async (assignment) => {
+    const targetUrl = `/classrooms/${classId}/assignments/${assignment.id}/submissions`;
+    window.history.pushState({}, '', targetUrl);
+    window.dispatchEvent(
+      new CustomEvent('view-assignment-submissions', {
+        detail: { assignmentId: assignment.id, classId },
+      })
+    );
+
     setViewingSubmissionsAssignment(assignment);
     setLoadingSubmissions(true);
     try {
@@ -77,7 +100,10 @@ export default function AssignmentsTab({
     async (e) => {
       e?.preventDefault();
       if (isAnnouncing) return;
-      if (!title.trim() && !description.trim()) return;
+      if (!title.trim() && !description.trim()) {
+        setAnnounceError('Please enter an assignment title or instructions.');
+        return;
+      }
 
       setIsAnnouncing(true);
       setAnnounceError('');
@@ -92,6 +118,7 @@ export default function AssignmentsTab({
         setTitle('');
         setDescription('');
         setDeadline('');
+        setShowAnnounceForm(false);
         await loadAssignments();
       } catch (err) {
         setAnnounceError(err.message || 'Could not announce assignment. Try again.');
@@ -106,7 +133,7 @@ export default function AssignmentsTab({
     e.preventDefault();
     if (!submittingAssignment) return;
     if (!submissionFile && !submissionLink.trim()) {
-      setSubmissionError('Please select a file to upload or enter a link URL.');
+      setSubmissionError('Please select a PDF file to upload or enter a link URL.');
       return;
     }
 
@@ -116,7 +143,7 @@ export default function AssignmentsTab({
 
     try {
       const formData = new FormData();
-      formData.append('studentId', currentUserId);
+      formData.append('studentId', currentUser?.id || currentUserId);
       if (submissionFile) formData.append('file', submissionFile);
       if (submissionLink) formData.append('linkUrl', submissionLink.trim());
 
@@ -138,57 +165,80 @@ export default function AssignmentsTab({
 
   return (
     <div className={styles.container}>
+      {/* Teacher Top Header Action */}
       {isTeacher && (
-        <form className={styles.announceFormCard} onSubmit={handleAnnounceSubmit}>
-          <input
-            type="text"
-            className={styles.titleInput}
-            placeholder="Assignment title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={isAnnouncing}
-          />
-
-          <textarea
-            className={styles.descriptionInput}
-            placeholder="What should students do?"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={isAnnouncing}
-          />
-
-          <div className={styles.formBottomRow}>
-            <div className={styles.deadlineGroup}>
-              <span className={styles.deadlineLabel}>
-                <Calendar size={15} /> Deadline
-              </span>
+        <>
+          {!showAnnounceForm ? (
+            <button
+              type="button"
+              className={styles.announceButton}
+              onClick={() => setShowAnnounceForm(true)}
+            >
+              <Megaphone className={styles.buttonIcon} />
+              <span>Announce assignment</span>
+            </button>
+          ) : (
+            <form className={styles.announceFormCard} onSubmit={handleAnnounceSubmit}>
               <input
-                type="datetime-local"
-                className={styles.dateInput}
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
+                type="text"
+                className={styles.titleInput}
+                placeholder="Assignment title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={isAnnouncing}
+                required
+              />
+
+              <textarea
+                className={styles.descriptionInput}
+                placeholder="What should students do?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 disabled={isAnnouncing}
               />
-            </div>
 
-            <div className={styles.actionButtonsRow}>
-              <button
-                type="submit"
-                className={styles.btnAnnounce}
-                disabled={isAnnouncing || (!title.trim() && !description.trim())}
-              >
-                {isAnnouncing ? (
-                  <>
-                    <Loader2 className={`${styles.spinner} animate-spin`} />
-                    <span>Announcing…</span>
-                  </>
-                ) : (
-                  <span>Announce</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </form>
+              <div className={styles.formBottomRow}>
+                <div className={styles.deadlineGroup}>
+                  <span className={styles.deadlineLabel}>
+                    <Calendar size={15} /> Deadline
+                  </span>
+                  <input
+                    type="datetime-local"
+                    className={styles.dateInput}
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    disabled={isAnnouncing}
+                  />
+                </div>
+
+                <div className={styles.actionButtonsRow}>
+                  <button
+                    type="submit"
+                    className={styles.btnAnnounce}
+                    disabled={isAnnouncing}
+                  >
+                    {isAnnouncing ? (
+                      <>
+                        <Loader2 className={`${styles.spinner} animate-spin`} />
+                        <span>Announcing…</span>
+                      </>
+                    ) : (
+                      <span>Announce</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btnCancel}
+                    onClick={() => setShowAnnounceForm(false)}
+                    disabled={isAnnouncing}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </>
       )}
 
       {announceError && (
@@ -206,7 +256,7 @@ export default function AssignmentsTab({
         <div className={styles.emptyCard}>
           <p className={styles.emptyState}>
             {isTeacher
-              ? 'No assignments announced yet. Announce one for your class.'
+              ? 'No assignments announced yet. Click "Announce assignment" to create one.'
               : 'No assignments assigned yet. Check back soon!'}
           </p>
         </div>
@@ -214,16 +264,35 @@ export default function AssignmentsTab({
         <ul className={styles.assignmentList}>
           {assignments.map((assignment) => {
             const count = assignment._count?.submissions ?? assignment.submissionCount ?? 0;
+            const dueDateObj = assignment.dueDate || assignment.deadline;
+            const isPastDeadline = dueDateObj ? new Date() > new Date(dueDateObj) : false;
 
             return (
               <li key={assignment.id} className={styles.assignmentCard}>
                 <div className={styles.assignmentHeader}>
                   <h3 className={styles.assignmentTitle}>{assignment.title}</h3>
+                  {isTeacher && (
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      onClick={() => handleDeleteAssignment(assignment.id)}
+                      disabled={deletingId === assignment.id}
+                      title="Delete assignment"
+                    >
+                      {deletingId === assignment.id ? (
+                        <Loader2 className={`${styles.spinner} animate-spin`} />
+                      ) : (
+                        <Trash2 className={styles.deleteIcon} />
+                      )}
+                    </button>
+                  )}
                 </div>
 
-                <p className={styles.assignmentDescription}>{assignment.description}</p>
+                {assignment.description && (
+                  <p className={styles.assignmentDescription}>{assignment.description}</p>
+                )}
                 <p className={styles.assignmentDeadline}>
-                  {formatDeadline(assignment.dueDate || assignment.deadline)}
+                  {formatDeadline(dueDateObj)}
                 </p>
 
                 <div className={styles.assignmentFooter}>
@@ -240,26 +309,45 @@ export default function AssignmentsTab({
                         padding: '6px 14px',
                         fontWeight: 600,
                         cursor: 'pointer',
+                        marginTop: '8px',
                       }}
                     >
                       View Submissions
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setSubmittingAssignment(assignment)}
-                      style={{
-                        backgroundColor: '#14785c',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '6px 14px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Submit Work
-                    </button>
+                    <div style={{ marginTop: '8px' }}>
+                      {isPastDeadline ? (
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#c0402f',
+                            backgroundColor: '#fbeae7',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            display: 'inline-block',
+                          }}
+                        >
+                          Deadline Passed (Closed)
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setSubmittingAssignment(assignment)}
+                          style={{
+                            backgroundColor: '#14785c',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '6px 14px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Submit Work
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </li>

@@ -1,0 +1,13 @@
+{
+  "name": "temar-lije-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TemarLije Hybrid Classroom Monorepo Root",
+  "scripts": {
+    "dev": "npm run dev --prefix temar_lije",
+    "start:frontend": "npm run dev --prefix temar_lije",
+    "start:backend": "npm run start:dev --prefix Backend",
+    "build:frontend": "npm run build --prefix temar_lije",
+    "build:backend": "npm run build --prefix Backend"
+  }
+}

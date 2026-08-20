@@ -11,17 +11,26 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MaterialsService } from './materials.service';
 import { createMulterOptions } from '../../common/config/multer.config';
+import * as fs from 'fs';
+import * as path from 'path';
 
-@Controller('materials')
+// Ensure upload destination folder exists on application start
+const uploadDir = path.join(process.cwd(), 'uploads', 'materials');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+@Controller()
 export class MaterialsController {
   constructor(private readonly materialsService: MaterialsService) {}
 
   /**
-   * POST /materials/upload
+   * POST /materials and POST /materials/upload
    * Instructor endpoint for uploading course materials.
    * File is saved locally to ./uploads/materials.
    */
-  @Post('upload')
+  @Post('materials/upload')
+  @Post('materials')
   @UseInterceptors(FileInterceptor('file', createMulterOptions('materials')))
   async uploadMaterial(
     @UploadedFile() file: any,
@@ -47,7 +56,7 @@ export class MaterialsController {
     }
 
     return await this.materialsService.uploadMaterial({
-      title,
+      title: title || file.originalname || 'Uploaded Document',
       description,
       filePath,
       classId,
@@ -57,11 +66,14 @@ export class MaterialsController {
   }
 
   /**
-   * GET /materials/class/:classId
-   * Endpoint to fetch all materials for a class dashboard.
+   * GET /materials/class/:classId, GET /materials/:classId, and GET /classrooms/:classId/materials
+   * Endpoints to fetch all materials for a class dashboard.
    */
-  @Get('class/:classId')
+  @Get('materials/class/:classId')
+  @Get('materials/:classId')
+  @Get('classrooms/:classId/materials')
   async getMaterialsByClass(@Param('classId') classId: string) {
     return await this.materialsService.getMaterialsByClass(classId);
   }
 }
+

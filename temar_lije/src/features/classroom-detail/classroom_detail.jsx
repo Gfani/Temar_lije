@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../../components/common/Header/header.jsx';
 import ClassroomHeader from '../../components/common/tittle/Tittle.jsx';
 import MaterialsTab from './tabs/Material/MaterialsTab.jsx';
@@ -9,6 +9,8 @@ import QuizzesTab from './tabs/Quize/QuizzesTab.jsx';
 import MembersTab from './tabs/MemberTab/MembersTab.jsx';
 import TeacherMemberTab from './tabs/TeacherMemberTab/TeacherMemberTab.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
+import AssignmentSubmissionsPage from '../../pages/AssignmentSubmissionsPage.jsx';
+import { useLiveClass } from '../../context/LiveClassContext.jsx';
 
 export default function ClassroomDetail({
   classroom = { title: "Flutter", subject: "Widget · widget structure" },
@@ -21,14 +23,49 @@ export default function ClassroomDetail({
   const isTeacher = (currentUser?.role || '').toLowerCase() === 'teacher';
   const [currentNavTab, setCurrentNavTab] = useState('classrooms');
   const [activeDetailTab, setActiveDetailTab] = useState('materials');
+  const [viewingSubmissionsAssignmentId, setViewingSubmissionsAssignmentId] = useState(null);
+
+  const { isLiveActive, setIsMinimized } = useLiveClass();
+
+  useEffect(() => {
+    const handleNavigateTab = (e) => {
+      if (e.detail?.tab) {
+        setViewingSubmissionsAssignmentId(null);
+        setCurrentNavTab('classrooms');
+        setActiveDetailTab(e.detail.tab);
+      }
+    };
+    const handleViewSubmissions = (e) => {
+      if (e.detail?.assignmentId) {
+        setViewingSubmissionsAssignmentId(e.detail.assignmentId);
+      }
+    };
+
+    window.addEventListener('navigate-tab', handleNavigateTab);
+    window.addEventListener('view-assignment-submissions', handleViewSubmissions);
+    return () => {
+      window.removeEventListener('navigate-tab', handleNavigateTab);
+      window.removeEventListener('view-assignment-submissions', handleViewSubmissions);
+    };
+  }, []);
 
   const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U';
 
   const handleHeaderTabChange = (tab) => {
+    if (isLiveActive) {
+      setIsMinimized(true);
+    }
     if (tab === 'classrooms' && currentNavTab === 'classrooms') {
       onBackToClassrooms?.();
     } else {
       setCurrentNavTab(tab);
+    }
+  };
+
+  const handleDetailTabChange = (tab) => {
+    setActiveDetailTab(tab);
+    if (isLiveActive && tab !== 'live-class') {
+      setIsMinimized(true);
     }
   };
 
@@ -56,7 +93,16 @@ export default function ClassroomDetail({
         setDarkMode={setDarkMode}
       />
 
-      {currentNavTab === 'study-buddy' ? (
+      {viewingSubmissionsAssignmentId ? (
+        <main className="classroom-detail-content">
+          <AssignmentSubmissionsPage
+            assignmentId={viewingSubmissionsAssignmentId}
+            classId={defaultClassId}
+            onBack={() => setViewingSubmissionsAssignmentId(null)}
+            currentUser={currentUser}
+          />
+        </main>
+      ) : currentNavTab === 'study-buddy' ? (
         <main className="classroom-detail-content" style={{ maxWidth: '1280px', margin: '0 auto', padding: '1.5rem 2rem' }}>
           <StudyBuddy isTeacher={isTeacher} />
         </main>
@@ -67,7 +113,7 @@ export default function ClassroomDetail({
             title={classroom.title}
             subject={`${classroom.subject} · ${isTeacher ? 'Teacher View' : 'Student View'}`}
             activeTab={activeDetailTab}
-            onTabChange={setActiveDetailTab}
+            onTabChange={handleDetailTabChange}
             onBack={onBackToClassrooms}
           />
 

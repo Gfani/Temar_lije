@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
   Body,
   UseInterceptors,
@@ -11,15 +12,16 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AssignmentsService } from './assignments.service';
 import { createMulterOptions } from '../../common/config/multer.config';
 
-@Controller('assignments')
+@Controller()
 export class AssignmentsController {
   constructor(private readonly assignmentsService: AssignmentsService) {}
 
   /**
-   * POST /assignments/create
+   * POST /assignments/create and POST /assignments
    * Instructor endpoint to create an assignment (title, description, guide file/link, deadline, classId).
    */
-  @Post('create')
+  @Post('assignments/create')
+  @Post('assignments')
   @UseInterceptors(FileInterceptor('file', createMulterOptions('assignments')))
   async createAssignment(
     @UploadedFile() file: any,
@@ -40,10 +42,12 @@ export class AssignmentsController {
   }
 
   /**
-   * GET /assignments/class/:classId
+   * GET /assignments/class/:classId, GET /assignments/:classId, and GET /classrooms/:classId/assignments
    * Display active and past assignments for a class dashboard.
    */
-  @Get('class/:classId')
+  @Get('assignments/class/:classId')
+  @Get('assignments/:classId')
+  @Get('classrooms/:classId/assignments')
   async getAssignmentsByClass(@Param('classId') classId: string) {
     return await this.assignmentsService.getAssignmentsByClass(classId);
   }
@@ -52,7 +56,7 @@ export class AssignmentsController {
    * POST /assignments/:id/submit
    * Student endpoint to submit work. Supports PDF file upload (to ./uploads/submissions), link URL, or both.
    */
-  @Post(':id/submit')
+  @Post('assignments/:id/submit')
   @UseInterceptors(FileInterceptor('file', createMulterOptions('submissions')))
   async submitAssignment(
     @Param('id') assignmentId: string,
@@ -73,8 +77,19 @@ export class AssignmentsController {
    * GET /assignments/:id/submissions
    * Instructor endpoint to view all student submissions for an assignment.
    */
-  @Get(':id/submissions')
+  @Get('assignments/:id/submissions')
   async getSubmissions(@Param('id') assignmentId: string) {
     return await this.assignmentsService.getSubmissions(assignmentId);
   }
+
+  /**
+   * DELETE /assignments/:id and POST /assignments/:id/delete
+   * Instructor endpoint to delete an assignment.
+   */
+  @Delete('assignments/:id')
+  @Post('assignments/:id/delete')
+  async deleteAssignment(@Param('id') assignmentId: string) {
+    return await this.assignmentsService.deleteAssignment(assignmentId);
+  }
 }
+

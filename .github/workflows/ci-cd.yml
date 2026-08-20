@@ -11,6 +11,7 @@ on:
       - main
       - master
       - Fani
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,18 +33,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: 'Backend/package-lock.json'
+
+      - name: Prepare Backend Environment
+        working-directory: ./Backend
+        run: |
+          cp .env.example .env 2>/dev/null || touch .env
 
       - name: Install Backend Dependencies
         working-directory: ./Backend
-        run: npm ci
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: Generate Prisma Client
         working-directory: ./Backend
         run: npx prisma generate --schema=./prisma/schema.prisma
 
-      - name: Run Backend Unit & Integration Tests
+      - name: Run Backend Tests
         working-directory: ./Backend
         run: npm test
 
@@ -65,18 +69,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Check Docker Hub Credentials Availability
-        id: check-secrets
+      - name: Check and Sanitize Docker Hub Credentials
+        id: docker-auth
+        env:
+          RAW_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          RAW_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+          if [ -n "$RAW_USER" ] && [ -n "$RAW_TOKEN" ]; then
+            # Docker Hub requires lowercase repository names
+            LOWER_USER=$(echo "$RAW_USER" | tr '[:upper:]' '[:lower:]' | xargs)
             echo "has_secrets=true" >> $GITHUB_OUTPUT
+            echo "docker_user=$LOWER_USER" >> $GITHUB_OUTPUT
+            echo "image_name=${LOWER_USER}/temar_backend" >> $GITHUB_OUTPUT
+            echo "Target Docker image name: ${LOWER_USER}/temar_backend"
           else
             echo "has_secrets=false" >> $GITHUB_OUTPUT
-            echo "::warning::Docker Hub secrets not detected. Skipping push; performing validation build only."
+            echo "image_name=temar_backend" >> $GITHUB_OUTPUT
+            echo "::warning::Docker Hub secrets not detected. Running local build check only."
           fi
 
       - name: Log in to Docker Hub
-        if: steps.check-secrets.outputs.has_secrets == 'true' && github.event_name == 'push'
+        if: steps.docker-auth.outputs.has_secrets == 'true' && github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -86,7 +99,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/temar_backend
+          images: ${{ steps.docker-auth.outputs.image_name }}
           tags: |
             type=raw,value=latest
             type=sha,format=short,prefix=
@@ -97,7 +110,7 @@ jobs:
         with:
           context: ./Backend
           file: ./Backend/Dockerfile
-          push: ${{ steps.check-secrets.outputs.has_secrets == 'true' && github.event_name == 'push' }}
+          push: ${{ steps.docker-auth.outputs.has_secrets == 'true' && github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

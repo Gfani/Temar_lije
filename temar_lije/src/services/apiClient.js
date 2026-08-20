@@ -226,6 +226,29 @@ export async function createQuiz(classId, quizPayload) {
   return res.json();
 }
 
+export async function publishQuiz(quizId) {
+  const res = await fetch(`${API_BASE_URL}/quizzes/${quizId}/publish`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to publish quiz');
+  }
+  return res.json();
+}
+
+export async function getQuizDetails(quizId) {
+  const res = await fetch(`${API_BASE_URL}/quizzes/${quizId}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to fetch quiz details');
+  }
+  return res.json();
+}
+
 export async function submitQuiz(quizId, answersPayload) {
   const res = await fetch(`${API_BASE_URL}/quizzes/${quizId}/submit`, {
     method: 'POST',
@@ -235,6 +258,28 @@ export async function submitQuiz(quizId, answersPayload) {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || 'Failed to submit quiz');
+  }
+  return res.json();
+}
+
+export async function getSubmissionResult(quizId) {
+  const res = await fetch(`${API_BASE_URL}/quizzes/${quizId}/result`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to fetch submission result');
+  }
+  return res.json();
+}
+
+export async function getQuizAnalytics(quizId) {
+  const res = await fetch(`${API_BASE_URL}/quizzes/${quizId}/analytics`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to fetch quiz analytics');
   }
   return res.json();
 }

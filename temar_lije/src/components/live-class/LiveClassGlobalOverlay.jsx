@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useLiveClass } from '../../context/LiveClassContext';
 import LiveClassroomContainer from './LiveClassroomContainer';
 import {
@@ -26,27 +25,12 @@ export default function LiveClassGlobalOverlay() {
     setIsMinimized,
   } = useLiveClass();
 
-  let navigate;
-  try {
-    navigate = useNavigate();
-  } catch (e) {
-    navigate = null;
-  }
-
   if (!isLiveActive || !activeClassId) return null;
 
   const navigateToTab = (tabName) => {
     setIsMinimized(true);
     const targetPath = `/classrooms/${activeClassId}/${tabName}`;
-    if (navigate) {
-      try {
-        navigate(targetPath);
-      } catch (e) {
-        window.history.pushState({}, '', targetPath);
-      }
-    } else {
-      window.history.pushState({}, '', targetPath);
-    }
+    window.history.pushState({}, '', targetPath);
     window.dispatchEvent(
       new CustomEvent('navigate-tab', {
         detail: { tab: tabName, classId: activeClassId },

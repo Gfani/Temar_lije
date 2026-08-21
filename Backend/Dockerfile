@@ -10,8 +10,8 @@ FROM node:20-alpine AS builder
 # Set working directory
 WORKDIR /usr/src/app
 
-# Install build dependencies required for native modules (e.g. bcrypt)
-RUN apk add --no-cache python3 make g++
+# Install build dependencies required for native modules (e.g. bcrypt) and database queries (Prisma)
+RUN apk add --no-cache python3 make g++ libc6-compat openssl
 
 # Copy package manifests first for optimal Docker layer caching
 COPY package*.json ./
@@ -45,8 +45,8 @@ ENV PORT=3000
 # Set working directory
 WORKDIR /usr/src/app
 
-# Install dumb-init or curl/wget for healthchecks and proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init, healthcheck dependencies, and libraries for database queries (Prisma)
+RUN apk add --no-cache dumb-init libc6-compat openssl
 
 # Copy production dependencies and compiled artifacts from builder stage
 COPY --chown=node:node package*.json ./

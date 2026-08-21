@@ -22,6 +22,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     || 'U';
 
   const [realMembers, setRealMembers] = useState([]);
+  const [allStudents, setAllStudents] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
 
   const fetchMembers = React.useCallback(async () => {
@@ -42,20 +43,46 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
 
   useEffect(() => {
     fetchMembers();
+    fetch(`${API_BASE_URL}/users/students`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const students = data
+            .filter((s) => (s.role || '').toUpperCase() !== 'TEACHER')
+            .map((s) => ({
+              id: s.id,
+              name: s.fullName || s.name || s.email,
+              email: s.email,
+              initials: s.initials || (s.fullName || s.name ? (s.fullName || s.name).slice(0, 2).toUpperCase() : 'ST'),
+              avatarBg: s.avatarBg || '#3b82f6',
+              role: s.role,
+            }));
+          setAllStudents(students);
+        }
+      })
+      .catch((err) => console.warn('Failed to load all students:', err));
   }, [fetchMembers]);
+
+  // Combine enrolled students and platform students so any student can be invited
+  const availableCandidates = React.useMemo(() => {
+    const map = new Map();
+    (allStudents || []).forEach((s) => map.set(s.id, s));
+    (realMembers || []).forEach((s) => map.set(s.id, s));
+    return Array.from(map.values());
+  }, [allStudents, realMembers]);
 
   const memberProfiles = React.useMemo(() => {
     const map = {};
-    (realMembers || []).forEach((m) => {
+    availableCandidates.forEach((m) => {
       map[m.id] = {
         name: m.name || m.email,
         initials: m.initials || 'ST',
-        avatarBg: '#3b82f6',
+        avatarBg: m.avatarBg || '#3b82f6',
         online: true,
       };
     });
     return map;
-  }, [realMembers]);
+  }, [availableCandidates]);
 
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
@@ -546,6 +573,8 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         isOpen={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
         onCreate={handleCreateGroup}
+        availableMembers={availableCandidates}
+        currentUserId={effectiveUserId}
       />
 
       <SendInvitation

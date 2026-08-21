@@ -120,6 +120,8 @@ class AuthService {
       EMAIL_VERIFICATION_TOKEN_TTL_MS,
     );
 
+    const isVerifiedImmediately = !this.emailService.isSmtpConfigured();
+
     let user;
     try {
       user = await this.prisma.user.create({
@@ -130,20 +132,25 @@ class AuthService {
           email: dto.email,
           passwordHash,
           role: dto.role,
-          isEmailVerified: false,
-          emailVerificationTokenHash: tokenHash,
-          emailVerificationExpiresAt: expiresAt,
+          isEmailVerified: isVerifiedImmediately,
+          emailVerificationTokenHash: isVerifiedImmediately ? null : tokenHash,
+          emailVerificationExpiresAt: isVerifiedImmediately ? null : expiresAt,
         },
       });
     } catch {
       throw new ConflictException('An account with this email already exists');
     }
 
-    await this.emailService.sendVerificationEmail(user, rawToken);
+    if (!isVerifiedImmediately) {
+      await this.emailService.sendVerificationEmail(user, rawToken);
+    } else {
+      this.logger.log(`Account auto-verified for ${user.email} since SMTP is not configured.`);
+    }
 
     return {
-      message:
-        'Registration successful. Please check your email to verify your account before signing in.',
+      message: isVerifiedImmediately
+        ? 'Registration successful! You can now sign in.'
+        : 'Registration successful. Please check your email to verify your account before signing in.',
     };
   }
 

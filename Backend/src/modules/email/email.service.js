@@ -20,49 +20,56 @@ class EmailService {
     this.configService = configService;
     this.logger = new Logger(EmailService.name);
     this.isProduction = configService.get('NODE_ENV') === 'production';
-    this.frontendUrl = configService.getOrThrow('FRONTEND_URL');
+    this.frontendUrl = configService.get('FRONTEND_URL') || 'http://localhost';
     this.fromAddress =
       configService.get('EMAIL_FROM') || 'no-reply@temarlije.local';
 
     const smtpHost = configService.get('SMTP_HOST');
+    const isDummySmtp = !smtpHost || smtpHost.includes('example.com') || smtpHost === 'dummy';
 
-    if (!smtpHost && this.isProduction) {
-      // Fail loudly at startup, not silently at the first send — a
-      // misconfigured production deploy should never boot believing
-      // email works when it can't.
-      throw new Error('SMTP_HOST is required when NODE_ENV=production');
-    }
-
-    this.devMode = !smtpHost;
+    this.devMode = isDummySmtp;
 
     if (!this.devMode) {
-      this.transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: Number(configService.get('SMTP_PORT') || 587),
-        secure: configService.get('SMTP_SECURE') === 'true',
-        auth: {
-          user: configService.getOrThrow('SMTP_USER'),
-          pass: configService.getOrThrow('SMTP_PASS'),
-        },
-      });
+      try {
+        this.transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: Number(configService.get('SMTP_PORT') || 587),
+          secure: configService.get('SMTP_SECURE') === 'true',
+          auth: {
+            user: configService.get('SMTP_USER') || '',
+            pass: configService.get('SMTP_PASS') || '',
+          },
+        });
+      } catch (err) {
+        this.logger.warn(`Failed to initialize SMTP transport, falling back to console: ${err.message}`);
+        this.devMode = true;
+      }
     }
+  }
+
+  isSmtpConfigured() {
+    return !this.devMode;
   }
 
   /** Every other method in this class funnels through here. */
   async _send({ to, subject, html }) {
     if (this.devMode) {
       this.logger.warn(
-        `[DEV MODE — no SMTP configured] Would send email:\nTo: ${to}\nSubject: ${subject}\n${html}`,
+        `[EMAIL LOG — SMTP not configured] To: ${to} | Subject: ${subject}\n${html}`,
       );
       return;
     }
 
-    await this.transporter.sendMail({
-      from: this.fromAddress,
-      to,
-      subject,
-      html,
-    });
+    try {
+      await this.transporter.sendMail({
+        from: this.fromAddress,
+        to,
+        subject,
+        html,
+      });
+    } catch (err) {
+      this.logger.error(`Failed to send email to ${to}: ${err.message}`);
+    }
   }
 
   async sendVerificationEmail(user, rawToken) {

@@ -70,10 +70,10 @@ class GoogleAuthGuard extends AuthGuard('google') {
     // while still working within the OAuth redirect chain.
     res.cookie('oauthNonce', nonce, {
       httpOnly: true,
-      secure: isProduction,
+      secure: false,
       sameSite: 'lax',
-      maxAge: 5 * 60 * 1000, // long enough for a real user to get through Google's consent screen, short enough to limit replay window
-      path: '/auth/google/callback',
+      maxAge: 5 * 60 * 1000,
+      path: '/',
     });
 
     // req.query.role is client input at this point (from our own

@@ -42,12 +42,11 @@ class AuthController {
   }
 
   _refreshCookieOptions() {
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
     return {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
-      path: '/auth/refresh',
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
       maxAge: REFRESH_COOKIE_MAX_AGE_MS,
     };
   }
@@ -170,7 +169,7 @@ class AuthController {
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req, @Res() res) {
     const cookieNonce = req.cookies?.oauthNonce;
-    res.clearCookie('oauthNonce', { path: '/auth/google/callback' });
+    res.clearCookie('oauthNonce', { path: '/' });
     const frontendBaseUrl = this.configService.getOrThrow('FRONTEND_URL');
     const frontendErrorUrl = `${frontendBaseUrl}/signin?error=oauth_failed`;
 

@@ -1,33 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutGrid, Sparkles, LogOut, Plus, Users, KeyRound, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { LayoutGrid, Sparkles, LogOut, Plus, Users, KeyRound, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import './classrooms.css';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
 import JoinClassRoom from '../../components/layout/join_class_room/join_class_room';
 import Header from '../../components/common/Header/header.jsx';
 import StudyBuddy from '../study-buddy/study-buddy.jsx';
-
-const DEFAULT_CLASSROOMS = [
-  {
-    id: 1,
-    title: 'React',
-    subject: 'Modern Frontend Architecture',
-    description: 'Component lifecycles, state management, and real-time sockets',
-    code: 'RRWC3C',
-    instructor: 'Instructor Gelila',
-  },
-  {
-    id: 2,
-    title: 'Flutter',
-    subject: 'Widget · Widget Structure',
-    description: 'Cross-platform mobile and hybrid UI development',
-    code: 'DB7GLU',
-    instructor: 'Instructor Fuad',
-  }
-];
+import { getClassrooms, createClassroom, joinClassroom } from '../../services/apiClient';
 
 export default function Classrooms({ 
   currentUser = { name: 'User', role: 'Teacher' }, 
-  initialClassrooms = DEFAULT_CLASSROOMS,
+  initialClassrooms = [],
   onLogout = () => alert('Signing out...'),
   onSelectClassroom,
   darkMode,
@@ -38,57 +20,62 @@ export default function Classrooms({
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('classrooms');
   const [copiedCode, setCopiedCode] = useState('');
-  
-  const [classroomsList, setClassroomsList] = useState(() => {
-    const saved = localStorage.getItem('temar_classrooms');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {}
+  const [classroomsList, setClassroomsList] = useState(initialClassrooms);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadClassrooms = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getClassrooms();
+      if (Array.isArray(data) && data.length > 0) {
+        setClassroomsList(data);
+      } else {
+        setClassroomsList([]);
+      }
+    } catch (err) {
+      console.warn('Failed to load classrooms from backend:', err);
+    } finally {
+      setLoading(false);
     }
-    return DEFAULT_CLASSROOMS;
-  });
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('temar_classrooms', JSON.stringify(classroomsList));
-  }, [classroomsList]);
+    loadClassrooms();
+  }, [loadClassrooms]);
 
   const avatarInitial = currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U';
 
-  const handleCreateClassroom = (newClassroomData) => {
-    const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
-    const newClass = {
-      id: Date.now(),
-      title: newClassroomData.title,
-      subject: newClassroomData.subject,
-      description: newClassroomData.description,
-      code: randomCode,
-      instructor: currentUser.name,
-    };
+  const handleCreateClassroom = async (newClassroomData) => {
+    try {
+      const created = await createClassroom({
+        title: newClassroomData.title,
+        subject: newClassroomData.subject,
+        description: newClassroomData.description,
+      });
 
-    setClassroomsList((prev) => [newClass, ...prev]);
+      setClassroomsList((prev) => [created, ...prev]);
+      setIsCreateModalOpen(false);
+    } catch (err) {
+      alert(err.message || 'Failed to create classroom');
+    }
   };
 
-  const handleJoinClassroom = (codeToJoin) => {
-    // Look up class in classrooms list
-    const foundClass = classroomsList.find(
-      (c) => (c.code || '').toUpperCase() === codeToJoin.toUpperCase()
-    );
-
-    if (!foundClass) {
-      // Check if it's one of default classrooms
-      const fallback = DEFAULT_CLASSROOMS.find(
-        (c) => (c.code || '').toUpperCase() === codeToJoin.toUpperCase()
-      );
-      if (!fallback) {
-        return { error: `No classroom found with code "${codeToJoin}". Please check with your teacher.` };
-      }
+  const handleJoinClassroom = async (codeToJoin) => {
+    try {
+      const joined = await joinClassroom(codeToJoin);
+      setClassroomsList((prev) => {
+        const exists = prev.some((c) => c.id === joined.id || (c.code || '').toUpperCase() === (joined.code || '').toUpperCase());
+        if (exists) return prev;
+        return [joined, ...prev];
+      });
+      alert(`Successfully enrolled in ${joined.title || 'classroom'}!`);
+      setIsJoinModalOpen(false);
+      return { success: true };
+    } catch (err) {
+      return { error: err.message || `No classroom found with code "${codeToJoin}".` };
     }
-
-    alert(`Successfully enrolled in ${foundClass?.title || codeToJoin}!`);
-    return { success: true };
   };
 
   const handleCopyCode = (e, code) => {
@@ -148,8 +135,39 @@ export default function Classrooms({
               )}
             </div>
 
+            {error && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#fee2e2',
+                  color: '#b91c1c',
+                  borderRadius: '10px',
+                  marginBottom: '16px',
+                  fontSize: '0.875rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <AlertCircle size={16} /> {error}
+              </div>
+            )}
+
             {/* Empty State vs Classroom Cards */}
-            {classroomsList.length === 0 ? (
+            {loading ? (
+              <div
+                style={{
+                  padding: '60px 20px',
+                  textAlign: 'center',
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #e5e7eb',
+                }}
+              >
+                <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#14785c' }} />
+                <p style={{ color: '#6b7280', margin: 0 }}>Loading your classrooms...</p>
+              </div>
+            ) : classroomsList.length === 0 ? (
               <div className="empty-state">
                 <Users size={48} className="empty-icon" />
                 <h3>No classrooms yet</h3>
@@ -170,7 +188,7 @@ export default function Classrooms({
                   >
                     <div>
                       <div className="card-top-bar"></div>
-                      <h2 className="card-title">{classroom.title}</h2>
+                      <h2 className="card-title">{classroom.title || classroom.name}</h2>
                       {classroom.subject && <p className="card-subject">{classroom.subject}</p>}
                       {classroom.description && <p className="card-description">{classroom.description}</p>}
                     </div>
@@ -184,15 +202,15 @@ export default function Classrooms({
                       {isTeacher ? (
                         <span 
                           className="card-code" 
-                          onClick={(e) => handleCopyCode(e, classroom.code)}
+                          onClick={(e) => handleCopyCode(e, classroom.code || classroom.inviteCode)}
                           title="Click to copy invitation code for students"
                           style={{ cursor: 'pointer' }}
                         >
-                          {copiedCode === classroom.code ? 'Copied!' : classroom.code}
+                          {copiedCode === (classroom.code || classroom.inviteCode) ? 'Copied!' : (classroom.code || classroom.inviteCode)}
                         </span>
                       ) : (
                         <span className="card-code" style={{ opacity: 0.85 }}>
-                          Code: {classroom.code}
+                          Code: {classroom.code || classroom.inviteCode}
                         </span>
                       )}
                     </div>

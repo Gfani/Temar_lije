@@ -29,6 +29,68 @@ export function getFileUrl(path) {
   return `/uploads${cleanPath}`;
 }
 
+// ---- CLASSROOMS API ----
+export async function getClassrooms() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/classrooms`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('Failed to fetch classrooms:', err);
+    return [];
+  }
+}
+
+export async function createClassroom(payload) {
+  const res = await fetch(`${API_BASE_URL}/classrooms`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Failed to create classroom');
+  }
+  return await res.json();
+}
+
+export async function joinClassroom(code) {
+  const res = await fetch(`${API_BASE_URL}/classrooms/join`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Failed to join classroom');
+  }
+  return await res.json();
+}
+
+export async function getClassroomDetails(classId) {
+  const res = await fetch(`${API_BASE_URL}/classrooms/${classId}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error('Failed to load classroom details');
+  }
+  return await res.json();
+}
+
+export async function deleteClassroom(classId) {
+  const res = await fetch(`${API_BASE_URL}/classrooms/${classId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error('Failed to delete classroom');
+  }
+  return await res.json();
+}
+
 // ---- MATERIALS API ----
 export async function getMaterials(classId) {
   try {

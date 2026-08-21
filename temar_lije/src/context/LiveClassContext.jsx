@@ -92,7 +92,9 @@ export function LiveClassProvider({ children }) {
   const disconnectSocket = useCallback(() => {
     if (socketRef.current) {
       try {
-        socketRef.current.emit('leaveLiveClass', { classId: activeClassId });
+        if (activeClassIdRef.current) {
+          socketRef.current.emit('leaveLiveClass', { classId: activeClassIdRef.current });
+        }
         socketRef.current.disconnect();
       } catch (e) {
         console.warn('Socket disconnect notice:', e);
@@ -100,7 +102,7 @@ export function LiveClassProvider({ children }) {
       socketRef.current = null;
       setLiveSocket(null);
     }
-  }, [activeClassId]);
+  }, []);
 
   const startSession = useCallback(
     async ({ classId, className = 'Live Classroom', teacher = false, user = { name: 'User' } }) => {
@@ -199,11 +201,15 @@ export function LiveClassProvider({ children }) {
     }
   }, [activeClassId, isTeacher, disconnectSocket]);
 
+  // Disconnect only on actual component unmount
   useEffect(() => {
     return () => {
-      disconnectSocket();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
-  }, [disconnectSocket]);
+  }, []);
 
   const toggleMinimize = useCallback(() => {
     setIsMinimized((prev) => !prev);

@@ -151,7 +151,7 @@ class AuthController {
   async logout(@Req() req, @Res({ passthrough: true }) res) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
     await this.authService.logout(userId);
-    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/auth/refresh' });
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/' });
     return { message: 'Logged out successfully' };
   }
 

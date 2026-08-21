@@ -3,6 +3,7 @@ const {
   Injectable,
   Dependencies,
   UnauthorizedException,
+  Logger,
 } = require('@nestjs/common');
 const { JwtService } = require('@nestjs/jwt');
 const { ConfigService } = require('@nestjs/config');
@@ -26,6 +27,7 @@ class AuthService {
     this.jwtService = jwtService;
     this.configService = configService;
     this.emailService = emailService;
+    this.logger = new Logger(AuthService.name);
 
     this._dummyHashPromise = this._hashPassword(
       'a-constant-placeholder-value-never-used-as-a-real-password',
@@ -389,6 +391,7 @@ class AuthService {
           where: { id: existingByEmail.id },
           data: { googleId, isEmailVerified: true },
         });
+      } else {
         // Path 3: genuinely new user. Default to STUDENT if role not explicitly chosen.
         const roleToAssign =
           requestedRole === 'TEACHER' || requestedRole === 'STUDENT'
@@ -403,11 +406,15 @@ class AuthService {
             email,
             googleId,
             role: roleToAssign,
-            isEmailVerified: emailVerified,
+            isEmailVerified: emailVerified === true,
             passwordHash: null,
           },
         });
       }
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Unable to authenticate with Google');
     }
 
     if (user.failedLoginAttempts > 0 || user.lockedUntil) {

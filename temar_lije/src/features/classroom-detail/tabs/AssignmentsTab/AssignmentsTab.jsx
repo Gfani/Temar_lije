@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { Calendar, Trash2, Loader2, Upload, Link, FileText, CheckCircle, CheckCircle2, Megaphone } from 'lucide-react';
-import { getAssignments, createAssignment, submitAssignment, getSubmissions, getFileUrl } from '../../../../services/apiClient';
+import { getAssignments, createAssignment, submitAssignment, getSubmissions, getFileUrl, deleteAssignment } from '../../../../services/apiClient';
 import styles from './AssignmentsTab.module.css';
 
 function formatDeadline(deadline) {

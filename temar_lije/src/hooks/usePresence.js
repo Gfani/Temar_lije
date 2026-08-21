@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import { API_BASE_URL } from '../config/constants';
+import { API_BASE_URL, getSocketUrl } from '../config/constants';
 
 /**
  * usePresence Hook
@@ -65,7 +65,7 @@ export function usePresence(providedSocket, currentUserId, currentUserEmail) {
     let socket = providedSocket;
     if (!socket) {
       const localToken = localStorage.getItem('temar_token');
-      socket = io(API_BASE_URL.replace('/api', ''), {
+      socket = io(getSocketUrl(), {
         transports: ['websocket', 'polling'],
         auth: { token: localToken, userId: currentUserId || currentUserEmail },
       });

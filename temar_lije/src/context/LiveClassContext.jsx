@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { startLiveSession as apiStartSession, endLiveSession as apiEndSession, getLiveToken } from '../services/apiClient';
-
-const API_BASE_URL =
-  import.meta.env?.VITE_WS_URL ||
-  import.meta.env?.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.port === '5173'
-    ? 'http://localhost:3000'
-    : '');
+import { getSocketUrl } from '../config/constants';
 
 const LiveClassContext = createContext(null);
 
@@ -30,7 +24,7 @@ export function LiveClassProvider({ children }) {
   // Global socket listener to alert students when a teacher starts any live class
   useEffect(() => {
     const localToken = localStorage.getItem('temar_token');
-    const globalSocket = io(API_BASE_URL.replace('/api', ''), {
+    const globalSocket = io(getSocketUrl(), {
       transports: ['websocket', 'polling'],
       auth: { token: localToken },
     });
@@ -91,7 +85,7 @@ export function LiveClassProvider({ children }) {
 
         // Initialize persistent WebSocket connection for live-class namespace
         const localToken = localStorage.getItem('temar_token');
-        const socket = io(`${API_BASE_URL}/live-class`, {
+        const socket = io(getSocketUrl('/live-class'), {
           transports: ['websocket', 'polling'],
           auth: { token: localToken },
           query: { classId: cleanClassId },
@@ -114,7 +108,7 @@ export function LiveClassProvider({ children }) {
 
             // Also broadcast on root chat namespace for immediate platform-wide student alert
             try {
-              const rootSocket = io(API_BASE_URL.replace('/api', ''), {
+              const rootSocket = io(getSocketUrl(), {
                 transports: ['websocket', 'polling'],
                 auth: { token: localToken },
               });

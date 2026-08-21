@@ -18,12 +18,7 @@ import AudioStreamer from './AudioStreamer';
 import { useLiveClass } from '../../context/LiveClassContext';
 import styles from './LiveClassroomContainer.module.css';
 
-const API_BASE_URL =
-  import.meta.env?.VITE_WS_URL ||
-  import.meta.env?.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.port === '5173'
-    ? 'http://localhost:3000'
-    : '');
+import { getSocketUrl } from '../../config/constants';
 
 /**
  * React ErrorBoundary wrapper to capture unexpected Jitsi SDK / iframe load errors
@@ -118,7 +113,7 @@ export default function LiveClassroomContainer({
 
     if (!socket) {
       const token = localStorage.getItem('temar_token');
-      socket = io(`${API_BASE_URL}/live-class`, {
+      socket = io(getSocketUrl('/live-class'), {
         transports: ['websocket', 'polling'],
         auth: { token },
         query: { classId },

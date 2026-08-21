@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare, Phone, Mic, MicOff, Volume2, LogOut, Pin, PinOff, Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
 import './chat.css';
 import { io } from 'socket.io-client';
-import { API_BASE_URL } from '../../config/constants';
+import { API_BASE_URL, getSocketUrl } from '../../config/constants';
 import { useAuth } from '../../context/AuthContext';
 import CreateGroup from '../../components/layout/create_group/create_group';
 import AddMember from '../../components/layout/add_member/add_member';
@@ -644,8 +644,7 @@ function Chat({
 
     // Initialize socket connection and load groups
     useEffect(() => {
-        const socketUrl = API_BASE_URL ? API_BASE_URL.replace(/\/api\/?$/, '') : '';
-        socketRef.current = io(socketUrl, {
+        socketRef.current = io(getSocketUrl(), {
             auth: (cb) => cb({ token: tokenRef.current }),
             transports: ['websocket', 'polling']
         });

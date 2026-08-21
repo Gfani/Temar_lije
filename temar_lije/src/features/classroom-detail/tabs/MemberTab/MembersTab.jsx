@@ -3,7 +3,7 @@ import { Search, Plus, Users, Code, Sparkles, Trash2, CheckCircle2 } from 'lucid
 import io from 'socket.io-client';
 import './membersTab.css';
 import Chat from '../../../chat/chat.jsx';
-import { API_BASE_URL } from '../../../../config/constants';
+import { API_BASE_URL, getSocketUrl } from '../../../../config/constants';
 import { useAuth } from '../../../../context/AuthContext';
 import CreateGroup from '../../../../components/layout/create_group/create_group.jsx';
 import StudyInvitation from '../../../../components/layout/study_invitation/study_invitation.jsx';
@@ -107,7 +107,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
   const tabs = ['Members', 'Study Groups'];
 
   useEffect(() => {
-    const socket = io(API_BASE_URL.replace('/api', ''), {
+    const socket = io(getSocketUrl(), {
       auth: { token: accessToken },
       transports: ['websocket', 'polling']
     });

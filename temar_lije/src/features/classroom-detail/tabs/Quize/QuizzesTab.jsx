@@ -365,11 +365,14 @@ export default function QuizzesTab({
     setSubmittingQuiz(true);
     setTakeError('');
     try {
+      const answersList = (takingQuiz.questions || []).map((q) => ({
+        questionId: q.id,
+        selectedOptionId: studentAnswers[q.id] !== undefined ? studentAnswers[q.id] : null,
+      }));
+
       const answersPayload = {
-        answers: Object.entries(studentAnswers).map(([questionId, selectedOptionId]) => ({
-          questionId,
-          selectedOptionId,
-        })),
+        studentId: currentUser?.id,
+        answers: answersList,
       };
 
       const result = await submitQuiz(takingQuiz.id, answersPayload);
@@ -377,7 +380,7 @@ export default function QuizzesTab({
       setResultModal(result);
       await loadQuizzesList();
     } catch (err) {
-      setTakeError(err.message || 'Submission failed');
+      setTakeError(err.message || 'Submission failed. Please try again.');
     } finally {
       setSubmittingQuiz(false);
     }

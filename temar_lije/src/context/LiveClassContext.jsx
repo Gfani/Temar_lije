@@ -27,13 +27,40 @@ export function LiveClassProvider({ children }) {
 
   // Global socket listener to alert students when a teacher starts any live class
   useEffect(() => {
+    const playNotificationChime = () => {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const now = ctx.currentTime;
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(880, now + 0.12); // A5
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.start(now);
+        osc.stop(now + 0.6);
+      } catch (e) {
+        // audio context blocked by browser autoplay policy until user gesture
+      }
+    };
+
     const localToken = localStorage.getItem('temar_token');
     const globalSocket = io(getSocketUrl(), {
       transports: ['websocket', 'polling'],
       auth: { token: localToken },
     });
 
-    globalSocket.on('liveClassStarted', (data) => {
+    const liveNamespaceSocket = io(getSocketUrl('/live-class'), {
+      transports: ['websocket', 'polling'],
+      auth: { token: localToken },
+    });
+
+    const handleStarted = (data) => {
       if (!isLiveActiveRef.current || activeClassIdRef.current !== data.classId) {
         setLiveClassNotification({
           classId: data.classId,
@@ -41,15 +68,23 @@ export function LiveClassProvider({ children }) {
           teacherName: data.teacherName || 'Instructor',
           startedAt: data.startedAt || Date.now(),
         });
+        playNotificationChime();
       }
-    });
+    };
 
-    globalSocket.on('liveClassEnded', (data) => {
+    const handleEnded = (data) => {
       setLiveClassNotification((prev) => (prev?.classId === data.classId ? null : prev));
-    });
+    };
+
+    globalSocket.on('liveClassStarted', handleStarted);
+    globalSocket.on('liveClassEnded', handleEnded);
+
+    liveNamespaceSocket.on('liveClassStarted', handleStarted);
+    liveNamespaceSocket.on('liveClassEnded', handleEnded);
 
     return () => {
       globalSocket.disconnect();
+      liveNamespaceSocket.disconnect();
     };
   }, []);
 

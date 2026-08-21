@@ -640,7 +640,8 @@ function Chat({
 
     // Initialize socket connection and load groups
     useEffect(() => {
-        socketRef.current = io(API_BASE_URL, {
+        const socketUrl = API_BASE_URL ? API_BASE_URL.replace(/\/api\/?$/, '') : '';
+        socketRef.current = io(socketUrl, {
             auth: (cb) => cb({ token: tokenRef.current }),
             transports: ['websocket', 'polling']
         });

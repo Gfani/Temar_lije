@@ -5,7 +5,9 @@ import { startLiveSession as apiStartSession, endLiveSession as apiEndSession, g
 const API_BASE_URL =
   import.meta.env?.VITE_WS_URL ||
   import.meta.env?.VITE_API_URL ||
-  'http://localhost:3000';
+  (typeof window !== 'undefined' && window.location.port === '5173'
+    ? 'http://localhost:3000'
+    : '');
 
 const LiveClassContext = createContext(null);
 

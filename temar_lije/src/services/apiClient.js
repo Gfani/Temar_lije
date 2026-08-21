@@ -20,7 +20,13 @@ export function getFileUrl(path) {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL}${cleanPath}`;
+  if (cleanPath.startsWith('/uploads/')) {
+    return cleanPath;
+  }
+  if (cleanPath.startsWith('/api/uploads/')) {
+    return cleanPath.replace('/api', '');
+  }
+  return `/uploads${cleanPath}`;
 }
 
 // ---- MATERIALS API ----

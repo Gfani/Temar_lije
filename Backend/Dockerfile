@@ -54,8 +54,8 @@ COPY --chown=node:node prisma ./prisma/
 COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /usr/src/app/dist ./dist
 
-# Create uploads directory and ensure correct ownership for the non-root node user
-RUN mkdir -p uploads && chown -R node:node /usr/src/app
+# Create uploads directory structure and ensure write permissions
+RUN mkdir -p uploads/materials uploads/assignments uploads/submissions && chmod -R 777 uploads && chown -R node:node /usr/src/app
 
 # Switch to non-root node user for security
 USER node

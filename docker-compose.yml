@@ -45,6 +45,11 @@ services:
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-temar_access_secret_key_production_2026}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-temar_refresh_secret_key_production_2026}
       - FRONTEND_URL=http://localhost:5173
+      - SMTP_HOST=${SMTP_HOST:-smtp.mailtrap.io}
+      - SMTP_PORT=${SMTP_PORT:-2525}
+      - SMTP_USER=${SMTP_USER:-dummy_user}
+      - SMTP_PASS=${SMTP_PASS:-dummy_password}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
     depends_on:
       db:
         condition: service_healthy

@@ -20,6 +20,10 @@ export function LiveClassProvider({ children }) {
   const [liveClassNotification, setLiveClassNotification] = useState(null);
 
   const socketRef = useRef(null);
+  const activeClassIdRef = useRef(activeClassId);
+  activeClassIdRef.current = activeClassId;
+  const isLiveActiveRef = useRef(isLiveActive);
+  isLiveActiveRef.current = isLiveActive;
 
   // Global socket listener to alert students when a teacher starts any live class
   useEffect(() => {
@@ -30,7 +34,7 @@ export function LiveClassProvider({ children }) {
     });
 
     globalSocket.on('liveClassStarted', (data) => {
-      if (!isLiveActive || activeClassId !== data.classId) {
+      if (!isLiveActiveRef.current || activeClassIdRef.current !== data.classId) {
         setLiveClassNotification({
           classId: data.classId,
           className: data.className || 'Live Classroom',
@@ -47,7 +51,7 @@ export function LiveClassProvider({ children }) {
     return () => {
       globalSocket.disconnect();
     };
-  }, [isLiveActive, activeClassId]);
+  }, []);
 
   // Clean up socket when active session ends or component unmounts
   const disconnectSocket = useCallback(() => {

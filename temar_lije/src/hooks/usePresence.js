@@ -9,10 +9,16 @@ import { API_BASE_URL, getSocketUrl } from '../config/constants';
 export function usePresence(providedSocket, currentUserId, currentUserEmail) {
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
   const socketRef = useRef(providedSocket);
+  socketRef.current = providedSocket;
   const internalSocketRef = useRef(null);
 
+  const userIdRef = useRef(currentUserId);
+  userIdRef.current = currentUserId;
+  const userEmailRef = useRef(currentUserEmail);
+  userEmailRef.current = currentUserEmail;
+
   const sendHeartbeat = useCallback(async () => {
-    const id = currentUserId || currentUserEmail;
+    const id = userIdRef.current || userEmailRef.current;
     if (!id) return;
     try {
       const res = await fetch(`${API_BASE_URL}/users/heartbeat`, {
@@ -29,7 +35,7 @@ export function usePresence(providedSocket, currentUserId, currentUserEmail) {
     } catch (err) {
       // silently ignore network jitter
     }
-  }, [currentUserId, currentUserEmail]);
+  }, []);
 
   const fetchPresence = useCallback(async () => {
     try {
@@ -56,8 +62,8 @@ export function usePresence(providedSocket, currentUserId, currentUserEmail) {
       sendHeartbeat();
 
       const activeSocket = socketRef.current || internalSocketRef.current;
-      if (activeSocket) {
-        activeSocket.emit('heartbeat', { userId: currentUserId || currentUserEmail });
+      if (activeSocket && activeSocket.connected) {
+        activeSocket.emit('heartbeat', { userId: userIdRef.current || userEmailRef.current });
       }
     }, 5000);
 
@@ -67,7 +73,7 @@ export function usePresence(providedSocket, currentUserId, currentUserEmail) {
       const localToken = localStorage.getItem('temar_token');
       socket = io(getSocketUrl(), {
         transports: ['websocket', 'polling'],
-        auth: { token: localToken, userId: currentUserId || currentUserEmail },
+        auth: { token: localToken, userId: userIdRef.current || userEmailRef.current },
       });
       internalSocketRef.current = socket;
     }
@@ -78,7 +84,13 @@ export function usePresence(providedSocket, currentUserId, currentUserEmail) {
           setOnlineUserIds(new Set(data.onlineUserIds));
         }
       });
-      socket.emit('heartbeat', { userId: currentUserId || currentUserEmail });
+      if (socket.connected) {
+        socket.emit('heartbeat', { userId: userIdRef.current || userEmailRef.current });
+      } else {
+        socket.on('connect', () => {
+          socket.emit('heartbeat', { userId: userIdRef.current || userEmailRef.current });
+        });
+      }
     }
 
     return () => {
@@ -88,7 +100,7 @@ export function usePresence(providedSocket, currentUserId, currentUserEmail) {
         internalSocketRef.current = null;
       }
     };
-  }, [fetchPresence, sendHeartbeat, providedSocket, currentUserId, currentUserEmail]);
+  }, [providedSocket, fetchPresence, sendHeartbeat]);
 
   const isUserOnline = useCallback(
     (userId, userEmail) => {

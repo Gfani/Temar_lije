@@ -111,8 +111,7 @@ export class ChatController {
     if (!file) {
       return { error: 'No file uploaded' };
     }
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const fileUrl = `${baseUrl}/uploads/${file.filename}`;
+    const fileUrl = `/uploads/${file.filename}`;
     return {
       url: fileUrl,
       filename: file.filename,

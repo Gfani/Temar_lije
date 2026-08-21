@@ -254,29 +254,5 @@ export class LiveClassGateway implements OnGatewayDisconnect {
   handlePing() {
     return { status: 'pong', timestamp: Date.now() };
   }
-
-  /**
-   * Broadcast when teacher joins/starts a live class
-   */
-  @SubscribeMessage('teacherJoinedLive')
-  handleTeacherJoinedLive(
-    @MessageBody() data: any,
-    @ConnectedSocket() client: Socket,
-  ) {
-    this.server.emit('liveClassStarted', data);
-    return { status: 'broadcasted' };
-  }
-
-  /**
-   * Broadcast when teacher ends a live class
-   */
-  @SubscribeMessage('teacherEndedLive')
-  handleTeacherEndedLive(
-    @MessageBody() data: any,
-    @ConnectedSocket() client: Socket,
-  ) {
-    this.server.emit('liveClassEnded', data);
-    return { status: 'broadcasted' };
-  }
 }
 

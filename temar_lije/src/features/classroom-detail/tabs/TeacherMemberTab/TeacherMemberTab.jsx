@@ -1,14 +1,10 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { User, Loader2 } from 'lucide-react';
 import styles from './TeacherMemberTab.module.css';
-
-const DEFAULT_MEMBERS = [
-  { id: 'seed-fiema', name: 'Fiema Yaregal', joinedAt: '2026-08-06' },
-  { id: 'seed-fani', name: 'Fani', joinedAt: '2026-08-06' },
-  { id: 'seed-hana', name: 'Hana Tesfaye', joinedAt: '2026-08-07' },
-];
+import { getClassroomMembers, removeClassroomMember } from '../../../../services/apiClient';
 
 function formatJoined(dateString) {
+  if (!dateString) return 'Joined recently';
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return 'Joined recently';
   return `Joined ${date.toLocaleDateString(undefined, {
@@ -20,27 +16,39 @@ function formatJoined(dateString) {
 
 /**
  * TeacherMemberTab
- * Renders the "Members" tab panel of a classroom for the teacher:
- * a roster list with each student's name, join date, and a Remove
- * action. Fully self-contained state — wire onRemoveMember to a real
- * API call when integrating.
+ * Renders the real student roster list of a classroom for the teacher from the PostgreSQL database.
  */
-export default function TeacherMemberTab({ initialMembers = DEFAULT_MEMBERS, onRemoveMember }) {
-  const [members, setMembers] = useState(initialMembers);
+export default function TeacherMemberTab({ classroom, currentUser }) {
+  const classId = classroom?.id || '66666666-6666-4666-8666-666666666666';
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState(null);
   const [removeError, setRemoveError] = useState('');
 
-  const handleRemoveMember = useCallback(
+  const loadMembers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getClassroomMembers(classId);
+      setMembers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Failed to load members:', err);
+      setMembers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [classId]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  const handleRemove = useCallback(
     async (id) => {
       if (removingId) return;
       setRemovingId(id);
       setRemoveError('');
       try {
-        if (onRemoveMember) {
-          await onRemoveMember(id);
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 700));
-        }
+        await removeClassroomMember(classId, id);
         setMembers((prev) => prev.filter((m) => m.id !== id));
       } catch (err) {
         setRemoveError('Could not remove this member. Try again.');
@@ -48,7 +56,7 @@ export default function TeacherMemberTab({ initialMembers = DEFAULT_MEMBERS, onR
         setRemovingId(null);
       }
     },
-    [removingId, onRemoveMember]
+    [removingId, classId]
   );
 
   return (
@@ -59,9 +67,14 @@ export default function TeacherMemberTab({ initialMembers = DEFAULT_MEMBERS, onR
         </p>
       )}
 
-      {members.length === 0 ? (
+      {loading ? (
+        <div className={styles.emptyCard} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+          <Loader2 className="animate-spin" size={24} style={{ color: '#14785c' }} />
+          <span style={{ marginLeft: '10px', color: '#6b7280' }}>Loading classroom members...</span>
+        </div>
+      ) : members.length === 0 ? (
         <div className={styles.emptyCard}>
-          <p className={styles.emptyState}>No members yet. Share the invitation code to invite students.</p>
+          <p className={styles.emptyState}>No students enrolled yet. Share your classroom code to invite students.</p>
         </div>
       ) : (
         <ul className={styles.memberList}>
@@ -74,7 +87,7 @@ export default function TeacherMemberTab({ initialMembers = DEFAULT_MEMBERS, onR
                     <User className={styles.avatarIcon} />
                   </span>
                   <div className={styles.memberText}>
-                    <span className={styles.memberName}>{member.name}</span>
+                    <span className={styles.memberName}>{member.name || member.email}</span>
                     <span className={styles.memberJoined}>{formatJoined(member.joinedAt)}</span>
                   </div>
                 </div>
@@ -82,10 +95,10 @@ export default function TeacherMemberTab({ initialMembers = DEFAULT_MEMBERS, onR
                 <button
                   type="button"
                   className={styles.removeButton}
-                  onClick={() => handleRemoveMember(member.id)}
+                  onClick={() => handleRemove(member.id)}
                   disabled={removingId !== null}
                   aria-busy={isRemoving}
-                  aria-label={`Remove ${member.name}`}
+                  aria-label={`Remove ${member.name || 'member'}`}
                 >
                   {isRemoving ? (
                     <>

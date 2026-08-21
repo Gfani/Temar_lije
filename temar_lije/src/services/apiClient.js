@@ -51,6 +51,34 @@ export async function getMaterials(classId) {
   }
 }
 
+export async function getClassroomMembers(classId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/classrooms/${classId}/members`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const res2 = await fetch(`${API_BASE_URL}/users/students`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res2.ok) return [];
+      return await res2.json();
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to fetch classroom members:', err);
+    return [];
+  }
+}
+
+export async function removeClassroomMember(classId, memberId) {
+  const res = await fetch(`${API_BASE_URL}/classrooms/${classId}/members/${memberId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to remove member');
+  return await res.json();
+}
+
 export async function uploadMaterial(formData) {
   let res = await fetch(`${API_BASE_URL}/materials/upload`, {
     method: 'POST',

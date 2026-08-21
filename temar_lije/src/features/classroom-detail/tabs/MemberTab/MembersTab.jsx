@@ -9,27 +9,7 @@ import CreateGroup from '../../../../components/layout/create_group/create_group
 import StudyInvitation from '../../../../components/layout/study_invitation/study_invitation.jsx';
 import SendInvitation from '../../../../components/layout/send_invitation/send_invitation.jsx';
 
-const USER_PROFILES = {
-  'at': { name: 'Abebe Tadesse', initials: 'AT', avatarBg: '#8b5cf6', online: true },
-  'mh': { name: 'Meron Haile', initials: 'MH', avatarBg: '#f97316', online: false },
-  'yb': { name: 'Yonas Bekele', initials: 'YB', avatarBg: '#0d9488', online: true },
-  'ta': { name: 'Tigist Alemu', initials: 'TA', avatarBg: '#a855f7', online: true },
-};
-
-// Static classroom roster (mock — no classroom-members API exists).
-// The authenticated user is injected at render time from useAuth() and
-// keyed by id, so the (you) badge can only ever match their account.
-const ONLINE_CLASSMATES = [
-  { id: 'mock-at', name: 'Abebe Tadesse', initials: 'AT', avatarClass: 'at-bg' },
-  { id: 'mock-yb', name: 'Yonas Bekele', initials: 'YB', avatarClass: 'yb-bg' },
-  { id: 'mock-ta', name: 'Tigist Alemu', initials: 'TA', avatarClass: 'ta-bg' },
-  { id: 'mock-ht', name: 'Hana Tesfaye', initials: 'HT', avatarClass: 'ht-bg' },
-];
-
-const OFFLINE_CLASSMATES = [
-  { id: 'mock-mh', name: 'Meron Haile', initials: 'MH', avatarClass: 'mh-bg', status: 'last seen 2h ago' },
-  { id: 'mock-dg', name: 'Dawit Girma', initials: 'DG', avatarClass: 'dg-bg', status: 'last seen 1d ago' },
-];
+import { getClassroomMembers } from '../../../../services/apiClient';
 
 export default function MembersTab({ darkMode, setDarkMode, classroom, currentUser }) {
   const { user, accessToken } = useAuth();
@@ -40,6 +20,26 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     || currentUser?.initials
     || (effectiveUserName || '').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase()
     || 'U';
+
+  const [realMembers, setRealMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+
+  const fetchMembers = React.useCallback(async () => {
+    setLoadingMembers(true);
+    try {
+      const data = await getClassroomMembers(classroomId);
+      setRealMembers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Failed to load members:', err);
+      setRealMembers([]);
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [classroomId]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
 
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
@@ -397,70 +397,61 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
                     </button>
                   </div>
 
-                  {/* Teachers Section */}
+                  {/* Instructor Section */}
                   <section className="members-section">
-                    <h4 className="section-title">TEACHERS (1)</h4>
+                    <h4 className="section-title">INSTRUCTOR</h4>
                     <div className="member-card-row">
-                      <div className="member-avatar sm-bg">SM</div>
+                      <div className="member-avatar sm-bg" style={{ backgroundColor: '#14785c' }}>
+                        {(classroom?.instructor || 'T').charAt(0).toUpperCase()}
+                      </div>
                       <div className="member-details">
                         <div className="member-name-row">
-                          <span className="member-name-text">Samuel Mekonnen</span>
+                          <span className="member-name-text">{classroom?.instructor || 'Class Instructor'}</span>
                           <span className="teacher-badge-label">Teacher</span>
                         </div>
                         <span className="member-status-text">
-                          <span className="online-indicator-dot"></span> online now
+                          <span className="online-indicator-dot"></span> instructor
                         </span>
                       </div>
                     </div>
                   </section>
 
-                  {/* Students Online Section */}
+                  {/* Registered Students Section */}
                   <section className="members-section">
-                    <h4 className="section-title">STUDENTS • ONLINE ({ONLINE_CLASSMATES.length + 1})</h4>
-                    <div className="members-list-stack">
-                      {[
-                        {
-                          id: user?.id || 'anonymous',
-                          name: user?.fullName || currentUser?.name || 'You',
-                          initials: currentUserInitials,
-                          avatarClass: 'gs-bg',
-                        },
-                        ...ONLINE_CLASSMATES,
-                      ].map((member) => (
-                        <div className="member-card-row" key={member.id}>
-                          <div className={`member-avatar ${member.avatarClass}`}>{member.initials}</div>
-                          <div className="member-details">
-                            <div className="member-name-row">
-                              <span className="member-name-text">{member.name}</span>
-                              {(member.id === user?.id || (member.name === (user?.fullName || currentUser?.name))) && (
-                                <span className="you-badge-label">(you)</span>
-                              )}
+                    <h4 className="section-title">
+                      ENROLLED STUDENTS ({realMembers.length})
+                    </h4>
+                    {loadingMembers ? (
+                      <div style={{ padding: '16px', color: '#64748b', fontSize: '13px' }}>
+                        Loading registered students...
+                      </div>
+                    ) : realMembers.length === 0 ? (
+                      <div style={{ padding: '16px', color: '#64748b', fontSize: '13px', fontStyle: 'italic' }}>
+                        No classmates enrolled yet. Share your classroom code to study together!
+                      </div>
+                    ) : (
+                      <div className="members-list-stack">
+                        {realMembers.map((member) => {
+                          const isYou = member.id === effectiveUserId || member.email === user?.email;
+                          return (
+                            <div className="member-card-row" key={member.id}>
+                              <div className="member-avatar gs-bg" style={{ backgroundColor: '#3b82f6' }}>
+                                {member.initials || 'ST'}
+                              </div>
+                              <div className="member-details">
+                                <div className="member-name-row">
+                                  <span className="member-name-text">{member.name || member.email}</span>
+                                  {isYou && <span className="you-badge-label">(you)</span>}
+                                </div>
+                                <span className="member-status-text">
+                                  <span className="online-indicator-dot"></span> student
+                                </span>
+                              </div>
                             </div>
-                            <span className="member-status-text">
-                              <span className="online-indicator-dot"></span> online now
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  {/* Students Offline Section */}
-                  <section className="members-section">
-                    <h4 className="section-title">STUDENTS • OFFLINE ({OFFLINE_CLASSMATES.length})</h4>
-                    <div className="members-list-stack">
-                      {OFFLINE_CLASSMATES.map((member) => (
-                        <div className="member-card-row offline" key={member.id}>
-                          <div className={`member-avatar ${member.avatarClass}`}>{member.initials}</div>
-                          <div className="member-details">
-                            <span className="member-name-text">{member.name}</span>
-                            <span className="member-status-text">
-                              <span className="offline-indicator-dot"></span> {member.status}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </section>
                 </div>
               )}

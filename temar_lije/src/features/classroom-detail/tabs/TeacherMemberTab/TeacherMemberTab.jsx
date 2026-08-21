@@ -29,7 +29,10 @@ export default function TeacherMemberTab({ classroom, currentUser }) {
     setLoading(true);
     try {
       const data = await getClassroomMembers(classId);
-      setMembers(Array.isArray(data) ? data : []);
+      const studentOnly = (Array.isArray(data) ? data : []).filter(
+        (m) => (m.role || '').toUpperCase() !== 'TEACHER'
+      );
+      setMembers(studentOnly);
     } catch (err) {
       console.warn('Failed to load members:', err);
       setMembers([]);

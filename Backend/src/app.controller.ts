@@ -56,14 +56,16 @@ export class AppController {
       });
 
       if (members && members.length > 0) {
-        return members.map((m) => ({
-          id: m.user.id,
-          name: m.user.fullName || m.user.name || m.user.email,
-          email: m.user.email,
-          initials: m.user.initials || 'U',
-          joinedAt: m.joinedAt,
-          role: m.user.role,
-        }));
+        return members
+          .filter((m) => (m.user.role || '').toUpperCase() !== 'TEACHER')
+          .map((m) => ({
+            id: m.user.id,
+            name: m.user.fullName || m.user.name || m.user.email,
+            email: m.user.email,
+            initials: m.user.initials || 'U',
+            joinedAt: m.joinedAt,
+            role: m.user.role,
+          }));
       }
 
       // 2. Fallback: Return all registered students from the real database

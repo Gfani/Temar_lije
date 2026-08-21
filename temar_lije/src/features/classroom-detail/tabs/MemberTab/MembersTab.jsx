@@ -28,7 +28,10 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     setLoadingMembers(true);
     try {
       const data = await getClassroomMembers(classroomId);
-      setRealMembers(Array.isArray(data) ? data : []);
+      const studentOnly = (Array.isArray(data) ? data : []).filter(
+        (m) => (m.role || '').toUpperCase() !== 'TEACHER'
+      );
+      setRealMembers(studentOnly);
     } catch (err) {
       console.warn('Failed to load members:', err);
       setRealMembers([]);

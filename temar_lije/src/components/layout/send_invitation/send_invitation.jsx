@@ -7,7 +7,7 @@ function SendInvitation({
     onClose,
     groupName = 'Study Group',
     topicName,
-    invitedMembers = ['at', 'yb'],
+    invitedMembers = [],
     userProfiles = {},
     onSend
 }) {

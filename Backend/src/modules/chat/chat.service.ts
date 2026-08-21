@@ -256,16 +256,20 @@ export class ChatService {
 
   async getGroups(userId?: string, classroomId?: string | number) {
     const classIdStr = classroomId ? String(classroomId) : undefined;
+    const userUuid = userId ? toUuid(userId) : undefined;
+
     return this.db.studyGroup.findMany({
-      where: classIdStr
-        ? { classroomId: toUuid(classIdStr) }
-        : {
-          OR: [
-            ...(userId ? [{ members: { some: { userId: toUuid(userId) } } }] : []),
-            { members: { none: {} } },
-            { classroomId: null },
-          ],
-        },
+      where: {
+        ...(classIdStr ? { classroomId: toUuid(classIdStr) } : {}),
+        ...(userUuid
+          ? {
+              OR: [
+                { createdById: userUuid },
+                { members: { some: { userId: userUuid } } },
+              ],
+            }
+          : {}),
+      },
       include: {
         members: {
           include: {

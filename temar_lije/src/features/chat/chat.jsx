@@ -12,14 +12,6 @@ import StudyInvitation from '../../components/layout/study_invitation/study_invi
 
 const CURATED_EMOJIS = ['😄', '😂', '👍', '❤️', '🔥', '💪', '✅', '🎨', '💻', '🚀', '📚', '📝', '💡', '👑', '🌟', '👏', '🎉', '👋'];
 
-const USER_PROFILES = {
-    'gs': { name: 'Sara Gebremedhin', initials: 'SG', avatarBg: '#3b82f6', online: true },
-    'at': { name: 'Abebe Tadesse', initials: 'AT', avatarBg: '#8b5cf6', online: true },
-    'yb': { name: 'Yonas Bekele', initials: 'YB', avatarBg: '#0d9488', online: true },
-    'mh': { name: 'Meron Haile', initials: 'MH', avatarBg: '#f97316', online: false },
-    'ta': { name: 'Tigist Alemu', initials: 'TA', avatarBg: '#a855f7', online: true }
-};
-
 function Chat({
     hideSidebar = false,
     activeId: propActiveId,
@@ -36,22 +28,59 @@ function Chat({
     const darkMode = propDarkMode !== undefined ? propDarkMode : localDarkMode;
     const setDarkMode = propSetDarkMode !== undefined ? propSetDarkMode : setLocalDarkMode;
     const [searchQuery, setSearchQuery] = useState('');
+    const [studentsList, setStudentsList] = useState([]);
 
     const { accessToken, refreshAccessToken, user: authUser } = useAuth();
     const tokenRef = useRef(accessToken);
     tokenRef.current = accessToken;
 
-    // Chat identity = the logged-in user. Falls back to the demo persona
-    // ('gs') only when no session exists (dev/demo mode).
     const currentUser = {
-        id: authUser?.id || 'gs',
-        name: authUser?.fullName || 'Sara Gebremedhin',
-        initials: authUser?.initials || (authUser?.fullName || 'SG').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U',
+        id: authUser?.id || 'guest',
+        name: authUser?.fullName || authUser?.name || authUser?.email || 'User',
+        initials: authUser?.initials || (authUser?.fullName || authUser?.name || 'U').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U',
         avatarBg: authUser?.avatarBg || '#3b82f6'
     };
     const currentUserRef = useRef(currentUser);
     currentUserRef.current = currentUser;
     const isAuthedRef = useRef(!!authUser);
+
+    useEffect(() => {
+        const fetchStudents = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/users/students`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        setStudentsList(data);
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to load students in chat:', err);
+            }
+        };
+        fetchStudents();
+    }, []);
+
+    const USER_PROFILES = useMemo(() => {
+        const map = {};
+        if (currentUser.id) {
+            map[currentUser.id] = {
+                name: currentUser.name,
+                initials: currentUser.initials,
+                avatarBg: currentUser.avatarBg,
+                online: true,
+            };
+        }
+        studentsList.forEach(s => {
+            map[s.id] = {
+                name: s.fullName || s.name || s.email,
+                initials: s.initials || (s.fullName ? s.fullName.slice(0, 2).toUpperCase() : 'ST'),
+                avatarBg: s.avatarBg || '#3b82f6',
+                online: true,
+            };
+        });
+        return map;
+    }, [currentUser, studentsList]);
 
     // Fetch wrapper that attaches the JWT and silently refreshes once on 401
     const apiFetch = async (url, options = {}) => {
@@ -307,32 +336,7 @@ function Chat({
                 });
             }
 
-            // Simulate peer users joining the call to showcase real-time voice chat indicators
-            setTimeout(() => {
-                const userAT = USER_PROFILES['at'];
-                if (socketRef.current) {
-                    socketRef.current.emit('joinVoiceChat', {
-                        groupId: activeId,
-                        userId: 'at',
-                        username: userAT.name,
-                        initials: userAT.initials,
-                        avatarBg: userAT.avatarBg
-                    });
-                }
-            }, 1500);
 
-            setTimeout(() => {
-                const userYB = USER_PROFILES['yb'];
-                if (socketRef.current) {
-                    socketRef.current.emit('joinVoiceChat', {
-                        groupId: activeId,
-                        userId: 'yb',
-                        username: userYB.name,
-                        initials: userYB.initials,
-                        avatarBg: userYB.avatarBg
-                    });
-                }
-            }, 3000);
 
             // Periodically refresh participant speaking states
             simSpeakerIntervalRef.current = setInterval(() => {

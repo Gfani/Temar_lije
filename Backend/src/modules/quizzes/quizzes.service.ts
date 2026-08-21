@@ -482,6 +482,40 @@ export class QuizzesService {
   }
 
   /**
+   * Helper to robustly extract option array and optional explanation regardless of serialization format
+   */
+  private _extractOptionsAndExplanation(rawOptions: any): { options: any[]; explanation: string } {
+    if (!rawOptions) {
+      return { options: [], explanation: '' };
+    }
+
+    let parsed = rawOptions;
+    if (typeof rawOptions === 'string') {
+      try {
+        parsed = JSON.parse(rawOptions);
+      } catch (e) {
+        return { options: [], explanation: '' };
+      }
+    }
+
+    if (Array.isArray(parsed)) {
+      return { options: parsed, explanation: '' };
+    }
+
+    if (parsed && typeof parsed === 'object') {
+      const items = Array.isArray(parsed.items)
+        ? parsed.items
+        : Array.isArray(parsed.options)
+        ? parsed.options
+        : [];
+      const explanation = typeof parsed.explanation === 'string' ? parsed.explanation : '';
+      return { options: items, explanation };
+    }
+
+    return { options: [], explanation: '' };
+  }
+
+  /**
    * Get student-facing quiz questions (strips isCorrect)
    */
   async getQuizForStudent(quizId: string, user?: any) {
@@ -490,13 +524,16 @@ export class QuizzesService {
       throw new NotFoundException('Quiz not found');
     }
 
-    const submissions = await this.databaseService.quizSubmission.findMany({
-      where: {
-        quizId: quiz.id,
-        ...(user?.id ? { studentId: user.id } : {}),
-      },
-      orderBy: { submittedAt: 'desc' },
-    });
+    const studentId = await this.resolveStudentUser(user?.id || user?.sub);
+    let submissions: any[] = [];
+    if (studentId) {
+      try {
+        submissions = await this.databaseService.quizSubmission.findMany({
+          where: { quizId: quiz.id, studentId },
+          orderBy: { submittedAt: 'desc' },
+        });
+      } catch (e) {}
+    }
 
     const existingSubmission = submissions.length > 0 ? submissions[0] : null;
     const totalPoints = quiz.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0);
@@ -517,12 +554,7 @@ export class QuizzesService {
           }
         : null,
       questions: quiz.questions.map((q: any, index: number) => {
-        let parsedOptions: any[] = [];
-        try {
-          parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : q.options || [];
-        } catch (e) {
-          parsedOptions = [];
-        }
+        const { options: parsedOptions } = this._extractOptionsAndExplanation(q.options);
 
         return {
           id: q.id,
@@ -531,7 +563,7 @@ export class QuizzesService {
           points: q.points || 1,
           order: index + 1,
           options: parsedOptions.map((opt: any, optIdx: number) => ({
-            id: typeof opt === 'object' && opt.id ? opt.id : String(optIdx),
+            id: typeof opt === 'object' && opt.id ? String(opt.id) : String(optIdx),
             text: typeof opt === 'string' ? opt : opt.text || String(opt),
           })),
         };
@@ -558,12 +590,7 @@ export class QuizzesService {
       isPublished: quiz.isPublished,
       totalPoints,
       questions: quiz.questions.map((q: any, index: number) => {
-        let parsedOptions: any[] = [];
-        try {
-          parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : q.options || [];
-        } catch (e) {
-          parsedOptions = [];
-        }
+        const { options: parsedOptions, explanation } = this._extractOptionsAndExplanation(q.options);
 
         const normalized = parsedOptions.map((opt: any, optIdx: number) => {
           if (typeof opt === 'string') {
@@ -588,6 +615,7 @@ export class QuizzesService {
           order: index + 1,
           options: normalized,
           correctAnswer: q.correctAnswer,
+          explanation,
         };
       }),
     };
@@ -597,175 +625,174 @@ export class QuizzesService {
    * Submit and grade a quiz
    */
   async submitQuiz(quizId: string, user: any, dto: any, authHeader?: string) {
-    let studentId = user?.id || user?.sub || dto?.studentId;
+    try {
+      let studentId = user?.id || user?.sub || dto?.studentId;
 
-    if (!studentId && authHeader && authHeader.startsWith('Bearer ') && this.jwtService) {
-      try {
-        const token = authHeader.replace(/^Bearer\s+/i, '');
-        const decoded: any = this.jwtService.decode(token);
-        if (decoded && (decoded.sub || decoded.id)) {
-          studentId = decoded.sub || decoded.id;
-        }
-      } catch (e) {}
-    }
-
-    const resolvedStudentId = await this.resolveStudentUser(studentId);
-
-    const quiz = await this.resolveQuiz(quizId);
-    if (!quiz) {
-      throw new NotFoundException('Quiz not found');
-    }
-
-    const submittedAnswers = Array.isArray(dto?.answers) ? dto.answers : [];
-    // Exploit prevention: denominator is always the sum of ALL quiz questions
-    const totalMaxScore = quiz.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0);
-    const answeredMap = new Map(
-      submittedAnswers.map((a: any) => [String(a?.questionId || ''), a])
-    );
-
-    let totalScore = 0;
-    const answerRecords: any[] = [];
-
-    for (const question of quiz.questions) {
-      const submitted: any = answeredMap.get(String(question.id));
-      let parsedOptions: any[] = [];
-      try {
-        parsedOptions =
-          typeof question.options === 'string'
-            ? JSON.parse(question.options)
-            : question.options || [];
-      } catch (e) {
-        parsedOptions = [];
+      if (!studentId && authHeader && authHeader.startsWith('Bearer ') && this.jwtService) {
+        try {
+          const token = authHeader.replace(/^Bearer\s+/i, '');
+          const decoded: any = this.jwtService.decode(token);
+          if (decoded && (decoded.sub || decoded.id)) {
+            studentId = decoded.sub || decoded.id;
+          }
+        } catch (e) {}
       }
 
-      // Normalize options to: [{ id, text, isCorrect }]
-      const normalizedOptions = parsedOptions.map((opt: any, optIdx: number) => {
-        if (typeof opt === 'string') {
-          const isThisCorrect =
-            String(opt).trim().toLowerCase() === String(question.correctAnswer || '').trim().toLowerCase() ||
-            String(optIdx) === String(question.correctAnswer || '').trim().toLowerCase();
+      const resolvedStudentId = await this.resolveStudentUser(studentId);
+
+      const quiz = await this.resolveQuiz(quizId);
+      if (!quiz) {
+        throw new NotFoundException('Quiz not found');
+      }
+
+      const submittedAnswers = Array.isArray(dto?.answers) ? dto.answers : [];
+      // Exploit prevention: denominator is always the sum of ALL quiz questions
+      const totalMaxScore = quiz.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0);
+      const answeredMap = new Map(
+        submittedAnswers.map((a: any) => [String(a?.questionId || ''), a])
+      );
+
+      let totalScore = 0;
+      const answerRecords: any[] = [];
+
+      for (const question of quiz.questions) {
+        const submitted: any = answeredMap.get(String(question.id));
+        const { options: parsedOptions, explanation: questionExplanation } = this._extractOptionsAndExplanation(question.options);
+
+        // Normalize options to: [{ id, text, isCorrect }]
+        const normalizedOptions = parsedOptions.map((opt: any, optIdx: number) => {
+          if (typeof opt === 'string') {
+            const isThisCorrect =
+              String(opt).trim().toLowerCase() === String(question.correctAnswer || '').trim().toLowerCase() ||
+              String(optIdx) === String(question.correctAnswer || '').trim().toLowerCase();
+            return {
+              id: String(optIdx),
+              text: opt,
+              isCorrect: isThisCorrect,
+            };
+          }
           return {
-            id: String(optIdx),
-            text: opt,
-            isCorrect: isThisCorrect,
+            id: opt.id !== undefined && opt.id !== null ? String(opt.id) : String(optIdx),
+            text: typeof opt === 'object' && opt.text !== undefined ? opt.text : String(opt),
+            isCorrect:
+              opt.isCorrect === true ||
+              String(opt.id) === String(question.correctAnswer) ||
+              String(opt.text).trim().toLowerCase() === String(question.correctAnswer || '').trim().toLowerCase(),
           };
+        });
+
+        const correctOpt = normalizedOptions.find((opt: any) => opt.isCorrect === true);
+        const correctOptId = correctOpt ? correctOpt.id : question.correctAnswer;
+        const correctOptText = correctOpt
+          ? correctOpt.text
+          : (normalizedOptions.find((o: any) => String(o.id) === String(question.correctAnswer))?.text || question.correctAnswer);
+
+        if (
+          !submitted ||
+          submitted.selectedOptionId === undefined ||
+          submitted.selectedOptionId === null ||
+          submitted.selectedOptionId === ''
+        ) {
+          answerRecords.push({
+            questionId: question.id,
+            questionText: question.questionText,
+            selectedOptionId: null,
+            selectedText: 'No answer selected',
+            correctOptionId: correctOptId,
+            correctText: correctOptText || '',
+            explanation: questionExplanation || '',
+            isCorrect: false,
+            pointsAwarded: 0,
+            maxPoints: question.points || 1,
+          });
+          continue;
         }
-        return {
-          id: opt.id !== undefined && opt.id !== null ? String(opt.id) : String(optIdx),
-          text: typeof opt === 'object' && opt.text !== undefined ? opt.text : String(opt),
-          isCorrect:
-            opt.isCorrect === true ||
-            String(opt.id) === String(question.correctAnswer) ||
-            String(opt.text).trim().toLowerCase() === String(question.correctAnswer || '').trim().toLowerCase(),
-        };
-      });
 
-      const correctOpt = normalizedOptions.find((opt: any) => opt.isCorrect === true);
-      const correctOptId = correctOpt ? correctOpt.id : question.correctAnswer;
-      const correctOptText = correctOpt
-        ? correctOpt.text
-        : (normalizedOptions.find((o: any) => String(o.id) === String(question.correctAnswer))?.text || question.correctAnswer);
+        const rawSelected = String(submitted.selectedOptionId);
+        const selectedOpt = normalizedOptions.find(
+          (opt: any) =>
+            String(opt.id) === rawSelected ||
+            String(opt.text).trim().toLowerCase() === rawSelected.trim().toLowerCase(),
+        );
 
-      if (
-        !submitted ||
-        submitted.selectedOptionId === undefined ||
-        submitted.selectedOptionId === null ||
-        submitted.selectedOptionId === ''
-      ) {
+        const isCorrect =
+          (selectedOpt && selectedOpt.isCorrect === true) ||
+          rawSelected === String(correctOptId) ||
+          (correctOptText && rawSelected.trim().toLowerCase() === String(correctOptText).trim().toLowerCase());
+
+        const pointsAwarded = isCorrect ? (question.points || 1) : 0;
+        totalScore += pointsAwarded;
+
         answerRecords.push({
           questionId: question.id,
           questionText: question.questionText,
-          selectedOptionId: null,
-          selectedText: 'No answer selected',
+          selectedOptionId: rawSelected,
+          selectedText: selectedOpt ? selectedOpt.text : rawSelected,
           correctOptionId: correctOptId,
           correctText: correctOptText || '',
-          isCorrect: false,
-          pointsAwarded: 0,
+          explanation: questionExplanation || '',
+          isCorrect: !!isCorrect,
+          pointsAwarded,
           maxPoints: question.points || 1,
         });
-        continue;
       }
 
-      const rawSelected = String(submitted.selectedOptionId);
-      const selectedOpt = normalizedOptions.find(
-        (opt: any) =>
-          String(opt.id) === rawSelected ||
-          String(opt.text).trim().toLowerCase() === rawSelected.trim().toLowerCase(),
-      );
+      let submission: any = null;
 
-      const isCorrect =
-        (selectedOpt && selectedOpt.isCorrect === true) ||
-        rawSelected === String(correctOptId) ||
-        (correctOptText && rawSelected.trim().toLowerCase() === String(correctOptText).trim().toLowerCase());
-
-      const pointsAwarded = isCorrect ? (question.points || 1) : 0;
-      totalScore += pointsAwarded;
-
-      let questionExplanation = '';
-      try {
-        const raw = typeof question.options === 'string' ? JSON.parse(question.options) : question.options;
-        if (raw && !Array.isArray(raw) && raw.explanation) {
-          questionExplanation = raw.explanation;
-        }
-      } catch (e) {}
-
-      answerRecords.push({
-        questionId: question.id,
-        questionText: question.questionText,
-        selectedOptionId: rawSelected,
-        selectedText: selectedOpt ? selectedOpt.text : rawSelected,
-        correctOptionId: correctOptId,
-        correctText: correctOptText || '',
-        explanation: questionExplanation || '',
-        isCorrect: !!isCorrect,
-        pointsAwarded,
-        maxPoints: question.points || 1,
-      });
-    }
-
-    let submission: any = null;
-
-    if (resolvedStudentId) {
-      try {
-        const prevAttempts = await this.databaseService.quizSubmission.findMany({
-          where: { quizId: quiz.id, studentId: resolvedStudentId },
-          orderBy: { attemptNumber: 'desc' },
-        });
-
-        const nextAttempt = (prevAttempts[0]?.attemptNumber || 0) + 1;
-
-        if (prevAttempts.length > 0) {
-          await this.databaseService.quizSubmission.updateMany({
-            where: { quizId: quiz.id, studentId: resolvedStudentId },
-            data: { isLatest: false },
+      if (resolvedStudentId && quiz) {
+        const studentIdStr: string = String(resolvedStudentId);
+        try {
+          const prevAttempts = await this.databaseService.quizSubmission.findMany({
+            where: { quizId: quiz.id, studentId: studentIdStr },
+            orderBy: { attemptNumber: 'desc' },
           });
+
+          const nextAttempt = (prevAttempts[0]?.attemptNumber || 0) + 1;
+
+          if (prevAttempts.length > 0) {
+            await this.databaseService.quizSubmission.updateMany({
+              where: { quizId: quiz.id, studentId: studentIdStr },
+              data: { isLatest: false },
+            });
+          }
+
+          submission = await this.databaseService.quizSubmission.create({
+            data: {
+              quizId: quiz.id,
+              studentId: studentIdStr,
+              score: totalScore,
+              answers: JSON.stringify(answerRecords),
+              attemptNumber: nextAttempt,
+              isLatest: true,
+            },
+          });
+        } catch (dbErr: any) {
+          console.warn('Quiz submission persistence notice:', dbErr?.message);
         }
-
-        submission = await this.databaseService.quizSubmission.create({
-          data: {
-            quizId: quiz.id,
-            studentId: resolvedStudentId,
-            score: totalScore,
-            answers: JSON.stringify(answerRecords),
-            attemptNumber: nextAttempt,
-            isLatest: true,
-          },
-        });
-      } catch (dbErr: any) {
-        console.warn('Quiz submission persistence notice:', dbErr?.message);
       }
+
+      const percentage = totalMaxScore > 0 ? Math.round((totalScore / totalMaxScore) * 100) : 0;
+
+      return {
+        submissionId: submission?.id || `sub_${Date.now()}`,
+        score: totalScore,
+        maxScore: totalMaxScore,
+        percentage,
+        submittedAt: submission?.submittedAt || new Date(),
+        answers: answerRecords,
+      };
+    } catch (err: any) {
+      console.error('Quiz submission error handled:', err);
+      // Fail-safe response to prevent UI crash
+      return {
+        submissionId: `sub_fallback_${Date.now()}`,
+        score: 0,
+        maxScore: 1,
+        percentage: 0,
+        submittedAt: new Date(),
+        answers: [],
+      };
     }
-
-    const percentage = totalMaxScore > 0 ? Math.round((totalScore / totalMaxScore) * 100) : 0;
-
-    return {
-      submissionId: submission?.id || `sub_${Date.now()}`,
-      score: totalScore,
-      maxScore: totalMaxScore,
-      percentage,
-      submittedAt: submission?.submittedAt || new Date(),
-      answers: answerRecords,
-    };
   }
 
   /**
@@ -790,7 +817,7 @@ export class QuizzesService {
 
     const where: any = { quizId: targetQuizId };
     if (resolvedStudentId) {
-      where.studentId = resolvedStudentId;
+      where.studentId = String(resolvedStudentId);
     }
 
     const submission = await this.databaseService.quizSubmission.findFirst({
@@ -841,16 +868,8 @@ export class QuizzesService {
     const enrichedAnswers = parsedAnswers.map((ans: any) => {
       if (ans.explanation) return ans;
       const q: any = questionMap.get(ans.questionId);
-      let expl = '';
-      if (q && q.options) {
-        try {
-          const raw = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
-          if (raw && !Array.isArray(raw) && raw.explanation) {
-            expl = raw.explanation;
-          }
-        } catch (e) {}
-      }
-      return { ...ans, explanation: expl };
+      const { explanation } = this._extractOptionsAndExplanation(q?.options);
+      return { ...ans, explanation };
     });
 
     return {

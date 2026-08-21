@@ -23,8 +23,37 @@ export function LiveClassProvider({ children }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [sessionError, setSessionError] = useState('');
   const [liveSocket, setLiveSocket] = useState(null);
+  const [liveClassNotification, setLiveClassNotification] = useState(null);
 
   const socketRef = useRef(null);
+
+  // Global socket listener to alert students when a teacher starts any live class
+  useEffect(() => {
+    const localToken = localStorage.getItem('temar_token');
+    const globalSocket = io(API_BASE_URL.replace('/api', ''), {
+      transports: ['websocket', 'polling'],
+      auth: { token: localToken },
+    });
+
+    globalSocket.on('liveClassStarted', (data) => {
+      if (!isLiveActive || activeClassId !== data.classId) {
+        setLiveClassNotification({
+          classId: data.classId,
+          className: data.className || 'Live Classroom',
+          teacherName: data.teacherName || 'Instructor',
+          startedAt: data.startedAt || Date.now(),
+        });
+      }
+    });
+
+    globalSocket.on('liveClassEnded', (data) => {
+      setLiveClassNotification((prev) => (prev?.classId === data.classId ? null : prev));
+    });
+
+    return () => {
+      globalSocket.disconnect();
+    };
+  }, [isLiveActive, activeClassId]);
 
   // Clean up socket when active session ends or component unmounts
   const disconnectSocket = useCallback(() => {
@@ -74,6 +103,27 @@ export function LiveClassProvider({ children }) {
         socket.on('connect', () => {
           socket.emit('joinRoom', { classId: cleanClassId });
           socket.emit('joinLiveSession', { classId: cleanClassId });
+
+          if (teacher) {
+            const payload = {
+              classId: cleanClassId,
+              className,
+              teacherName: user?.fullName || user?.name || 'Instructor',
+            };
+            socket.emit('teacherJoinedLive', payload);
+
+            // Also broadcast on root chat namespace for immediate platform-wide student alert
+            try {
+              const rootSocket = io(API_BASE_URL.replace('/api', ''), {
+                transports: ['websocket', 'polling'],
+                auth: { token: localToken },
+              });
+              rootSocket.emit('teacherJoinedLive', payload);
+              setTimeout(() => rootSocket.disconnect(), 2000);
+            } catch (e) {
+              console.warn('Broadcast root notice:', e);
+            }
+          }
         });
 
         setActiveClassId(cleanClassId);
@@ -82,6 +132,7 @@ export function LiveClassProvider({ children }) {
         setCurrentUser(user);
         setIsLiveActive(true);
         setIsMinimized(false);
+        setLiveClassNotification(null);
       } catch (err) {
         console.error('Failed to initialize persistent live class session:', err);
         setSessionError(err.message || 'Could not start live session. Try again.');
@@ -98,6 +149,7 @@ export function LiveClassProvider({ children }) {
     try {
       if (isTeacher) {
         try {
+          socketRef.current?.emit('teacherEndedLive', { classId: activeClassId });
           await apiEndSession(activeClassId);
         } catch (e) {
           console.warn('Backend end session notice:', e);
@@ -132,6 +184,22 @@ export function LiveClassProvider({ children }) {
     setQuickModal(null);
   }, []);
 
+  const dismissLiveNotification = useCallback(() => {
+    setLiveClassNotification(null);
+  }, []);
+
+  const joinLiveNotification = useCallback(() => {
+    if (liveClassNotification) {
+      startSession({
+        classId: liveClassNotification.classId,
+        className: liveClassNotification.className,
+        teacher: false,
+        user: currentUser,
+      });
+      setLiveClassNotification(null);
+    }
+  }, [liveClassNotification, currentUser, startSession]);
+
   const value = {
     isLiveActive,
     activeClassId,
@@ -144,6 +212,7 @@ export function LiveClassProvider({ children }) {
     sessionError,
     quickModal,
     liveSocket,
+    liveClassNotification,
     startSession,
     endSession,
     toggleMinimize,
@@ -151,6 +220,8 @@ export function LiveClassProvider({ children }) {
     openQuickModal,
     closeQuickModal,
     setQuickModal,
+    dismissLiveNotification,
+    joinLiveNotification,
   };
 
   return <LiveClassContext.Provider value={value}>{children}</LiveClassContext.Provider>;

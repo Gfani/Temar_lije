@@ -230,6 +230,18 @@ export class ChatGateway {
     this.server.emit('studyInvitation', data);
   }
 
+  @SubscribeMessage('teacherJoinedLive')
+  handleTeacherJoinedLive(@MessageBody() data: any) {
+    this.server.emit('liveClassStarted', data);
+    return { status: 'broadcasted' };
+  }
+
+  @SubscribeMessage('teacherEndedLive')
+  handleTeacherEndedLive(@MessageBody() data: any) {
+    this.server.emit('liveClassEnded', data);
+    return { status: 'broadcasted' };
+  }
+
   @SubscribeMessage('deleteGroup')
   async handleDeleteGroup(
     @ConnectedSocket() client: Socket,

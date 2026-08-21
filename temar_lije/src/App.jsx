@@ -10,6 +10,7 @@ import ClassroomDetail from './features/classroom-detail/classroom_detail.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { LiveClassProvider } from './context/LiveClassContext.jsx';
 import LiveClassGlobalOverlay from './components/live-class/LiveClassGlobalOverlay.jsx';
+import LiveClassNotification from './components/live-class/LiveClassNotification.jsx';
 
 function MainApp() {
   const { user, login, register, logout, isAuthenticated, isLoading } = useAuth();
@@ -238,6 +239,7 @@ export default function App() {
       <LiveClassProvider>
         <MainApp />
         <LiveClassGlobalOverlay />
+        <LiveClassNotification />
       </LiveClassProvider>
     </AuthProvider>
   );

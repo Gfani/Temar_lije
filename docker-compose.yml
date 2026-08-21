@@ -44,10 +44,10 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-temar_lije}?schema=public
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-temar_access_secret_key_production_2026}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-temar_refresh_secret_key_production_2026}
-      - FRONTEND_URL=${FRONTEND_URL:-http://172.209.217.233.nip.io}
+      - FRONTEND_URL=${FRONTEND_URL:-https://temar-lije.southafricanorth.cloudapp.azure.com}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-933501285980-kc8odq4likijcrppkcebvf4u1gejhasl.apps.googleusercontent.com}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-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}
-      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-http://172.209.217.233.nip.io/api/auth/google/callback}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-https://temar-lije.southafricanorth.cloudapp.azure.com/api/auth/google/callback}
       - GOOGLE_OAUTH_STATE_SECRET=${GOOGLE_OAUTH_STATE_SECRET:-e4b7c1a8d2f5e930b6c1f4a7d0e3b6a9c2f5e8b1d4a7c0f3b6e9d2a5c8f1b4a7}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
@@ -73,6 +73,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
     networks:

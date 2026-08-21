@@ -44,11 +44,14 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-temar_lije}?schema=public
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-temar_access_secret_key_production_2026}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-temar_refresh_secret_key_production_2026}
-      - FRONTEND_URL=http://localhost:5173
-      - SMTP_HOST=${SMTP_HOST:-smtp.mailtrap.io}
-      - SMTP_PORT=${SMTP_PORT:-2525}
-      - SMTP_USER=${SMTP_USER:-dummy_user}
-      - SMTP_PASS=${SMTP_PASS:-dummy_password}
+      - FRONTEND_URL=${FRONTEND_URL:-http://172.209.217.233}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-http://172.209.217.233/api/auth/google/callback}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_SECURE=${SMTP_SECURE:-false}
     depends_on:
       db:

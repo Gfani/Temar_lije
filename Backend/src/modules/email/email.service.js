@@ -25,7 +25,13 @@ class EmailService {
       configService.get('EMAIL_FROM') || 'no-reply@temarlije.local';
 
     const smtpHost = configService.get('SMTP_HOST');
-    const isDummySmtp = !smtpHost || smtpHost.includes('example.com') || smtpHost === 'dummy';
+    const smtpUser = configService.get('SMTP_USER') || '';
+    const isDummySmtp =
+      !smtpHost ||
+      smtpHost.includes('example.com') ||
+      smtpHost === 'dummy' ||
+      smtpUser.includes('dummy') ||
+      smtpUser === '';
 
     this.devMode = isDummySmtp;
 

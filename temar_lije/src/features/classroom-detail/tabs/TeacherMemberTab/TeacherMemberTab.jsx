@@ -21,7 +21,7 @@ function formatJoined(dateString) {
  */
 export default function TeacherMemberTab({ classroom, currentUser }) {
   const classId = classroom?.id || '66666666-6666-4666-8666-666666666666';
-  const { isUserOnline } = usePresence(null, currentUser?.id);
+  const { isUserOnline } = usePresence(null, currentUser?.id, currentUser?.email);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState(null);
@@ -85,7 +85,7 @@ export default function TeacherMemberTab({ classroom, currentUser }) {
         <ul className={styles.memberList}>
           {members.map((member) => {
             const isRemoving = removingId === member.id;
-            const online = isUserOnline(member.id);
+            const online = isUserOnline(member.id, member.email);
             return (
               <li key={member.id} className={styles.memberRow}>
                 <div className={styles.memberInfo}>

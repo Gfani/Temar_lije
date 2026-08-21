@@ -23,7 +23,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     || 'U';
 
   const socketRef = useRef(null);
-  const { isUserOnline, onlineUserIds } = usePresence(socketRef.current, effectiveUserId);
+  const { isUserOnline, onlineUserIds } = usePresence(socketRef.current, effectiveUserId, user?.email);
 
   const [realMembers, setRealMembers] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -78,7 +78,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
   const memberProfiles = React.useMemo(() => {
     const map = {};
     availableCandidates.forEach((m) => {
-      const online = isUserOnline(m.id);
+      const online = isUserOnline(m.id, m.email);
       map[m.id] = {
         name: m.name || m.email,
         initials: m.initials || 'ST',
@@ -480,7 +480,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
                       <div className="members-list-stack">
                         {realMembers.map((member) => {
                           const isYou = member.id === effectiveUserId || member.email === user?.email;
-                          const online = isUserOnline(member.id);
+                          const online = isUserOnline(member.id, member.email);
                           return (
                             <div className={`member-card-row ${online ? '' : 'offline'}`} key={member.id}>
                               <div className="member-avatar gs-bg" style={{ backgroundColor: member.avatarBg || '#3b82f6' }}>

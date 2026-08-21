@@ -23,6 +23,18 @@ export class AppController {
     };
   }
 
+  @Post('users/heartbeat')
+  recordHeartbeat(@Body('userId') userId: string) {
+    if (userId) {
+      ChatGateway.onlineUsers.set(userId, Date.now());
+    }
+    return {
+      status: 'ok',
+      onlineUserIds: ChatGateway.getOnlineUserIds(),
+      timestamp: Date.now(),
+    };
+  }
+
   @Get('users/students')
   async getAllStudents() {
     return await this.prisma.user.findMany({

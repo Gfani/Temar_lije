@@ -1,14 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../config/constants';
 
 /**
  * usePresence Hook
- * Tracks real-time presence (online/offline status) of users, updating every 5 seconds.
+ * Tracks real-time presence (online/offline status) of all students & teachers, updating every 5 seconds.
  */
-export function usePresence(socket, currentUserId) {
+export function usePresence(providedSocket, currentUserId, currentUserEmail) {
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
-  const socketRef = useRef(socket);
-  socketRef.current = socket;
+  const socketRef = useRef(providedSocket);
+  const internalSocketRef = useRef(null);
+
+  const sendHeartbeat = useCallback(async () => {
+    const id = currentUserId || currentUserEmail;
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: id }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data?.onlineUserIds)) {
+          setOnlineUserIds(new Set(data.onlineUserIds));
+        }
+      }
+    } catch (err) {
+      // silently ignore network jitter
+    }
+  }, [currentUserId, currentUserEmail]);
 
   const fetchPresence = useCallback(async () => {
     try {
@@ -20,49 +41,69 @@ export function usePresence(socket, currentUserId) {
         }
       }
     } catch (err) {
-      // silently ignore presence network hiccups
+      // ignore
     }
   }, []);
 
   useEffect(() => {
-    // Initial fetch
+    // 1. Initial presence check & immediate heartbeat
     fetchPresence();
+    sendHeartbeat();
 
-    // 5-second polling interval for online/offline updates
+    // 2. 5-second interval for ongoing presence updates & heartbeat
     const interval = setInterval(() => {
       fetchPresence();
-      if (socketRef.current && currentUserId) {
-        socketRef.current.emit('heartbeat', { userId: currentUserId });
+      sendHeartbeat();
+
+      const activeSocket = socketRef.current || internalSocketRef.current;
+      if (activeSocket) {
+        activeSocket.emit('heartbeat', { userId: currentUserId || currentUserEmail });
       }
     }, 5000);
 
-    // Socket real-time presence listener
-    if (socketRef.current) {
-      socketRef.current.on('presenceUpdate', (data) => {
+    // 3. Setup socket listeners (either provided socket or fallback global socket)
+    let socket = providedSocket;
+    if (!socket) {
+      const localToken = localStorage.getItem('temar_token');
+      socket = io(API_BASE_URL.replace('/api', ''), {
+        transports: ['websocket', 'polling'],
+        auth: { token: localToken, userId: currentUserId || currentUserEmail },
+      });
+      internalSocketRef.current = socket;
+    }
+
+    if (socket) {
+      socket.on('presenceUpdate', (data) => {
         if (Array.isArray(data?.onlineUserIds)) {
           setOnlineUserIds(new Set(data.onlineUserIds));
         }
       });
-      if (currentUserId) {
-        socketRef.current.emit('heartbeat', { userId: currentUserId });
-      }
+      socket.emit('heartbeat', { userId: currentUserId || currentUserEmail });
     }
 
     return () => {
       clearInterval(interval);
-      if (socketRef.current) {
-        socketRef.current.off('presenceUpdate');
+      if (internalSocketRef.current) {
+        internalSocketRef.current.disconnect();
+        internalSocketRef.current = null;
       }
     };
-  }, [fetchPresence, currentUserId]);
+  }, [fetchPresence, sendHeartbeat, providedSocket, currentUserId, currentUserEmail]);
 
   const isUserOnline = useCallback(
-    (userId) => {
-      if (!userId) return false;
-      if (currentUserId && userId === currentUserId) return true;
-      return onlineUserIds.has(userId) || onlineUserIds.has(String(userId));
+    (userId, userEmail) => {
+      if (!userId && !userEmail) return false;
+      const strId = userId ? String(userId) : '';
+      const strEmail = userEmail ? String(userEmail).toLowerCase() : '';
+
+      return (
+        onlineUserIds.has(strId) ||
+        (strEmail && onlineUserIds.has(strEmail)) ||
+        (currentUserId && strId === String(currentUserId)) ||
+        (currentUserEmail && strEmail === String(currentUserEmail).toLowerCase())
+      );
     },
-    [onlineUserIds, currentUserId]
+    [onlineUserIds, currentUserId, currentUserEmail]
   );
 
   return { onlineUserIds, isUserOnline };

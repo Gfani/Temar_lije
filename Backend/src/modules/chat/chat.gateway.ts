@@ -25,7 +25,7 @@ export class ChatGateway {
 
   public static getOnlineUserIds(): string[] {
     const now = Date.now();
-    const activeThreshold = 12000; // active in last 12 seconds
+    const activeThreshold = 25000; // active in last 25 seconds
     const list: string[] = [];
     for (const [userId, lastSeen] of ChatGateway.onlineUsers.entries()) {
       if (now - lastSeen <= activeThreshold) {

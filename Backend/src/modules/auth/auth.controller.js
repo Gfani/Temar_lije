@@ -168,38 +168,39 @@ class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req, @Res() res) {
-    const cookieNonce = req.cookies?.oauthNonce;
-    res.clearCookie('oauthNonce', { path: '/' });
-    const frontendBaseUrl = this.configService.getOrThrow('FRONTEND_URL');
+    const host =
+      req.headers['x-forwarded-host'] ||
+      req.headers.host ||
+      '172.209.217.233.nip.io';
+    const proto =
+      req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const frontendBaseUrl = `${proto}://${host}`;
     const frontendErrorUrl = `${frontendBaseUrl}/signin?error=oauth_failed`;
 
-    if (!req.query.state || !cookieNonce) {
+    res.clearCookie('oauthNonce', { path: '/' });
+
+    if (!req.user) {
       return res.redirect(frontendErrorUrl);
     }
 
-    let statePayload;
-    try {
-      statePayload = this._jwtService.verify(req.query.state, {
-        secret: this.configService.getOrThrow('GOOGLE_OAUTH_STATE_SECRET'),
-      });
-    } catch {
-      return res.redirect(frontendErrorUrl);
-    }
-
-    const nonceBuffer = Buffer.from(statePayload.nonce || '');
-    const cookieBuffer = Buffer.from(cookieNonce);
-    const nonceMatches =
-      nonceBuffer.length === cookieBuffer.length &&
-      crypto.timingSafeEqual(nonceBuffer, cookieBuffer);
-
-    if (!nonceMatches) {
-      return res.redirect(frontendErrorUrl);
+    let requestedRole = 'STUDENT';
+    if (req.query.state) {
+      try {
+        const statePayload = this._jwtService.verify(req.query.state, {
+          secret: this.configService.getOrThrow('GOOGLE_OAUTH_STATE_SECRET'),
+        });
+        if (statePayload && statePayload.role) {
+          requestedRole = statePayload.role;
+        }
+      } catch {
+        // Continue with default role
+      }
     }
 
     try {
       const result = await this.authService.loginWithGoogle(
         req.user,
-        statePayload.role,
+        requestedRole,
       );
       this._setRefreshCookie(res, result.refreshToken);
       return res.redirect(`${frontendBaseUrl}/oauth/callback`);

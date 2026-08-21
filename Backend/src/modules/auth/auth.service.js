@@ -389,13 +389,11 @@ class AuthService {
           where: { id: existingByEmail.id },
           data: { googleId, isEmailVerified: true },
         });
-      } else {
-        // Path 3: genuinely new user.
-        if (requestedRole !== 'STUDENT' && requestedRole !== 'TEACHER') {
-          throw new UnauthorizedException(
-            'No account found for this Google email. Please create an account first and select your role.',
-          );
-        }
+        // Path 3: genuinely new user. Default to STUDENT if role not explicitly chosen.
+        const roleToAssign =
+          requestedRole === 'TEACHER' || requestedRole === 'STUDENT'
+            ? requestedRole
+            : 'STUDENT';
 
         user = await this.prisma.user.create({
           data: {
@@ -404,7 +402,7 @@ class AuthService {
             initials: this._deriveInitials(fullName),
             email,
             googleId,
-            role: requestedRole,
+            role: roleToAssign,
             isEmailVerified: emailVerified,
             passwordHash: null,
           },

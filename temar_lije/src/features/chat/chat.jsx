@@ -692,7 +692,8 @@ function Chat({
             };
 
             setMessagesByGroup(prev => {
-                const key = msg.groupId;
+                const key = msg.roomId || msg.groupId;
+                if (!key) return prev;
                 const existing = prev[key] || [];
                 // If we already have this server-confirmed id, skip
                 if (existing.some(m => m.id === msg.id)) return prev;

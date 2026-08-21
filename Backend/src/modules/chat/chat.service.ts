@@ -52,6 +52,7 @@ export class ChatService {
       avatarBg: msg.sender.avatarBg,
     } : null;
 
+    const roomKey = attachments.roomId || attachments.groupId || msg.studyGroupId || msg.classroomId;
     return {
       id: msg.id,
       text: msg.content,
@@ -59,6 +60,8 @@ export class ChatService {
       senderId: msg.senderId,
       sender: senderObj,
       createdAt: msg.createdAt,
+      groupId: roomKey,
+      roomId: roomKey,
       image: attachments.image,
       type: attachments.type || 'text',
       fileName: attachments.fileName,
@@ -355,6 +358,8 @@ export class ChatService {
       fileIcon: data.fileIcon,
       replyToId: data.replyToId,
       forwardedFrom: data.forwardedFrom,
+      roomId: groupId,
+      groupId: groupId,
       isPinned: false,
       reactions: [],
     };

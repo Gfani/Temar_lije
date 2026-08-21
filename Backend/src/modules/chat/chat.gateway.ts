@@ -136,7 +136,7 @@ export class ChatGateway {
     @MessageBody() data: any,
   ) {
     const { roomId } = data;
-    const senderId = this._userId(client);
+    const senderId = this._userId(client) || data.senderId || data.userId;
     if (!roomId || !senderId) return;
 
     try {
@@ -152,11 +152,15 @@ export class ChatGateway {
       });
 
       if (savedMsg) {
-        // Pass _optimisticId back so the frontend can replace the placeholder precisely
-        this.server.to(roomId).emit('newMessage', {
+        const payload = {
           ...savedMsg,
+          groupId: roomId,
+          roomId: roomId,
           _optimisticId: data._optimisticId,
-        });
+        };
+        // Emit to the specific room and global namespace for instantaneous reactivity
+        this.server.to(roomId).emit('newMessage', payload);
+        this.server.emit('newMessage', payload);
       }
     } catch (err: any) {
       console.warn(`sendMessage failed in ${roomId}:`, err?.message);

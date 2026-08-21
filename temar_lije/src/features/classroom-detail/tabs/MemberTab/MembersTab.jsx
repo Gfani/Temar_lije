@@ -41,6 +41,19 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     fetchMembers();
   }, [fetchMembers]);
 
+  const memberProfiles = React.useMemo(() => {
+    const map = {};
+    (realMembers || []).forEach((m) => {
+      map[m.id] = {
+        name: m.name || m.email,
+        initials: m.initials || 'ST',
+        avatarBg: '#3b82f6',
+        online: true,
+      };
+    });
+    return map;
+  }, [realMembers]);
+
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -540,7 +553,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
         }}
         groupName={pendingGroupDetails?.name || 'Study Group'}
         invitedMembers={pendingGroupDetails?.members || []}
-        userProfiles={USER_PROFILES}
+        userProfiles={memberProfiles}
         onSend={handleConfirmSendInvitations}
       />
 

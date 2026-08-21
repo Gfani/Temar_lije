@@ -32,6 +32,9 @@ services:
   # Backend Service (NestJS / Node.js)
   # ============================================================================
   backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
     image: fanuelg/temar_backend:latest
     container_name: temar_backend
     restart: unless-stopped

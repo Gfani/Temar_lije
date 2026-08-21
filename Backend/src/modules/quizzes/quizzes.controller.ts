@@ -83,7 +83,8 @@ export class QuizzesController {
     @Req() req: any,
     @Body() dto: any,
   ) {
-    return await this.quizzesService.submitQuiz(quizId, req.user, dto);
+    const authHeader = req.headers?.authorization;
+    return await this.quizzesService.submitQuiz(quizId, req.user, dto, authHeader);
   }
 
   /**
@@ -92,7 +93,8 @@ export class QuizzesController {
   @Get('quizzes/:quizId/result')
   async getSubmissionResult(@Param('quizId') quizId: string, @Req() req: any) {
     const studentId = req.user?.id || req.user?.sub;
-    return await this.quizzesService.getSubmissionResult(quizId, studentId);
+    const authHeader = req.headers?.authorization;
+    return await this.quizzesService.getSubmissionResult(quizId, studentId, authHeader);
   }
 
   /**

@@ -1,8 +1,8 @@
 const {
   IsString,
   IsNotEmpty,
+  IsOptional,
   IsArray,
-  ArrayMinSize,
   ValidateNested,
 } = require('class-validator');
 const { Type } = require('class-transformer');
@@ -12,17 +12,20 @@ class SubmitAnswerDto {
   @IsNotEmpty({ message: 'questionId is required' })
   questionId;
 
-  @IsString()
-  @IsNotEmpty({ message: 'selectedOptionId is required' })
+  @IsOptional()
   selectedOptionId;
 }
 
 class SubmitQuizDto {
   @IsArray()
-  @ArrayMinSize(1, { message: 'At least one answer must be submitted' })
   @ValidateNested({ each: true })
   @Type(() => SubmitAnswerDto)
   answers;
+
+  @IsOptional()
+  @IsString()
+  studentId;
 }
 
 module.exports = { SubmitQuizDto, SubmitAnswerDto };
+

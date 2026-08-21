@@ -11,6 +11,7 @@ import {
   Loader2,
   RefreshCw,
   Minimize2,
+  ExternalLink,
 } from 'lucide-react';
 import WhiteboardCanvas from './WhiteboardCanvas';
 import AudioStreamer from './AudioStreamer';
@@ -290,6 +291,17 @@ export default function LiveClassroomContainer({
             >
               Local Fallback
             </button>
+            <a
+              href={`https://${jitsiDomain}/${jitsiRoomName}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.selectButton}
+              title="Open video call in full HTTPS window"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: 'inherit' }}
+            >
+              <ExternalLink size={13} />
+              <span>Open Tab</span>
+            </a>
           </div>
 
           {!isDocked && liveContext?.setIsMinimized && (

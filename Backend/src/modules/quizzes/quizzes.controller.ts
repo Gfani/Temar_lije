@@ -15,6 +15,14 @@ export class QuizzesController {
   constructor(private readonly quizzesService: QuizzesService) {}
 
   /**
+   * POST /quizzes/generate-ai
+   */
+  @Post('quizzes/generate-ai')
+  async generateAIQuiz(@Body() dto: any) {
+    return await this.quizzesService.generateAIQuiz(dto);
+  }
+
+  /**
    * POST /classrooms/:classroomId/quizzes, POST /quizzes/create, and POST /quizzes
    */
   @Post('classrooms/:classroomId/quizzes')

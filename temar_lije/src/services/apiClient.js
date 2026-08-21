@@ -244,6 +244,19 @@ export async function getQuizzes(classId) {
   }
 }
 
+export async function generateAIQuiz(params) {
+  const res = await fetch(`${API_BASE_URL}/quizzes/generate-ai`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to generate AI quiz');
+  }
+  return res.json();
+}
+
 export async function createQuiz(classId, quizPayload) {
   let res = await fetch(`${API_BASE_URL}/classrooms/${classId}/quizzes`, {
     method: 'POST',

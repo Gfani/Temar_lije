@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
 import { AppService } from './app.service';
 import { DatabaseService } from './database/database.service';
+import { ChatGateway } from './modules/chat/chat.gateway';
 
 @Controller()
 export class AppController {
@@ -12,6 +13,14 @@ export class AppController {
   @Get()
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  @Get('users/presence')
+  getOnlinePresence() {
+    return {
+      onlineUserIds: ChatGateway.getOnlineUserIds(),
+      timestamp: Date.now(),
+    };
   }
 
   @Get('users/students')

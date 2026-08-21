@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { User, Loader2 } from 'lucide-react';
 import styles from './TeacherMemberTab.module.css';
 import { getClassroomMembers, removeClassroomMember } from '../../../../services/apiClient';
+import { usePresence } from '../../../../hooks/usePresence';
 
 function formatJoined(dateString) {
   if (!dateString) return 'Joined recently';
@@ -20,6 +21,7 @@ function formatJoined(dateString) {
  */
 export default function TeacherMemberTab({ classroom, currentUser }) {
   const classId = classroom?.id || '66666666-6666-4666-8666-666666666666';
+  const { isUserOnline } = usePresence(null, currentUser?.id);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState(null);
@@ -83,6 +85,7 @@ export default function TeacherMemberTab({ classroom, currentUser }) {
         <ul className={styles.memberList}>
           {members.map((member) => {
             const isRemoving = removingId === member.id;
+            const online = isUserOnline(member.id);
             return (
               <li key={member.id} className={styles.memberRow}>
                 <div className={styles.memberInfo}>
@@ -90,7 +93,28 @@ export default function TeacherMemberTab({ classroom, currentUser }) {
                     <User className={styles.avatarIcon} />
                   </span>
                   <div className={styles.memberText}>
-                    <span className={styles.memberName}>{member.name || member.email}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className={styles.memberName}>{member.name || member.email}</span>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '2px 7px',
+                        borderRadius: '10px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        backgroundColor: online ? '#dcfce7' : '#f1f5f9',
+                        color: online ? '#15803d' : '#64748b'
+                      }}>
+                        <span style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          backgroundColor: online ? '#22c55e' : '#94a3b8'
+                        }} />
+                        {online ? 'online' : 'offline'}
+                      </span>
+                    </div>
                     <span className={styles.memberJoined}>{formatJoined(member.joinedAt)}</span>
                   </div>
                 </div>

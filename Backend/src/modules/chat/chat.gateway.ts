@@ -20,25 +20,60 @@ export class ChatGateway {
   @WebSocketServer()
   server: Server;
 
+  // Track active user IDs and their last seen timestamp
+  public static onlineUsers = new Map<string, number>();
+
+  public static getOnlineUserIds(): string[] {
+    const now = Date.now();
+    const activeThreshold = 12000; // active in last 12 seconds
+    const list: string[] = [];
+    for (const [userId, lastSeen] of ChatGateway.onlineUsers.entries()) {
+      if (now - lastSeen <= activeThreshold) {
+        list.push(userId);
+      } else {
+        ChatGateway.onlineUsers.delete(userId);
+      }
+    }
+    return list;
+  }
+
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    // Broadcast presence update every 5 seconds
+    setInterval(() => {
+      if (this.server) {
+        const online = ChatGateway.getOnlineUserIds();
+        this.server.emit('presenceUpdate', { onlineUserIds: online });
+      }
+    }, 5000);
+  }
 
   afterInit(server: Server) {
     server.use(createSocketAuthMiddleware(this.jwtService, this.configService));
   }
 
   private _userId(client: Socket): string | undefined {
-    return (client.data?.user as any)?.sub;
+    return (client.data?.user as any)?.sub || (client.handshake?.auth as any)?.userId;
+  }
+
+  private _recordPresence(userId?: string) {
+    if (userId) {
+      ChatGateway.onlineUsers.set(userId, Date.now());
+    }
   }
 
   handleConnection(client: Socket) {
     const userId = this._userId(client);
+    if (userId) {
+      this._recordPresence(userId);
+      if (this.server) {
+        this.server.emit('presenceUpdate', { onlineUserIds: ChatGateway.getOnlineUserIds() });
+      }
+    }
 
-    // Announce voice-chat departure for every room the client was in
-    // when the connection drops, so participants don't appear stuck in call.
     client.on('disconnecting', () => {
       for (const room of client.rooms) {
         if (room === client.id) continue;
@@ -50,7 +85,22 @@ export class ChatGateway {
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
+    const userId = this._userId(client);
+    if (userId) {
+      ChatGateway.onlineUsers.delete(userId);
+      if (this.server) {
+        this.server.emit('presenceUpdate', { onlineUserIds: ChatGateway.getOnlineUserIds() });
+      }
+    }
+  }
+
+  @SubscribeMessage('heartbeat')
+  handleHeartbeat(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
+    const userId = this._userId(client) || data?.userId;
+    if (userId) {
+      this._recordPresence(userId);
+    }
+    return { status: 'ok', time: Date.now() };
   }
 
   @SubscribeMessage('joinRoom')

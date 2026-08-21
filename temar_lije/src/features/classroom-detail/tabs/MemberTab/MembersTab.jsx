@@ -10,16 +10,20 @@ import StudyInvitation from '../../../../components/layout/study_invitation/stud
 import SendInvitation from '../../../../components/layout/send_invitation/send_invitation.jsx';
 
 import { getClassroomMembers } from '../../../../services/apiClient';
+import { usePresence } from '../../../../hooks/usePresence';
 
 export default function MembersTab({ darkMode, setDarkMode, classroom, currentUser }) {
   const { user, accessToken } = useAuth();
   const classroomId = String(classroom?.id || classroom?.code || 'flutter');
-  const effectiveUserId = user?.id || currentUser?.id || 'gs';
-  const effectiveUserName = user?.fullName || currentUser?.name || 'Sara Gebremedhin';
+  const effectiveUserId = user?.id || currentUser?.id || 'guest';
+  const effectiveUserName = user?.fullName || currentUser?.name || 'User';
   const currentUserInitials = user?.initials
     || currentUser?.initials
     || (effectiveUserName || '').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase()
     || 'U';
+
+  const socketRef = useRef(null);
+  const { isUserOnline, onlineUserIds } = usePresence(socketRef.current, effectiveUserId);
 
   const [realMembers, setRealMembers] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -74,15 +78,16 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
   const memberProfiles = React.useMemo(() => {
     const map = {};
     availableCandidates.forEach((m) => {
+      const online = isUserOnline(m.id);
       map[m.id] = {
         name: m.name || m.email,
         initials: m.initials || 'ST',
         avatarBg: m.avatarBg || '#3b82f6',
-        online: true,
+        online: online,
       };
     });
     return map;
-  }, [availableCandidates]);
+  }, [availableCandidates, isUserOnline]);
 
   const [activeTab, setActiveTab] = useState('Members');
   const [selectedGroupId, setSelectedGroupId] = useState(null);
@@ -99,7 +104,6 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     categoryName: '',
     groupId: ''
   });
-  const socketRef = useRef(null);
   const tabs = ['Members', 'Study Groups'];
 
   useEffect(() => {
@@ -476,9 +480,10 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
                       <div className="members-list-stack">
                         {realMembers.map((member) => {
                           const isYou = member.id === effectiveUserId || member.email === user?.email;
+                          const online = isUserOnline(member.id);
                           return (
-                            <div className="member-card-row" key={member.id}>
-                              <div className="member-avatar gs-bg" style={{ backgroundColor: '#3b82f6' }}>
+                            <div className={`member-card-row ${online ? '' : 'offline'}`} key={member.id}>
+                              <div className="member-avatar gs-bg" style={{ backgroundColor: member.avatarBg || '#3b82f6' }}>
                                 {member.initials || 'ST'}
                               </div>
                               <div className="member-details">
@@ -486,8 +491,18 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
                                   <span className="member-name-text">{member.name || member.email}</span>
                                   {isYou && <span className="you-badge-label">(you)</span>}
                                 </div>
-                                <span className="member-status-text">
-                                  <span className="online-indicator-dot"></span> student
+                                <span className="member-status-text" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <span
+                                    style={{
+                                      width: '8px',
+                                      height: '8px',
+                                      borderRadius: '50%',
+                                      backgroundColor: online ? '#22c55e' : '#94a3b8',
+                                      display: 'inline-block',
+                                      boxShadow: online ? '0 0 6px rgba(34, 197, 94, 0.6)' : 'none'
+                                    }}
+                                  />
+                                  {online ? 'online' : 'offline'}
                                 </span>
                               </div>
                             </div>

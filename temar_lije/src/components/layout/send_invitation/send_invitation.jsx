@@ -90,14 +90,27 @@ function SendInvitation({
                                     <div className="send-inv-student-left">
                                         <div
                                             className="send-inv-student-avatar"
-                                            style={{ backgroundColor: user.avatarBg || '#3b82f6' }}
+                                            style={{ backgroundColor: user.avatarBg || '#3b82f6', position: 'relative' }}
                                         >
                                             {user.initials || 'ST'}
-                                            <span className="send-inv-online-dot" />
+                                            <span
+                                                style={{
+                                                    position: 'absolute',
+                                                    bottom: '-1px',
+                                                    right: '-1px',
+                                                    width: '9px',
+                                                    height: '9px',
+                                                    borderRadius: '50%',
+                                                    backgroundColor: user.online ? '#22c55e' : '#94a3b8',
+                                                    border: '2px solid #ffffff'
+                                                }}
+                                            />
                                         </div>
                                         <div>
                                             <span className="send-inv-student-name">{user.name}</span>
-                                            <span style={{ display: 'block', fontSize: '11px', color: '#94a3b8' }}>Student</span>
+                                            <span style={{ display: 'block', fontSize: '11px', color: user.online ? '#15803d' : '#94a3b8', fontWeight: 600 }}>
+                                                {user.online ? 'online' : 'offline'}
+                                            </span>
                                         </div>
                                     </div>
                                     <div

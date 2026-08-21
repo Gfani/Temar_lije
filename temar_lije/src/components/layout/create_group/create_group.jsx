@@ -11,7 +11,7 @@ const COLORS = [
     { value: '#be185d', name: 'pink' }
 ];
 
-function CreateGroup({ isOpen, onClose, onCreate, availableMembers = [], currentUserId }) {
+function CreateGroup({ isOpen, onClose, onCreate, availableMembers = [], currentUserId, isUserOnline }) {
     const [groupName, setGroupName] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('📚');
     const [selectedColor, setSelectedColor] = useState('#06b6d4');
@@ -113,20 +113,32 @@ function CreateGroup({ isOpen, onClose, onCreate, availableMembers = [], current
                         ) : (
                             candidateMembers.map(member => {
                                 const isChecked = selectedMembers.includes(member.id);
+                                const online = isUserOnline ? isUserOnline(member.id) : false;
                                 return (
                                     <div
                                         key={member.id}
                                         className={`member-selection-row ${isChecked ? 'active' : ''}`}
                                         onClick={() => handleToggleMember(member.id)}
                                     >
-                                        <div className="member-avatar-badge" style={{ backgroundColor: member.avatarBg || '#3b82f6' }}>
+                                        <div className="member-avatar-badge" style={{ backgroundColor: member.avatarBg || '#3b82f6', position: 'relative' }}>
                                             {member.initials || 'ST'}
-                                            <span className="member-online-dot online" />
+                                            <span
+                                                style={{
+                                                    position: 'absolute',
+                                                    bottom: '-1px',
+                                                    right: '-1px',
+                                                    width: '9px',
+                                                    height: '9px',
+                                                    borderRadius: '50%',
+                                                    backgroundColor: online ? '#22c55e' : '#94a3b8',
+                                                    border: '2px solid #ffffff'
+                                                }}
+                                            />
                                         </div>
                                         <div className="member-details-column">
                                             <span className="member-row-name">{member.name || member.email}</span>
-                                            <span className="member-row-status online-text">
-                                                Student
+                                            <span className="member-row-status" style={{ color: online ? '#15803d' : '#94a3b8', fontWeight: 600, fontSize: '11px' }}>
+                                                {online ? 'online' : 'offline'}
                                             </span>
                                         </div>
                                         <div className="member-checkbox-container">

@@ -807,17 +807,22 @@ function Chat({
         });
 
         socketRef.current.on('groupCreated', (group) => {
-            const parent = studyGroupsRef.current.find(m => group?.id && group.id.startsWith(`${m.id}-`));
-            if (parent) {
-                const topicId = group.id.substring(parent.id.length + 1);
+            if (!group) return;
+            const isTopic = group.isTopic || (group.icon && group.icon.startsWith('topic:')) || (group.id && group.id.includes('-') && !group.id.includes('6666'));
+            if (isTopic) {
+                const parentId = group.parentGroupId || (group.icon && group.icon.startsWith('topic:') ? group.icon.split(':')[1] : group.id.split('-')[0]);
+                const topicId = group.topicId || (group.icon && group.icon.startsWith('topic:') ? group.icon.split(':')[2] : group.id.split('-').slice(1).join('-')) || group.name.toLowerCase().replace(/\s+/g, '-');
+                
                 setTopicsByGroup(prev => {
-                    const existing = prev[parent.id] || [];
+                    const existing = prev[parentId] || [
+                        { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' }
+                    ];
                     if (existing.some(t => t.id === topicId)) return prev;
                     return {
                         ...prev,
-                        [parent.id]: [
+                        [parentId]: [
                             ...existing,
-                            { id: topicId, name: group.name, icon: group.icon || '#', color: group.color || '#0d9488', subtitle: group.description || 'Topic created', time: '' }
+                            { id: topicId, name: group.name, icon: '#', color: group.colorAccent || group.color || '#0d9488', subtitle: group.description || 'Topic created', time: '' }
                         ]
                     };
                 });
@@ -856,6 +861,15 @@ function Chat({
                                 members: group.members?.map(m => m.userId) || []
                             }
                         ];
+                    });
+                    setTopicsByGroup(prev => {
+                        if (prev[group.id]) return prev;
+                        return {
+                            ...prev,
+                            [group.id]: [
+                                { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' }
+                            ]
+                        };
                     });
                 }
             }
@@ -951,35 +965,15 @@ function Chat({
             .then(res => res.json())
             .then(data => {
                 if (data && Array.isArray(data)) {
+                    // Topics have icon 'topic:...' or isTopic flag and must never be treated as standalone groups
                     const mainGroups = data.filter(g => {
-                        const isTopic = data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`));
+                        const isTopic = g.isTopic || (g.icon && g.icon.startsWith('topic:')) || (g.id && g.id.includes('-') && !g.id.includes('6666') && data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`)));
                         return !isTopic;
                     });
-                    const subGroups = data.filter(g => {
-                        const isTopic = data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`));
-                        return isTopic;
-                    });
 
-                    // Load all classrooms dynamically from localStorage and defaults
-                    let localStoredClassrooms = [];
-                    try {
-                        const raw = localStorage.getItem('temar_classrooms');
-                        if (raw) {
-                            const parsed = JSON.parse(raw);
-                            if (Array.isArray(parsed)) {
-                                localStoredClassrooms = parsed.map(c => ({
-                                    id: (c.title || '').toLowerCase().replace(/\s+/g, '-'),
-                                    name: c.title,
-                                    subtitle: c.subject || c.description || 'Classroom chat',
-                                    isClassroom: true,
-                                    icon: '🏫',
-                                    time: ''
-                                }));
-                            }
-                        }
-                    } catch (e) {}
                     const loadedClassrooms = [];
                     const mappedGroups = [];
+                    const tempTopicsByGroup = {};
 
                     mainGroups.forEach(g => {
                         const isClassroom = g.icon === '🏫' || g.id === 'flutter' || g.id.startsWith('class-');
@@ -990,7 +984,7 @@ function Chat({
                             isClassroom: isClassroom,
                             time: '',
                             icon: isClassroom ? '🏫' : (g.icon || '📚'),
-                            color: g.color || '#8b5cf6',
+                            color: g.color || g.colorAccent || '#8b5cf6',
                             members: g.members?.map(m => m.userId) || []
                         };
                         if (isClassroom) {
@@ -998,10 +992,18 @@ function Chat({
                         } else {
                             mappedGroups.push(item);
                         }
+
+                        // Attach topics for this group
+                        const rawTopics = Array.isArray(g.topics) && g.topics.length > 0
+                            ? g.topics
+                            : [{ id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' }];
+
+                        tempTopicsByGroup[g.id] = rawTopics;
                     });
 
                     setClassrooms(loadedClassrooms);
                     setStudyGroups(mappedGroups);
+                    setTopicsByGroup(tempTopicsByGroup);
                     
                     const rolesMap = {};
                     data.forEach(g => {
@@ -1010,38 +1012,6 @@ function Chat({
                         });
                     });
                     setGroupMemberRoles(prev => ({ ...prev, ...rolesMap }));
-
-                    // Build topics map dynamically
-                    const tempTopicsByGroup = {};
-                    mainGroups.forEach(g => {
-                        tempTopicsByGroup[g.id] = [
-                            { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' }
-                        ];
-                    });
-
-                    subGroups.forEach(sub => {
-                        const parent = mainGroups.find(m => sub.id.startsWith(`${m.id}-`));
-                        if (parent) {
-                            const topicId = sub.id.substring(parent.id.length + 1);
-                            if (tempTopicsByGroup[parent.id]) {
-                                if (topicId !== 'general') {
-                                    if (!tempTopicsByGroup[parent.id].some(t => t.id === topicId)) {
-                                        tempTopicsByGroup[parent.id].push({
-                                            id: topicId,
-                                            name: sub.name,
-                                            icon: sub.icon || '#',
-                                            color: sub.color || '#64748b',
-                                            subtitle: sub.description || 'No messages yet',
-                                            time: ''
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    });
-
-                    setTopicsByGroup(tempTopicsByGroup);
-                    setStudyGroups(mappedGroups);
                 }
             })
             .catch(err => console.error('Failed to load study groups:', err));
@@ -4407,8 +4377,11 @@ function Chat({
                             id: `${targetGroupKey}-${topicId}`,
                             name: topicName,
                             description: `Topic room for ${topicName}`,
-                            icon: '#',
+                            icon: `topic:${targetGroupKey}:${topicId}`,
                             color: '#0d9488',
+                            isTopic: true,
+                            parentGroupId: targetGroupKey,
+                            topicId: topicId,
                             classroomId: classroomId || undefined,
                             memberIds: []
                         })

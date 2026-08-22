@@ -138,7 +138,7 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
       .then(data => {
         if (data && Array.isArray(data)) {
           const mainGroups = data.filter(g => {
-            const isTopic = data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`));
+            const isTopic = g.isTopic || (g.icon && g.icon.startsWith('topic:')) || (g.id && g.id.includes('-') && !g.id.includes('6666') && data.some(other => other.id !== g.id && g.id.startsWith(`${other.id}-`)));
             return !isTopic;
           });
           const mappedGroups = mainGroups.map(g => ({

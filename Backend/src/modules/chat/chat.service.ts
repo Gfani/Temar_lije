@@ -19,7 +19,7 @@ function toUuid(id: string): string {
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly db: DatabaseService) { }
+  constructor(private readonly db: DatabaseService) {}
 
   private groupReactions(reactions: Array<{ userId: string; emoji: string }>) {
     const grouped: Record<string, { emoji: string; count: number; userIds: string[] }> = {};
@@ -45,14 +45,17 @@ export class ChatService {
     } else if (typeof msg.attachments === 'object' && msg.attachments) {
       attachments = msg.attachments;
     }
-    const senderObj = msg.sender ? {
-      id: msg.sender.id,
-      name: msg.sender.fullName || `User ${msg.sender.id}`,
-      initials: msg.sender.initials,
-      avatarBg: msg.sender.avatarBg,
-    } : null;
+    const senderObj = msg.sender
+      ? {
+          id: msg.sender.id,
+          name: msg.sender.fullName || `User ${msg.sender.id}`,
+          initials: msg.sender.initials,
+          avatarBg: msg.sender.avatarBg,
+        }
+      : null;
 
-    const roomKey = attachments.roomId || attachments.groupId || msg.studyGroupId || msg.classroomId;
+    const roomKey =
+      attachments.roomId || attachments.groupId || msg.studyGroupId || msg.classroomId;
     return {
       id: msg.id,
       text: msg.content,
@@ -142,12 +145,14 @@ export class ChatService {
       // Allow seamless access to classroom study groups and default channels
       if (group.classroomId || group.id === 'flutter' || group.id === 'react-native') {
         await this.ensureUserExists(userId);
-        await this.db.studyGroupMember.create({
-          data: {
-            userId: toUuid(userId),
-            studyGroupId: group.id,
-          },
-        }).catch(() => { });
+        await this.db.studyGroupMember
+          .create({
+            data: {
+              userId: toUuid(userId),
+              studyGroupId: group.id,
+            },
+          })
+          .catch(() => {});
         return group;
       }
       throw new ForbiddenException('You are not a member of this group');
@@ -201,6 +206,9 @@ export class ChatService {
     id?: string,
     creatorId?: string,
     classroomId?: string,
+    isTopic?: boolean,
+    parentGroupId?: string,
+    topicId?: string,
   ) {
     const effectiveCreatorId = creatorId || memberIds[0] || 'gs';
     await this.ensureUserExists(effectiveCreatorId);
@@ -211,14 +219,35 @@ export class ChatService {
     const effectiveClassroomId = classroomId
       ? await this.ensureClassroomExists(classroomId, effectiveCreatorId)
       : undefined;
+
+    // Check if this is a topic under a parent group
+    const isTopicSubchannel =
+      isTopic ||
+      Boolean(parentGroupId) ||
+      (icon && icon.startsWith('topic:')) ||
+      (id && (id.startsWith('topic:') || (id.includes('-') && !id.includes('6666'))));
+
+    let finalIcon = icon || '📚';
+    let resolvedParent = parentGroupId;
+    let resolvedTopicId = topicId;
+
+    if (isTopicSubchannel) {
+      resolvedParent = parentGroupId || (id && id.split('-')[0]) || 'general';
+      resolvedTopicId =
+        topicId ||
+        (id && id.split('-').slice(1).join('-')) ||
+        name.toLowerCase().replace(/\s+/g, '-');
+      finalIcon = `topic:${resolvedParent}:${resolvedTopicId}`;
+    }
+
     const groupUuid = id ? toUuid(id) : undefined;
 
     const createdGroup = await this.db.studyGroup.create({
       data: {
         ...(groupUuid ? { id: groupUuid } : {}),
         name,
-        icon: icon || '📚',
-        colorAccent: color || '#6366f1',
+        icon: finalIcon,
+        colorAccent: color || (isTopicSubchannel ? '#0d9488' : '#6366f1'),
         classroomId: effectiveClassroomId || undefined,
         createdById: toUuid(effectiveCreatorId),
         members: {
@@ -239,6 +268,9 @@ export class ChatService {
     return {
       ...createdGroup,
       description: description || '',
+      isTopic: isTopicSubchannel,
+      parentGroupId: resolvedParent,
+      topicId: resolvedTopicId,
     };
   }
 
@@ -261,7 +293,7 @@ export class ChatService {
     const classIdStr = classroomId ? String(classroomId) : undefined;
     const userUuid = userId ? toUuid(userId) : undefined;
 
-    return this.db.studyGroup.findMany({
+    const allRecords = await this.db.studyGroup.findMany({
       where: {
         ...(classIdStr ? { classroomId: toUuid(classIdStr) } : {}),
         ...(userUuid
@@ -284,11 +316,76 @@ export class ChatService {
         createdAt: 'asc',
       },
     });
+
+    // Separate main groups from topic subchannels
+    const mainGroups: any[] = [];
+    const topicsMap: Record<string, any[]> = {};
+
+    for (const item of allRecords) {
+      if (item.icon && item.icon.startsWith('topic:')) {
+        const parts = item.icon.split(':');
+        const parentId = parts[1] || 'general';
+        const topicId = parts[2] || item.name.toLowerCase().replace(/\s+/g, '-');
+        if (!topicsMap[parentId]) {
+          topicsMap[parentId] = [];
+        }
+        topicsMap[parentId].push({
+          id: topicId,
+          dbId: item.id,
+          name: item.name,
+          icon: '#',
+          color: item.colorAccent || '#0d9488',
+          subtitle: `Topic: ${item.name}`,
+          time: '',
+          createdAt: item.createdAt,
+        });
+      } else {
+        mainGroups.push(item);
+      }
+    }
+
+    // Attach topics to their respective main group so topics NEVER appear as standalone groups
+    return mainGroups.map((g) => {
+      const groupSlug = (g.name || '').toLowerCase().replace(/\s+/g, '-');
+      const directTopics = topicsMap[g.id] || [];
+      const slugTopics = topicsMap[groupSlug] || [];
+      const combinedTopics = [...directTopics];
+      for (const st of slugTopics) {
+        if (!combinedTopics.some((t) => t.id === st.id)) {
+          combinedTopics.push(st);
+        }
+      }
+
+      const allTopics = [
+        {
+          id: 'general',
+          name: 'General',
+          icon: '#',
+          color: '#64748b',
+          subtitle: 'General chat room',
+          time: '',
+        },
+        ...combinedTopics,
+      ];
+
+      return {
+        ...g,
+        topics: allTopics,
+      };
+    });
   }
 
   async getChatHistory(groupId: string, userId?: string) {
+    const groupUuid = toUuid(groupId);
+
     const messages = await this.db.chatMessage.findMany({
-      where: { studyGroupId: toUuid(groupId) },
+      where: {
+        OR: [
+          { studyGroupId: groupUuid },
+          { attachments: { contains: `"roomId":"${groupId}"` } },
+          { attachments: { contains: `"groupId":"${groupId}"` } },
+        ],
+      },
       orderBy: { createdAt: 'asc' },
       include: {
         sender: true,
@@ -304,38 +401,42 @@ export class ChatService {
     const groupUuid = toUuid(groupId);
     const senderUuid = toUuid(senderId);
 
-    const existingGroup = await this.db.studyGroup.findUnique({
+    let existingGroup = await this.db.studyGroup.findUnique({
       where: { id: groupUuid },
     });
 
     if (!existingGroup) {
+      const isTopic = groupId.includes('-');
+      const parentKey = isTopic ? groupId.split('-')[0] : groupId;
+      const topicSuffix = isTopic ? groupId.split('-').slice(1).join('-') : 'general';
+
       const creatorId = senderId;
       await this.ensureUserExists(creatorId);
       const classroomId = await this.ensureClassroomExists(undefined, creatorId);
 
-      const allGroups = await this.db.studyGroup.findMany({ select: { id: true } });
-      const parentGroup = allGroups.find(
-        (g) => groupId.startsWith(g.id + '-') && g.id !== groupId,
-      );
-
       let groupName = groupId;
-      if (parentGroup) {
-        const topicSuffix = groupId.substring(parentGroup.id.length + 1);
-        groupName = topicSuffix.charAt(0).toUpperCase() + topicSuffix.slice(1).replace(/-/g, ' ');
+      if (isTopic) {
+        groupName =
+          topicSuffix.charAt(0).toUpperCase() +
+          topicSuffix.slice(1).replace(/-/g, ' ');
       } else if (groupId === 'flutter') {
         groupName = 'Flutter';
       } else if (groupId === 'react-native') {
         groupName = 'React Native';
       }
 
-      await this.db.studyGroup.create({
-        data: {
-          id: groupUuid,
-          name: groupName,
-          classroomId,
-          createdById: senderUuid,
-        },
-      });
+      try {
+        existingGroup = await this.db.studyGroup.create({
+          data: {
+            id: groupUuid,
+            name: groupName,
+            icon: isTopic ? `topic:${parentKey}:${topicSuffix}` : '📚',
+            colorAccent: isTopic ? '#0d9488' : '#6366f1',
+            classroomId,
+            createdById: senderUuid,
+          },
+        });
+      } catch (e) {}
     }
 
     await this.ensureUserExists(senderId);
@@ -423,7 +524,11 @@ export class ChatService {
 
     let attachments: any = {};
     if (typeof existing.attachments === 'string') {
-      try { attachments = JSON.parse(existing.attachments); } catch { attachments = {}; }
+      try {
+        attachments = JSON.parse(existing.attachments);
+      } catch {
+        attachments = {};
+      }
     } else if (typeof existing.attachments === 'object' && existing.attachments) {
       attachments = existing.attachments;
     }
@@ -451,90 +556,87 @@ export class ChatService {
     }
   }
 
-  async editMessage(messageId: string, text: string) {
-    try {
-      const updated = await this.db.chatMessage.update({
-        where: { id: toUuid(messageId) },
-        data: { content: text },
-        include: { sender: true },
-      });
-      return this.formatMessage(updated);
-    } catch (err: any) {
-      if (err?.code === 'P2025') {
-        throw new NotFoundException('Message not found');
-      }
-      throw err;
-    }
+  async editMessage(messageId: string, newText: string) {
+    const messageUuid = toUuid(messageId);
+    const updated = await this.db.chatMessage.update({
+      where: { id: messageUuid },
+      data: { content: newText },
+      include: { sender: true },
+    });
+    return this.formatMessage(updated);
   }
 
   async toggleReaction(messageId: string, userId: string, emoji: string) {
-    await this.ensureUserExists(userId);
     const messageUuid = toUuid(messageId);
+    const validUserId = toUuid(userId);
     const message = await this.db.chatMessage.findUnique({
       where: { id: messageUuid },
     });
 
-    if (!message) return [];
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
 
     let attachments: any = {};
     if (typeof message.attachments === 'string') {
-      try { attachments = JSON.parse(message.attachments); } catch { attachments = {}; }
+      try {
+        attachments = JSON.parse(message.attachments);
+      } catch {
+        attachments = {};
+      }
     } else if (typeof message.attachments === 'object' && message.attachments) {
       attachments = message.attachments;
     }
-    let reactions: Array<{ userId: string; emoji: string }> = attachments.reactions || [];
 
-    const existingIdx = reactions.findIndex((r) => r.userId === userId && r.emoji === emoji);
+    const currentReactions: Array<{ userId: string; emoji: string }> =
+      attachments.reactions || [];
+    const existingIndex = currentReactions.findIndex(
+      (r) =>
+        (r.userId === validUserId || r.userId === userId) && r.emoji === emoji,
+    );
 
-    if (existingIdx >= 0) {
-      reactions.splice(existingIdx, 1);
+    if (existingIndex > -1) {
+      currentReactions.splice(existingIndex, 1);
     } else {
-      reactions = reactions.filter((r) => r.userId !== userId);
-      reactions.push({ userId, emoji });
+      currentReactions.push({ userId: validUserId, emoji });
     }
 
-    attachments.reactions = reactions;
+    attachments.reactions = currentReactions;
 
     await this.db.chatMessage.update({
       where: { id: messageUuid },
-      data: { attachments: JSON.stringify(attachments) },
+      data: {
+        attachments: JSON.stringify(attachments),
+      },
     });
 
-    return this.groupReactions(reactions);
+    return this.groupReactions(currentReactions);
   }
 
-  async deleteGroup(id: string, userId?: string) {
-    try {
-      const groupUuid = toUuid(id);
-      await this.db.studyGroupMember.deleteMany({
-        where: { studyGroupId: groupUuid },
-      });
-      await this.db.chatMessage.deleteMany({
-        where: { studyGroupId: groupUuid },
-      });
-      return await this.db.studyGroup.deleteMany({
-        where: { id: groupUuid },
-      });
-    } catch (err: any) {
-      console.warn(`Could not delete group ${id}:`, err.message);
-      return { count: 0 };
+  async deleteGroup(groupId: string, userId?: string) {
+    const groupUuid = toUuid(groupId);
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
     }
+
+    return await this.db.studyGroup.delete({
+      where: { id: groupUuid },
+    });
   }
 
   async removeMember(groupId: string, userId: string, actorId?: string) {
-    try {
-      return await this.db.studyGroupMember.deleteMany({
-        where: {
-          userId: toUuid(userId),
-          studyGroupId: toUuid(groupId),
-        },
-      });
-    } catch (err: any) {
-      console.warn(
-        `Could not remove member ${userId} from ${groupId}:`,
-        err.message,
-      );
-      return { count: 0 };
-    }
+    const groupUuid = toUuid(groupId);
+    const memberUuid = toUuid(userId);
+
+    return await this.db.studyGroupMember.deleteMany({
+      where: {
+        studyGroupId: groupUuid,
+        userId: memberUuid,
+      },
+    });
   }
 }

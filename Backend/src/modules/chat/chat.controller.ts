@@ -132,6 +132,9 @@ export class ChatController {
       createGroupDto.id,
       req.user?.id,
       createGroupDto.classroomId,
+      createGroupDto.isTopic,
+      createGroupDto.parentGroupId,
+      createGroupDto.topicId,
     );
     this.chatGateway.server.emit('groupCreated', group);
     return group;

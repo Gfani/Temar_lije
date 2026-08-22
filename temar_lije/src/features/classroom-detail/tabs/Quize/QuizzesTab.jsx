@@ -5,7 +5,6 @@ import {
   Trash2,
   CheckCircle2,
   XCircle,
-  HelpCircle,
   Clock,
   Award,
   AlertCircle,
@@ -15,13 +14,10 @@ import {
   BarChart3,
   BookOpen,
   Loader2,
-  Users,
   Eye,
   Download,
-  RotateCcw,
   AlertTriangle,
   Lightbulb,
-  Check,
 } from 'lucide-react';
 import {
   getQuizzes,
@@ -90,7 +86,6 @@ export default function QuizzesTab({
 
   // Student: Quiz Results Modal
   const [resultModal, setResultModal] = useState(null);
-  const [loadingResult, setLoadingResult] = useState(false);
 
   // Deleting Quiz
   const [deletingId, setDeletingId] = useState(null);
@@ -717,7 +712,7 @@ export default function QuizzesTab({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
             gap: '16px',
           }}
         >

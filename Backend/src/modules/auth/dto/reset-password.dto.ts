@@ -1,20 +1,15 @@
-const {
+import {
   IsString,
   IsNotEmpty,
   MinLength,
   MaxLength,
   Matches,
-} = require('class-validator');
+} from 'class-validator';
 
-/**
- * newPassword reuses the exact complexity floor from RegisterDto —
- * a password chosen via reset deserves the same strength bar as one
- * chosen at signup.
- */
-class ResetPasswordDto {
+export class ResetPasswordDto {
   @IsString()
   @IsNotEmpty({ message: 'token is required' })
-  token;
+  token!: string;
 
   @IsString()
   @MinLength(8, { message: 'Password must be at least 8 characters' })
@@ -27,7 +22,5 @@ class ResetPasswordDto {
   })
   @Matches(/(?=.*\d)/, { message: 'Password must contain a number' })
   @Matches(/(?=.*[^A-Za-z0-9])/, { message: 'Password must contain a symbol' })
-  newPassword;
+  newPassword!: string;
 }
-
-module.exports = { ResetPasswordDto };

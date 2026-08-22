@@ -1,17 +1,18 @@
-const {
+import {
   ConflictException,
   Injectable,
-  Dependencies,
   UnauthorizedException,
   Logger,
-} = require('@nestjs/common');
-const { JwtService } = require('@nestjs/jwt');
-const { ConfigService } = require('@nestjs/config');
-const bcrypt = require('bcrypt');
-const crypto = require('crypto');
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
-const { PrismaService } = require('../../database/prisma.service');
-const { EmailService } = require('../email/email.service');
+import { PrismaService } from '../../database/prisma.service';
+import { EmailService } from '../email/email.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 
 const BCRYPT_SALT_ROUNDS = 12;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
@@ -20,25 +21,26 @@ const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 @Injectable()
-@Dependencies(PrismaService, JwtService, ConfigService, EmailService)
-class AuthService {
-  constructor(prisma, jwtService, configService, emailService) {
-    this.prisma = prisma;
-    this.jwtService = jwtService;
-    this.configService = configService;
-    this.emailService = emailService;
-    this.logger = new Logger(AuthService.name);
+export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+  private readonly _dummyHashPromise: Promise<string>;
 
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
+  ) {
     this._dummyHashPromise = this._hashPassword(
       'a-constant-placeholder-value-never-used-as-a-real-password',
     );
   }
 
-  _hashPassword(plain) {
+  private _hashPassword(plain: string): Promise<string> {
     return bcrypt.hash(plain, BCRYPT_SALT_ROUNDS);
   }
 
-  _generateSecureToken(ttlMs) {
+  private _generateSecureToken(ttlMs: number) {
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto
       .createHash('sha256')
@@ -48,15 +50,15 @@ class AuthService {
     return { rawToken, tokenHash, expiresAt };
   }
 
-  _deriveInitials(fullName) {
+  private _deriveInitials(fullName?: string | null): string {
     const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
     return parts.map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
   }
 
-  _toUserProfile(user) {
+  private _toUserProfile(user: any) {
     return {
       id: user.id,
-      fullName: user.fullName,
+      fullName: user.fullName || user.name,
       email: user.email,
       role: user.role,
       initials: user.fullName
@@ -66,9 +68,9 @@ class AuthService {
     };
   }
 
-  async _registerFailedLoginAttempt(user) {
-    const attempts = user.failedLoginAttempts + 1;
-    const data = { failedLoginAttempts: attempts };
+  private async _registerFailedLoginAttempt(user: any) {
+    const attempts = (user.failedLoginAttempts || 0) + 1;
+    const data: any = { failedLoginAttempts: attempts };
 
     if (attempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
       data.lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
@@ -78,14 +80,14 @@ class AuthService {
     await this.prisma.user.update({ where: { id: user.id }, data });
   }
 
-  async _issueTokenPair(payload) {
+  private async _issueTokenPair(payload: { sub: string; email: string; role: string }) {
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: this.configService.getOrThrow('JWT_ACCESS_SECRET'),
+      secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
       expiresIn: '15m',
     });
 
     const refreshToken = await this.jwtService.signAsync(payload, {
-      secret: this.configService.getOrThrow('JWT_REFRESH_SECRET'),
+      secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       expiresIn: '7d',
     });
 
@@ -102,12 +104,7 @@ class AuthService {
     return { accessToken, refreshToken };
   }
 
-  /**
-   * Registers a new STUDENT or TEACHER account. As of email
-   * verification being added: this NO LONGER logs the user in.
-   * Returns a plain confirmation message instead of an AuthResult.
-   */
-  async register(dto) {
+  async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
       select: { id: true },
@@ -124,7 +121,7 @@ class AuthService {
 
     const isVerifiedImmediately = !this.emailService.isSmtpConfigured();
 
-    let user;
+    let user: any;
     try {
       user = await this.prisma.user.create({
         data: {
@@ -133,7 +130,7 @@ class AuthService {
           initials: this._deriveInitials(dto.fullName),
           email: dto.email,
           passwordHash,
-          role: dto.role,
+          role: dto.role as any,
           isEmailVerified: isVerifiedImmediately,
           emailVerificationTokenHash: isVerifiedImmediately ? null : tokenHash,
           emailVerificationExpiresAt: isVerifiedImmediately ? null : expiresAt,
@@ -156,10 +153,7 @@ class AuthService {
     };
   }
 
-  /**
-   * Confirms a user's email using the raw token from the link they clicked.
-   */
-  async verifyEmail(rawToken) {
+  async verifyEmail(rawToken: string) {
     const tokenHash = crypto
       .createHash('sha256')
       .update(rawToken)
@@ -189,11 +183,7 @@ class AuthService {
     return { message: 'Email verified successfully. You can now sign in.' };
   }
 
-  /**
-   * Always returns the same generic message regardless of whether
-   * the email exists, is already verified, or genuinely gets a new token.
-   */
-  async resendVerificationEmail(email) {
+  async resendVerificationEmail(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     const generic = {
       message:
@@ -220,12 +210,7 @@ class AuthService {
     return generic;
   }
 
-  /**
-   * Always returns the same generic response regardless of what's
-   * true about the account (non-existent, OAuth-only, or local password).
-   * For OAuth accounts, sends an informational notice instead of a reset link.
-   */
-  async forgotPassword(email) {
+  async forgotPassword(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     const generic = {
       message:
@@ -237,7 +222,6 @@ class AuthService {
     }
 
     if (!user.passwordHash) {
-      // OAuth-only account (Google, or any future provider)
       await this.emailService.sendOAuthAccountNotice(user);
       return generic;
     }
@@ -258,11 +242,7 @@ class AuthService {
     return generic;
   }
 
-  /**
-   * Consumes a reset token and sets a new password.
-   * On success, invalidates existing refresh tokens and clears lockout.
-   */
-  async resetPassword(rawToken, newPassword) {
+  async resetPassword(rawToken: string, newPassword: string) {
     const tokenHash = crypto
       .createHash('sha256')
       .update(rawToken)
@@ -294,7 +274,7 @@ class AuthService {
         passwordHash,
         passwordResetTokenHash: null,
         passwordResetExpiresAt: null,
-        refreshTokenHash: null, // force re-login everywhere else
+        refreshTokenHash: null,
         failedLoginAttempts: 0,
         lockedUntil: null,
       },
@@ -314,7 +294,7 @@ class AuthService {
     };
   }
 
-  async login(dto) {
+  async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -330,7 +310,9 @@ class AuthService {
 
     const realHash = user?.passwordHash;
     const hashToCheck = realHash ?? (await this._dummyHashPromise);
-    const passwordMatches = await bcrypt.compare(dto.password, hashToCheck);
+    const passwordMatches = realHash
+      ? await bcrypt.compare(dto.password, hashToCheck)
+      : false;
 
     if (!user || !realHash || !passwordMatches) {
       if (user && realHash) {
@@ -339,8 +321,6 @@ class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Placed here deliberately — AFTER the password has already been
-    // proven correct, to prevent enumeration.
     if (!user.isEmailVerified) {
       throw new UnauthorizedException(
         'Please verify your email before signing in. Check your inbox or request a new link.',
@@ -364,19 +344,15 @@ class AuthService {
     };
   }
 
-  /**
-   * Finds or creates a user from a verified Google profile, then
-   * issues the same access+refresh pair as password login.
-   */
-  async loginWithGoogle(googleProfile, requestedRole) {
+  async loginWithGoogle(
+    googleProfile: { googleId: string; email: string; fullName: string; emailVerified: boolean },
+    requestedRole?: string,
+  ) {
     const { googleId, email, fullName, emailVerified } = googleProfile;
 
-    // Path 1: returning user who already linked Google previously.
     let user = await this.prisma.user.findUnique({ where: { googleId } });
 
     if (!user) {
-      // Path 2: no googleId match, but an email/password account
-      // already owns this email — link rather than create a duplicate.
       const existingByEmail = await this.prisma.user.findUnique({
         where: { email },
       });
@@ -392,7 +368,6 @@ class AuthService {
           data: { googleId, isEmailVerified: true },
         });
       } else {
-        // Path 3: genuinely new user. Default to STUDENT if role not explicitly chosen.
         const roleToAssign =
           requestedRole === 'TEACHER' || requestedRole === 'STUDENT'
             ? requestedRole
@@ -405,7 +380,7 @@ class AuthService {
             initials: this._deriveInitials(fullName),
             email,
             googleId,
-            role: roleToAssign,
+            role: roleToAssign as any,
             isEmailVerified: emailVerified === true,
             passwordHash: null,
           },
@@ -434,7 +409,7 @@ class AuthService {
     };
   }
 
-  async refreshTokens(userId, refreshToken) {
+  async refreshTokens(userId: string, refreshToken: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
 
     if (!user || !user.refreshTokenHash) {
@@ -472,12 +447,10 @@ class AuthService {
     };
   }
 
-  async logout(userId) {
+  async logout(userId: string) {
     await this.prisma.user.update({
       where: { id: userId },
       data: { refreshTokenHash: null },
     });
   }
 }
-
-module.exports = { AuthService };

@@ -1,4 +1,4 @@
-const {
+import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -6,33 +6,26 @@ const {
   Matches,
   MaxLength,
   MinLength,
-} = require('class-validator');
-const { Transform } = require('class-transformer');
+} from 'class-validator';
+import { Transform } from 'class-transformer';
 
-/**
- * Roles a user is allowed to self-select at registration.
- * Frozen to prevent accidental mutation elsewhere in the codebase.
- */
-const RegisterRole = Object.freeze({
-  STUDENT: 'STUDENT',
-  TEACHER: 'TEACHER',
-});
+export enum RegisterRole {
+  STUDENT = 'STUDENT',
+  TEACHER = 'TEACHER',
+}
 
-/**
- * Request body for POST /auth/register.
- */
-class RegisterDto {
+export class RegisterDto {
   @IsString()
   @IsNotEmpty({ message: 'Full name is required' })
   @MaxLength(120)
-  fullName;
+  fullName!: string;
 
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail({}, { message: 'A valid email address is required' })
-  @MaxLength(254) // RFC 5321 max mailbox length
-  email;
+  @MaxLength(254)
+  email!: string;
 
   @IsString()
   @MinLength(8, { message: 'Password must be at least 8 characters' })
@@ -45,10 +38,8 @@ class RegisterDto {
   })
   @Matches(/(?=.*\d)/, { message: 'Password must contain a number' })
   @Matches(/(?=.*[^A-Za-z0-9])/, { message: 'Password must contain a symbol' })
-  password;
+  password!: string;
 
   @IsEnum(RegisterRole, { message: 'Role must be either STUDENT or TEACHER' })
-  role;
+  role!: RegisterRole;
 }
-
-module.exports = { RegisterDto, RegisterRole };

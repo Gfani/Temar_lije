@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LayoutGrid, Sparkles, LogOut, Plus, Users, KeyRound, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Users, KeyRound, Loader2, AlertCircle } from 'lucide-react';
 import './classrooms.css';
 import CreateClassRoom from '../../components/layout/create_class_room/create_class_room';
 import JoinClassRoom from '../../components/layout/join_class_room/join_class_room';

@@ -1,31 +1,24 @@
-const { Injectable, Dependencies, Logger } = require('@nestjs/common');
-const { ConfigService } = require('@nestjs/config');
-const nodemailer = require('nodemailer');
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 
-/**
- * Thin abstraction over an actual email transport — every caller
- * (AuthService) talks to THIS interface, never to nodemailer or any
- * provider SDK directly.
- *
- * Dev-mode fallback: if SMTP_HOST isn't configured, this logs the
- * email to the console instead of throwing — specifically so the
- * whole verification/reset flow is testable immediately without a
- * real provider decision blocking progress. This fallback is
- * deliberately disabled in production (see constructor).
- */
 @Injectable()
-@Dependencies(ConfigService)
-class EmailService {
-  constructor(configService) {
-    this.configService = configService;
-    this.logger = new Logger(EmailService.name);
-    this.isProduction = configService.get('NODE_ENV') === 'production';
-    this.frontendUrl = configService.get('FRONTEND_URL') || 'http://localhost';
-    this.fromAddress =
-      configService.get('EMAIL_FROM') || 'no-reply@temarlije.local';
+export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+  private readonly isProduction: boolean;
+  private readonly frontendUrl: string;
+  private readonly fromAddress: string;
+  private readonly devMode: boolean;
+  private transporter: any;
 
-    const smtpHost = configService.get('SMTP_HOST');
-    const smtpUser = configService.get('SMTP_USER') || '';
+  constructor(private readonly configService: ConfigService) {
+    this.isProduction = configService.get<string>('NODE_ENV') === 'production';
+    this.frontendUrl = configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    this.fromAddress =
+      configService.get<string>('EMAIL_FROM') || 'no-reply@temarlije.local';
+
+    const smtpHost = configService.get<string>('SMTP_HOST');
+    const smtpUser = configService.get<string>('SMTP_USER') || '';
     const isDummySmtp =
       !smtpHost ||
       smtpHost.includes('example.com') ||
@@ -42,23 +35,22 @@ class EmailService {
           port: Number(configService.get('SMTP_PORT') || 587),
           secure: configService.get('SMTP_SECURE') === 'true',
           auth: {
-            user: configService.get('SMTP_USER') || '',
-            pass: configService.get('SMTP_PASS') || '',
+            user: configService.get<string>('SMTP_USER') || '',
+            pass: configService.get<string>('SMTP_PASS') || '',
           },
         });
-      } catch (err) {
+      } catch (err: any) {
         this.logger.warn(`Failed to initialize SMTP transport, falling back to console: ${err.message}`);
         this.devMode = true;
       }
     }
   }
 
-  isSmtpConfigured() {
+  isSmtpConfigured(): boolean {
     return !this.devMode;
   }
 
-  /** Every other method in this class funnels through here. */
-  async _send({ to, subject, html }) {
+  private async _send({ to, subject, html }: { to: string; subject: string; html: string }) {
     if (this.devMode) {
       this.logger.warn(
         `[EMAIL LOG — SMTP not configured] To: ${to} | Subject: ${subject}\n${html}`,
@@ -73,17 +65,12 @@ class EmailService {
         subject,
         html,
       });
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Failed to send email to ${to}: ${err.message}`);
     }
   }
 
-  async sendVerificationEmail(user, rawToken) {
-    // Points at a FRONTEND route, not this API directly — same
-    // reasoning as the Google OAuth callback: the link the user
-    // clicks lands on a page your frontend controls, which then POSTs
-    // the token to the backend itself. This keeps the raw token out
-    // of any server access logs on whatever serves the initial GET.
+  async sendVerificationEmail(user: any, rawToken: string) {
     const link = `${this.frontendUrl}/verify-email?token=${rawToken}`;
     await this._send({
       to: user.email,
@@ -92,7 +79,7 @@ class EmailService {
     });
   }
 
-  async sendPasswordResetEmail(user, rawToken) {
+  async sendPasswordResetEmail(user: any, rawToken: string) {
     const link = `${this.frontendUrl}/reset-password?token=${rawToken}`;
     await this._send({
       to: user.email,
@@ -101,12 +88,7 @@ class EmailService {
     });
   }
 
-  /**
-   * Sent instead of a real reset link when someone requests a reset
-   * for an account that has no password at all (Google-only). This
-   * is the actual mechanism behind the "OAuth boundary" requirement.
-   */
-  async sendOAuthAccountNotice(user) {
+  async sendOAuthAccountNotice(user: any) {
     await this._send({
       to: user.email,
       subject: 'Password reset requested — Temar Lije',
@@ -114,5 +96,3 @@ class EmailService {
     });
   }
 }
-
-module.exports = { EmailService };

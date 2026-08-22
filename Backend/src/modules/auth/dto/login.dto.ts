@@ -1,21 +1,16 @@
-const { IsEmail, IsString, IsNotEmpty, MaxLength } = require('class-validator');
-const { Transform } = require('class-transformer');
+import { IsEmail, IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
-/**
- * Request body for POST /auth/login.
- */
-class LoginDto {
+export class LoginDto {
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail({}, { message: 'A valid email address is required' })
   @MaxLength(254)
-  email;
+  email!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Password is required' })
   @MaxLength(72)
-  password;
+  password!: string;
 }
-
-module.exports = { LoginDto };

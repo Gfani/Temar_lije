@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare, Phone, Mic, MicOff, Volume2, LogOut, Pin, PinOff, Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
+import { Sun, Moon, X, Search, ArrowLeft, Plus, BookOpen, Menu, UserPlus, Link, Check, CheckCheck, Paperclip, Send, Smile, Copy, Pencil, Trash2, Reply, Forward, Info, FileText, Image, FolderArchive, MessageSquare, Phone, Mic, MicOff, LogOut, Pin, PinOff, Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
 import './chat.css';
 import { io } from 'socket.io-client';
 import { API_BASE_URL, getSocketUrl } from '../../config/constants';
@@ -34,12 +34,13 @@ function Chat({
     const tokenRef = useRef(accessToken);
     tokenRef.current = accessToken;
 
-    const currentUser = {
+    const currentUser = useMemo(() => ({
         id: authUser?.id || 'guest',
         name: authUser?.fullName || authUser?.name || authUser?.email || 'User',
         initials: authUser?.initials || (authUser?.fullName || authUser?.name || 'U').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U',
         avatarBg: authUser?.avatarBg || '#3b82f6'
-    };
+    }), [authUser?.id, authUser?.fullName, authUser?.name, authUser?.email, authUser?.initials, authUser?.avatarBg]);
+    
     const currentUserRef = useRef(currentUser);
     currentUserRef.current = currentUser;
     const isAuthedRef = useRef(!!authUser);

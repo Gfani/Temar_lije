@@ -480,13 +480,6 @@
   display: inline-block;
 }
 
-/* Responsive sidebar */
-@media (max-width: 820px) {
-  .sidebar-container {
-    display: none;
-  }
-}
-
 /* Global Dark Mode rules for Members Tab */
 .members-page-layout.dark {
   background-color: #121824;

@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Zap,
   Loader2,
-  RefreshCw,
   Minimize2,
   ExternalLink,
 } from 'lucide-react';
@@ -76,12 +75,11 @@ export default function LiveClassroomContainer({
   onClose,
   isDocked = false,
 }) {
-  const liveContext = useLiveClass ? useLiveClass() : null;
+  const liveContext = useLiveClass();
   const contextSocket = liveContext?.liveSocket;
 
   // ---- Network & Mode States ----
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
-  const [socketConnected, setSocketConnected] = useState(Boolean(contextSocket?.connected));
   const [latencyMs, setLatencyMs] = useState(null);
 
   // 'AUTO' | 'JITSI' | 'FALLBACK'

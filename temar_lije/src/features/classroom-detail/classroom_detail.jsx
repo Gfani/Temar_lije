@@ -159,11 +159,7 @@ export default function ClassroomDetail({
               />
             )}
             {activeDetailTab === 'members' && (
-              isTeacher ? (
-                <TeacherMemberTab darkMode={darkMode} classroom={classroom} currentUser={currentUser} />
-              ) : (
-                <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} classroom={classroom} currentUser={currentUser} />
-              )
+              <MembersTab darkMode={darkMode} setDarkMode={setDarkMode} classroom={classroom} currentUser={currentUser} />
             )}
           </main>
         </>

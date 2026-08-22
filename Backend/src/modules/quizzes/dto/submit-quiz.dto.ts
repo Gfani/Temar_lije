@@ -1,31 +1,29 @@
-const {
+import {
   IsString,
   IsNotEmpty,
   IsOptional,
   IsArray,
   ValidateNested,
-} = require('class-validator');
-const { Type } = require('class-transformer');
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
-class SubmitAnswerDto {
+export class SubmitAnswerDto {
   @IsString()
   @IsNotEmpty({ message: 'questionId is required' })
-  questionId;
+  questionId!: string;
 
   @IsOptional()
-  selectedOptionId;
+  @IsString()
+  selectedOptionId?: string;
 }
 
-class SubmitQuizDto {
+export class SubmitQuizDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SubmitAnswerDto)
-  answers;
+  answers!: SubmitAnswerDto[];
 
   @IsOptional()
   @IsString()
-  studentId;
+  studentId?: string;
 }
-
-module.exports = { SubmitQuizDto, SubmitAnswerDto };
-

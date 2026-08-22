@@ -1205,11 +1205,11 @@ export class ChatService {
       where: { id: { in: validReplyIds } },
       include: { sender: true },
     });
-    const replyMap = new Map(replies.map((r) => [r.id, this.formatMessage(r)]));
+    const replyMap = new Map<string, any>(replies.map((r) => [r.id, this.formatMessage(r)]));
 
     for (const message of messages) {
       if (!message.replyToId) continue;
-      const reply = replyMap.get(toUuid(message.replyToId));
+      const reply: any = replyMap.get(toUuid(message.replyToId));
       if (reply) {
         message.replyTo = {
           id: reply.id,

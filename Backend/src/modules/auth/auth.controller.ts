@@ -1,4 +1,4 @@
-const {
+import {
   Controller,
   Get,
   Post,
@@ -8,50 +8,45 @@ const {
   UseGuards,
   HttpCode,
   HttpStatus,
-  Dependencies,
-  BadRequestException,
-} = require('@nestjs/common');
-const { Throttle } = require('@nestjs/throttler');
-const { ConfigService } = require('@nestjs/config');
-const { JwtService } = require('@nestjs/jwt');
-const { validate } = require('class-validator');
-const { plainToInstance } = require('class-transformer');
-const crypto = require('crypto');
+} from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { Request, Response } from 'express';
 
-const { AuthService } = require('./auth.service');
-const { RegisterDto } = require('./dto/register.dto');
-const { LoginDto } = require('./dto/login.dto');
-const { JwtAuthGuard } = require('../../common/guards/JwtAuthGuard');
-const { JwtRefreshGuard } = require('../../common/guards/JwtRefreshGuard');
-const { GoogleAuthGuard } = require('../../common/guards/GoogleAuthGuard');
-const { VerifyEmailDto } = require('./dto/verify-email.dto');
-const { ResendVerificationDto } = require('./dto/resend-verification.dto');
-const { ForgotPasswordDto } = require('./dto/forgot-password.dto');
-const { ResetPasswordDto } = require('./dto/reset-password.dto');
+import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from '../../common/guards/JwtAuthGuard';
+import { JwtRefreshGuard } from '../../common/guards/JwtRefreshGuard';
+import { GoogleAuthGuard } from '../../common/guards/GoogleAuthGuard';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
 const REFRESH_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 @Controller('auth')
-@Dependencies(AuthService, ConfigService, JwtService)
-class AuthController {
-  constructor(authService, configService, jwtService) {
-    this.authService = authService;
-    this.configService = configService;
-    this._jwtService = jwtService;
-  }
+export class AuthController {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
+  ) {}
 
-  _refreshCookieOptions() {
+  private _refreshCookieOptions() {
     return {
       httpOnly: true,
       secure: false,
-      sameSite: 'lax',
+      sameSite: 'lax' as const,
       path: '/',
       maxAge: REFRESH_COOKIE_MAX_AGE_MS,
     };
   }
 
-  _setRefreshCookie(res, refreshToken) {
+  private _setRefreshCookie(res: Response, refreshToken: string) {
     res.cookie(
       REFRESH_COOKIE_NAME,
       refreshToken,
@@ -59,74 +54,50 @@ class AuthController {
     );
   }
 
-  _sendAuthResult(res, result) {
+  private _sendAuthResult(res: Response, result: any) {
     this._setRefreshCookie(res, result.refreshToken);
     return { accessToken: result.accessToken, user: result.user };
-  }
-
-  /**
-   * Validate an incoming request body against a class-validator DTO.
-   * The global ValidationPipe cannot infer DTO metatypes in plain-JS
-   * controllers, so we validate explicitly here and return a 400 with
-   * the readable constraint messages instead of a 500.
-   */
-  async _validateDto(dtoClass, value) {
-    const errors = await validate(plainToInstance(dtoClass, value || {}), {
-      whitelist: true,
-      forbidNonWhitelisted: false,
-    });
-    if (errors.length > 0) {
-      const messages = errors.flatMap((error) =>
-        Object.values(error.constraints || {}),
-      );
-      throw new BadRequestException(messages);
-    }
   }
 
   @Throttle({ default: { limit: 5, ttl: 300000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async register(@Body() dto, @Res({ passthrough: true }) res) {
-    await this._validateDto(RegisterDto, dto);
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.register(dto);
-    return this._sendAuthResult(res, result);
+    return result;
   }
 
   @Throttle({ default: { limit: 10, ttl: 300000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto, @Res({ passthrough: true }) res) {
-    await this._validateDto(LoginDto, dto);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
     return this._sendAuthResult(res, result);
   }
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(@Body() dto) {
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
     return this.authService.verifyEmail(dto.token);
   }
 
-  /**
-   * Throttled tighter than the global default — prevents email-bombing.
-   */
   @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 per 15 minutes
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
-  async resendVerification(@Body() dto) {
+  async resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerificationEmail(dto.email);
   }
 
   @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 per 15 minutes
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  async forgotPassword(@Body() dto) {
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body() dto, @Res({ passthrough: true }) res) {
+  async resetPassword(@Body() dto: ResetPasswordDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.resetPassword(
       dto.token,
       dto.newPassword,
@@ -137,7 +108,7 @@ class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtRefreshGuard)
-  async refresh(@Req() req, @Res({ passthrough: true }) res) {
+  async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
     const refreshToken =
       req.user?.refreshToken || req.cookies?.[REFRESH_COOKIE_NAME];
@@ -148,32 +119,26 @@ class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  async logout(@Req() req, @Res({ passthrough: true }) res) {
+  async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
     await this.authService.logout(userId);
     res.clearCookie(REFRESH_COOKIE_NAME, { path: '/' });
     return { message: 'Logged out successfully' };
   }
 
-  /**
-   * Kicks off the Google OAuth flow.
-   */
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   googleAuth() {}
 
-  /**
-   * Google redirects back here after the user consents.
-   */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
-  async googleCallback(@Req() req, @Res() res) {
+  async googleCallback(@Req() req: any, @Res() res: Response) {
     const host =
-      req.headers['x-forwarded-host'] ||
+      (req.headers['x-forwarded-host'] as string) ||
       req.headers.host ||
-      '172.209.217.233.nip.io';
+      'localhost:5173';
     const proto =
-      req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
     const frontendBaseUrl = `${proto}://${host}`;
     const frontendErrorUrl = `${frontendBaseUrl}/signin?error=oauth_failed`;
 
@@ -186,7 +151,7 @@ class AuthController {
     let requestedRole = 'STUDENT';
     if (req.query.state) {
       try {
-        const statePayload = this._jwtService.verify(req.query.state, {
+        const statePayload: any = this.jwtService.verify(req.query.state as string, {
           secret: this.configService.getOrThrow('GOOGLE_OAUTH_STATE_SECRET'),
         });
         if (statePayload && statePayload.role) {
@@ -204,7 +169,7 @@ class AuthController {
       );
       this._setRefreshCookie(res, result.refreshToken);
       return res.redirect(`${frontendBaseUrl}/oauth/callback`);
-    } catch (err) {
+    } catch (err: any) {
       const message = encodeURIComponent(
         err.message || 'Google sign-in failed',
       );
@@ -212,5 +177,3 @@ class AuthController {
     }
   }
 }
-
-module.exports = { AuthController };

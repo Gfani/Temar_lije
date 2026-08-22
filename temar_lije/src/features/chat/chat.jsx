@@ -215,15 +215,58 @@ function Chat({
     });
 
     const [groupMemberRoles, setGroupMemberRoles] = useState({});
+    const [isEditingGroupInfo, setIsEditingGroupInfo] = useState(false);
+    const [editGroupName, setEditGroupName] = useState('');
+    const [editGroupDesc, setEditGroupDesc] = useState('');
 
-    const handleToggleAdminRole = (memberId) => {
+    const handleStartEditGroupInfo = () => {
+        setEditGroupName(activeItem.name || '');
+        setEditGroupDesc(activeItem.description || activeItem.subtitle || '');
+        setIsEditingGroupInfo(true);
+    };
+
+    const handleSaveGroupInfo = () => {
+        if (!editGroupName.trim()) {
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+            setToastMessage('Group name cannot be empty');
+            toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+            return;
+        }
+
+        apiFetch(`${API_BASE_URL}/chat/groups/${activeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: editGroupName.trim(),
+                description: editGroupDesc.trim()
+            })
+        })
+        .then(res => {
+            if (res.ok) {
+                setStudyGroups(prev => prev.map(g => (g.id === activeId ? { ...g, name: editGroupName.trim(), description: editGroupDesc.trim(), subtitle: editGroupDesc.trim() } : g)));
+                setIsEditingGroupInfo(false);
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                setToastMessage('Group information updated!');
+                toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+            } else {
+                return res.json().then(err => { throw new Error(err.message || 'Failed to update group info'); });
+            }
+        })
+        .catch(err => {
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+            setToastMessage(err.message || 'Failed to update group');
+            toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+        });
+    };
+
+    const handleToggleAdminRole = (memberId, customPermissions) => {
         const currentRole = groupMemberRoles[`${activeId}-${memberId}`] || 'MEMBER';
         const newRole = currentRole === 'ADMIN' ? 'MEMBER' : 'ADMIN';
         
         apiFetch(`${API_BASE_URL}/chat/groups/${activeId}/members/${memberId}/role`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: newRole })
+            body: JSON.stringify({ role: newRole, permissions: customPermissions })
         })
         .then(res => {
             if (res.ok) {
@@ -231,10 +274,19 @@ function Chat({
                     ...prev,
                     [`${activeId}-${memberId}`]: newRole
                 }));
-                showToast(`${USER_PROFILES[memberId]?.name} is now a ${newRole.toLowerCase()}!`, '👑');
+                const userObj = USER_PROFILES[memberId];
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                setToastMessage(`${userObj?.name || memberId} is now ${newRole === 'ADMIN' ? 'an Admin' : 'a Member'}!`);
+                toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+            } else {
+                return res.json().then(err => { throw new Error(err.message || 'Failed to update member role'); });
             }
         })
-        .catch(err => console.error('Failed to update member role:', err));
+        .catch(err => {
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+            setToastMessage(err.message || 'Failed to update role');
+            toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+        });
     };
 
     const simSpeakerIntervalRef = useRef(null);
@@ -919,6 +971,61 @@ function Chat({
             }));
         });
 
+        socketRef.current.on('topicCreated', (data) => {
+            const { groupId, topic } = data || {};
+            if (!groupId || !topic) return;
+            const tId = topic.slug || topic.id;
+            setTopicsByGroup(prev => {
+                const existing = prev[groupId] || [
+                    { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' }
+                ];
+                if (existing.some(t => t.id === tId)) return prev;
+                return {
+                    ...prev,
+                    [groupId]: [
+                        ...existing,
+                        {
+                            id: tId,
+                            name: topic.name,
+                            icon: topic.icon || '#',
+                            color: topic.color || '#0d9488',
+                            subtitle: `Topic: ${topic.name}`,
+                            time: ''
+                        }
+                    ]
+                };
+            });
+        });
+
+        socketRef.current.on('topicDeleted', (data) => {
+            const { groupId, topicId } = data || {};
+            if (!groupId || !topicId) return;
+            setTopicsByGroup(prev => {
+                const existing = prev[groupId] || [];
+                return {
+                    ...prev,
+                    [groupId]: existing.filter(t => t.id !== topicId && t.slug !== topicId)
+                };
+            });
+            setActiveTopicId(prev => (prev === topicId ? 'general' : prev));
+        });
+
+        socketRef.current.on('groupUpdated', (data) => {
+            const { groupId, name, description, icon, color } = data || {};
+            if (!groupId) return;
+            setStudyGroups(prev =>
+                prev.map(g => (g.id === groupId ? { ...g, name: name || g.name, description: description !== undefined ? description : g.description, icon: icon || g.icon, color: color || g.color } : g))
+            );
+        });
+
+        socketRef.current.on('membersAdded', (data) => {
+            const { groupId, members } = data || {};
+            if (!groupId || !Array.isArray(members)) return;
+            setStudyGroups(prev =>
+                prev.map(g => (g.id === groupId ? { ...g, members: members.map(m => m.userId || m) } : g))
+            );
+        });
+
         socketRef.current.on('voiceChatUserJoined', (data) => {
             const { groupId, userId, username, initials, avatarBg } = data;
             setActiveVoiceChat(prev => {
@@ -980,12 +1087,16 @@ function Chat({
                         const item = {
                             id: g.id,
                             name: g.name,
+                            description: g.description || '',
                             subtitle: g.description || 'No messages yet',
                             isClassroom: isClassroom,
                             time: '',
                             icon: isClassroom ? '🏫' : (g.icon || '📚'),
                             color: g.color || g.colorAccent || '#8b5cf6',
-                            members: g.members?.map(m => m.userId) || []
+                            ownerId: g.ownerId || g.createdById,
+                            myRole: g.myRole || 'MEMBER',
+                            myPermissions: g.myPermissions || {},
+                            members: g.members?.map(m => (typeof m === 'object' ? m.userId : m)) || []
                         };
                         if (isClassroom) {
                             loadedClassrooms.push(item);
@@ -1007,8 +1118,16 @@ function Chat({
                     
                     const rolesMap = {};
                     data.forEach(g => {
+                        if (g.ownerId) {
+                            rolesMap[`${g.id}-${g.ownerId}`] = 'OWNER';
+                        }
+                        if (g.createdById) {
+                            rolesMap[`${g.id}-${g.createdById}`] = 'OWNER';
+                        }
                         g.members?.forEach(m => {
-                            rolesMap[`${g.id}-${m.userId}`] = m.role || 'MEMBER';
+                            const uId = typeof m === 'object' ? m.userId : m;
+                            const role = (typeof m === 'object' && m.role) ? m.role : 'MEMBER';
+                            rolesMap[`${g.id}-${uId}`] = role;
                         });
                     });
                     setGroupMemberRoles(prev => ({ ...prev, ...rolesMap }));
@@ -1850,18 +1969,61 @@ function Chat({
             apiFetch(`${API_BASE_URL}/chat/groups/${groupId}`, {
                 method: 'DELETE'
             })
-            .catch(err => console.error('Failed to delete group:', err));
+            .then(res => {
+                if (res.ok) {
+                    setStudyGroups(prev => prev.filter(g => g.id !== groupId));
+                    if (activeId === groupId) {
+                        setActiveId('flutter');
+                    }
+                    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                    setToastMessage('Study group deleted.');
+                    toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+                } else {
+                    return res.json().then(err => { throw new Error(err.message || 'Failed to delete group'); });
+                }
+            })
+            .catch(err => {
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                setToastMessage(err.message || 'Failed to delete group');
+                toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+            });
         }
     };
 
     // Handle deleting a study topic channel
     const handleDeleteTopic = (groupId, topicId, e) => {
         if (e) e.stopPropagation();
+        if (topicId === 'general') {
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+            setToastMessage('The General topic cannot be deleted.');
+            toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+            return;
+        }
         if (window.confirm(`Are you sure you want to delete the topic "${topicId}"?`)) {
-            apiFetch(`${API_BASE_URL}/chat/groups/${groupId}-${topicId}`, {
+            apiFetch(`${API_BASE_URL}/chat/groups/${groupId}/topics/${topicId}`, {
                 method: 'DELETE'
             })
-            .catch(err => console.error('Failed to delete topic:', err));
+            .then(res => {
+                if (res.ok) {
+                    setTopicsByGroup(prev => {
+                        const list = prev[groupId] || [];
+                        return { ...prev, [groupId]: list.filter(t => t.id !== topicId && t.slug !== topicId) };
+                    });
+                    if (activeTopicId === topicId) {
+                        setActiveTopicId('general');
+                    }
+                    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                    setToastMessage('Topic deleted.');
+                    toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+                } else {
+                    return res.json().then(err => { throw new Error(err.message || 'Failed to delete topic'); });
+                }
+            })
+            .catch(err => {
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                setToastMessage(err.message || 'Failed to delete topic');
+                toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+            });
         }
     };
 
@@ -2505,7 +2667,8 @@ function Chat({
                                                         }}>{lastMsgPreview}</span>
                                                     </div>
                                                     {(() => {
-                                                        const myRole = groupMemberRoles[`${selectedGroupIdForTopics}-gs`] || 'OWNER';
+                                                        const activeGroupObj = studyGroups.find(g => g.id === selectedGroupIdForTopics);
+                                                        const myRole = groupMemberRoles[`${selectedGroupIdForTopics}-${currentUser.id}`] || (activeGroupObj?.ownerId === currentUser.id ? 'OWNER' : 'MEMBER');
                                                         if (t.id !== 'general' && (myRole === 'OWNER' || myRole === 'ADMIN')) {
                                                             return (
                                                                 <button
@@ -2620,8 +2783,8 @@ function Chat({
                                             <span className="item-subtitle">{g.subtitle}</span>
                                         </div>
                                         {(() => {
-                                            const gRole = groupMemberRoles[`${g.id}-gs`] || 'OWNER';
-                                            if (gRole === 'OWNER' || gRole === 'ADMIN') {
+                                            const gRole = groupMemberRoles[`${g.id}-${currentUser.id}`] || (g.ownerId === currentUser.id ? 'OWNER' : 'MEMBER');
+                                            if (gRole === 'OWNER') {
                                                 return (
                                                     <button
                                                         className="delete-group-btn"
@@ -2859,7 +3022,7 @@ function Chat({
                             <div className="pinned-title">Pinned Message</div>
                             <div className="pinned-snippet">{pinnedMessage.text || pinnedMessage.fileName || 'Pinned attachment'}</div>
                         </div>
-                        {(groupMemberRoles[`${activeId}-gs`] === 'OWNER' || groupMemberRoles[`${activeId}-gs`] === 'ADMIN') && (
+                        {(groupMemberRoles[`${activeId}-${currentUser.id}`] === 'OWNER' || groupMemberRoles[`${activeId}-${currentUser.id}`] === 'ADMIN' || activeItem.ownerId === currentUser.id) && (
                             <button
                                 className="pinned-unpin-btn"
                                 onClick={(e) => {
@@ -3964,43 +4127,95 @@ function Chat({
                             >
                                 {activeItem.icon || '👥'}
                             </div>
-                            <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: '700' }}>{activeItem.name}</h3>
-                            <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-muted)' }}>
-                                {activeItem.members ? activeItem.members.length : 1} members · {
-                                    activeItem.members ? activeItem.members.filter(m => USER_PROFILES[m]?.online).length : 1
-                                } online
-                            </p>
+                            {isEditingGroupInfo ? (
+                                <div style={{ width: '100%', marginBottom: '10px' }}>
+                                    <label className="field-label-text">Group Name</label>
+                                    <input
+                                        type="text"
+                                        value={editGroupName}
+                                        onChange={(e) => setEditGroupName(e.target.value)}
+                                        className="inchat-search-input"
+                                        style={{ width: '100%', marginTop: '4px', marginBottom: '8px', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--search-bg)' }}
+                                    />
+                                    <label className="field-label-text">Group Description</label>
+                                    <textarea
+                                        value={editGroupDesc}
+                                        onChange={(e) => setEditGroupDesc(e.target.value)}
+                                        rows={2}
+                                        style={{ width: '100%', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--search-bg)', color: 'var(--text-main)', fontSize: '13px', resize: 'vertical' }}
+                                    />
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '10px' }}>
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveGroupInfo}
+                                            style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '600', borderRadius: '6px', border: 'none', backgroundColor: 'var(--active-item-border)', color: 'white', cursor: 'pointer' }}
+                                        >
+                                            Save Changes
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditingGroupInfo(false)}
+                                            style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '600', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                                        <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: '700' }}>{activeItem.name}</h3>
+                                        {(groupMemberRoles[`${activeId}-${currentUser.id}`] === 'OWNER' || activeItem.ownerId === currentUser.id) && (
+                                            <button
+                                                type="button"
+                                                onClick={handleStartEditGroupInfo}
+                                                style={{ background: 'none', border: 'none', color: 'var(--active-item-border)', cursor: 'pointer', padding: '2px' }}
+                                                title="Edit Group Info"
+                                            >
+                                                <Pencil size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                                        {activeItem.members ? activeItem.members.length : 1} members · {
+                                            activeItem.members ? activeItem.members.filter(m => USER_PROFILES[m]?.online).length : 1
+                                        } online
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         {/* Description & Invite Link Section */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
-                            {/* Description */}
-                            <div>
-                                <label className="field-label-text">Group Description</label>
-                                <div style={{ fontSize: '13.5px', color: 'var(--text-main)', backgroundColor: 'var(--search-bg)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', marginTop: '6px', lineHeight: '1.45' }}>
-                                    {activeItem.subtitle || "No description set for this group."}
-                                </div>
-                            </div>
-
-                            {/* Invite Link */}
-                            <div>
-                                <label className="field-label-text">Invite Link</label>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                                    <div style={{ flex: 1, fontSize: '13px', color: 'var(--text-main)', backgroundColor: 'var(--search-bg)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {`${window.location.origin}/join/${activeId}`}
+                        {!isEditingGroupInfo && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                                {/* Description */}
+                                <div>
+                                    <label className="field-label-text">Group Description</label>
+                                    <div style={{ fontSize: '13.5px', color: 'var(--text-main)', backgroundColor: 'var(--search-bg)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', marginTop: '6px', lineHeight: '1.45' }}>
+                                        {activeItem.description || activeItem.subtitle || "No description set for this group."}
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="modal-action-button cancel-button"
-                                        style={{ padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px' }}
-                                        onClick={handleCopyInvite}
-                                        title="Copy Link"
-                                    >
-                                        <Copy size={16} />
-                                    </button>
+                                </div>
+
+                                {/* Invite Link */}
+                                <div>
+                                    <label className="field-label-text">Invite Link</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                        <div style={{ flex: 1, fontSize: '13px', color: 'var(--text-main)', backgroundColor: 'var(--search-bg)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {`${window.location.origin}/join/${activeId}`}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="modal-action-button cancel-button"
+                                            style={{ padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px' }}
+                                            onClick={handleCopyInvite}
+                                            title="Copy Link"
+                                        >
+                                            <Copy size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Members Block */}
                         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -4367,52 +4582,53 @@ function Chat({
                 userProfiles={USER_PROFILES}
                 invitedMembers={activeItem.members ? activeItem.members.filter(m => m !== currentUser.id) : ['at', 'yb']}
                 onCreate={(topicName) => {
-                    const topicId = topicName.toLowerCase().replace(/\s+/g, '-');
                     const targetGroupKey = selectedGroupIdForTopics || activeId;
 
-                    apiFetch(`${API_BASE_URL}/chat/groups`, {
+                    apiFetch(`${API_BASE_URL}/chat/groups/${targetGroupKey}/topics`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            id: `${targetGroupKey}-${topicId}`,
                             name: topicName,
-                            description: `Topic room for ${topicName}`,
-                            icon: `topic:${targetGroupKey}:${topicId}`,
-                            color: '#0d9488',
-                            isTopic: true,
-                            parentGroupId: targetGroupKey,
-                            topicId: topicId,
-                            classroomId: classroomId || undefined,
-                            memberIds: []
+                            color: '#0d9488'
                         })
                     })
-                    .then(res => res.json())
-                    .then(group => {
+                    .then(res => {
+                        if (!res.ok) {
+                            return res.json().then(err => { throw new Error(err.message || 'Failed to create topic'); });
+                        }
+                        return res.json();
+                    })
+                    .then(topic => {
+                        const tId = topic.slug || topic.id;
                         const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         setTopicsByGroup(prev => {
                             const currentTopics = prev[targetGroupKey] || [];
-                            if (currentTopics.some(t => t.id === topicId)) return prev;
+                            if (currentTopics.some(t => t.id === tId)) return prev;
                             return {
                                 ...prev,
                                 [targetGroupKey]: [
                                     ...currentTopics,
-                                    { id: topicId, name: topicName, icon: topicName[0].toUpperCase(), color: '#0d9488', subtitle: 'Topic created', time: timeString }
+                                    { id: tId, name: topic.name, icon: '#', color: '#0d9488', subtitle: 'Topic created', time: timeString }
                                 ]
                             };
                         });
                         setMessagesByGroup(prev => ({
                             ...prev,
-                            [`${targetGroupKey}-${topicId}`]: [
+                            [`${targetGroupKey}-${tId}`]: [
                                 { id: `sys-topic-${Date.now()}`, type: 'system', text: `Topic "${topicName}" created` }
                             ]
                         }));
-                        setActiveTopicId(topicId);
+                        setActiveTopicId(tId);
                         setCreatedTopicName(topicName);
                         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
                         setToastMessage(`Topic "${topicName}" created!`);
                         toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2500);
                     })
-                    .catch(err => console.error('Failed to persist topic:', err));
+                    .catch(err => {
+                        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                        setToastMessage(err.message || 'Failed to create topic');
+                        toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+                    });
                 }}
             />
 

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
@@ -16,6 +17,30 @@ function toUuid(id: string): string {
   hex = hex.padEnd(32, '0').slice(0, 32);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
+
+export interface AdminPermissions {
+  canManageTopics?: boolean;
+  canDeleteMessages?: boolean;
+  canManageMembers?: boolean;
+  canPinMessages?: boolean;
+  canEditGroupInfo?: boolean;
+}
+
+const DEFAULT_ADMIN_PERMISSIONS: AdminPermissions = {
+  canManageTopics: true,
+  canDeleteMessages: true,
+  canManageMembers: true,
+  canPinMessages: true,
+  canEditGroupInfo: false,
+};
+
+const OWNER_PERMISSIONS: AdminPermissions = {
+  canManageTopics: true,
+  canDeleteMessages: true,
+  canManageMembers: true,
+  canPinMessages: true,
+  canEditGroupInfo: true,
+};
 
 @Injectable()
 export class ChatService {
@@ -116,9 +141,63 @@ export class ChatService {
     }
   }
 
-  private _deriveInitials(name?: string) {
-    const parts = (name || 'U').trim().split(/\s+/).filter(Boolean);
-    return parts.map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  /**
+   * Evaluates user's permission in a group.
+   */
+  async getMemberRoleAndPermissions(groupId: string, userId?: string) {
+    if (!userId) {
+      return { role: 'MEMBER', permissions: {}, isOwner: false, isAdmin: false };
+    }
+
+    const groupUuid = toUuid(groupId);
+    const userUuid = toUuid(userId);
+
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+      include: {
+        members: {
+          where: { userId: userUuid },
+        },
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    const isOwner = group.createdById === userUuid || group.createdById === userId;
+    if (isOwner) {
+      return {
+        role: 'OWNER',
+        permissions: OWNER_PERMISSIONS,
+        isOwner: true,
+        isAdmin: true,
+      };
+    }
+
+    const member = group.members[0];
+    if (!member) {
+      return { role: 'NONE', permissions: {}, isOwner: false, isAdmin: false };
+    }
+
+    let parsedPerms: AdminPermissions = {};
+    if (typeof (member as any).permissions === 'string') {
+      try {
+        parsedPerms = JSON.parse((member as any).permissions);
+      } catch (e) {}
+    } else if (typeof (member as any).permissions === 'object' && (member as any).permissions) {
+      parsedPerms = (member as any).permissions;
+    }
+
+    const memberRole = (member as any).role || 'MEMBER';
+    const isAdmin = memberRole === 'ADMIN';
+
+    return {
+      role: memberRole,
+      permissions: isAdmin ? { ...DEFAULT_ADMIN_PERMISSIONS, ...parsedPerms } : {},
+      isOwner: false,
+      isAdmin,
+    };
   }
 
   private async _assertGroupAccess(groupId: string, userId?: string) {
@@ -142,7 +221,6 @@ export class ChatService {
       userId &&
       !group.members.some((m) => m.userId === validUserUuid || m.userId === userId)
     ) {
-      // Allow seamless access to classroom study groups and default channels
       if (group.classroomId || group.id === 'flutter' || group.id === 'react-native') {
         await this.ensureUserExists(userId);
         await this.db.studyGroupMember
@@ -159,10 +237,6 @@ export class ChatService {
     }
 
     return group;
-  }
-
-  private async _assertOwner(groupId: string, userId: string) {
-    return this._assertGroupAccess(groupId, userId);
   }
 
   private async ensureClassroomExists(classroomId?: string, creatorId?: string): Promise<string> {
@@ -197,6 +271,9 @@ export class ChatService {
     return created.id;
   }
 
+  /**
+   * Create a new Group. The creator is permanently set as the OWNER.
+   */
   async createGroup(
     name: string,
     description?: string,
@@ -212,6 +289,20 @@ export class ChatService {
   ) {
     const effectiveCreatorId = creatorId || memberIds[0] || 'gs';
     await this.ensureUserExists(effectiveCreatorId);
+
+    // If caller is attempting to create a topic via group route, delegate to createTopic
+    const isTopicSubchannel =
+      isTopic ||
+      Boolean(parentGroupId) ||
+      (icon && icon.startsWith('topic:')) ||
+      (id && (id.startsWith('topic:') || (id.includes('-') && !id.includes('6666'))));
+
+    if (isTopicSubchannel) {
+      const parentKey = parentGroupId || (id && id.split('-')[0]) || 'general';
+      const tId = topicId || (id && id.split('-').slice(1).join('-')) || name.toLowerCase().replace(/\s+/g, '-');
+      return await this.createTopic(parentKey, name, icon || '#', color || '#0d9488', effectiveCreatorId, tId);
+    }
+
     for (const memberId of memberIds) {
       await this.ensureUserExists(memberId);
     }
@@ -220,40 +311,37 @@ export class ChatService {
       ? await this.ensureClassroomExists(classroomId, effectiveCreatorId)
       : undefined;
 
-    // Check if this is a topic under a parent group
-    const isTopicSubchannel =
-      isTopic ||
-      Boolean(parentGroupId) ||
-      (icon && icon.startsWith('topic:')) ||
-      (id && (id.startsWith('topic:') || (id.includes('-') && !id.includes('6666'))));
-
-    let finalIcon = icon || '📚';
-    let resolvedParent = parentGroupId;
-    let resolvedTopicId = topicId;
-
-    if (isTopicSubchannel) {
-      resolvedParent = parentGroupId || (id && id.split('-')[0]) || 'general';
-      resolvedTopicId =
-        topicId ||
-        (id && id.split('-').slice(1).join('-')) ||
-        name.toLowerCase().replace(/\s+/g, '-');
-      finalIcon = `topic:${resolvedParent}:${resolvedTopicId}`;
-    }
-
     const groupUuid = id ? toUuid(id) : undefined;
+    const creatorUuid = toUuid(effectiveCreatorId);
+
+    // Combine members ensuring creator is OWNER
+    const otherMembers = memberIds
+      .filter((m) => toUuid(m) !== creatorUuid)
+      .map((userId) => ({
+        userId: toUuid(userId),
+        role: 'MEMBER',
+      }));
+
+    const allMembersCreate = [
+      {
+        userId: creatorUuid,
+        role: 'OWNER',
+        permissions: JSON.stringify(OWNER_PERMISSIONS),
+      },
+      ...otherMembers,
+    ];
 
     const createdGroup = await this.db.studyGroup.create({
       data: {
         ...(groupUuid ? { id: groupUuid } : {}),
         name,
-        icon: finalIcon,
-        colorAccent: color || (isTopicSubchannel ? '#0d9488' : '#6366f1'),
+        description: description || '',
+        icon: icon || '📚',
+        colorAccent: color || '#6366f1',
         classroomId: effectiveClassroomId || undefined,
-        createdById: toUuid(effectiveCreatorId),
+        createdById: creatorUuid,
         members: {
-          create: memberIds.map((userId) => ({
-            userId: toUuid(userId),
-          })),
+          create: allMembersCreate,
         },
       },
       include: {
@@ -265,30 +353,365 @@ export class ChatService {
       },
     });
 
+    // Create default 'general' topic permanently
+    try {
+      await (this.db as any).groupTopic.create({
+        data: {
+          studyGroupId: createdGroup.id,
+          name: 'General',
+          slug: 'general',
+          icon: '#',
+          color: '#64748b',
+          createdById: creatorUuid,
+        },
+      });
+    } catch (e) {}
+
     return {
       ...createdGroup,
-      description: description || '',
-      isTopic: isTopicSubchannel,
-      parentGroupId: resolvedParent,
-      topicId: resolvedTopicId,
+      ownerId: creatorUuid,
+      myRole: 'OWNER',
+      myPermissions: OWNER_PERMISSIONS,
+      topics: [
+        { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' },
+      ],
     };
   }
 
-  async updateMemberRole(
+  /**
+   * Create a permanent topic inside a group (Enforces OWNER or ADMIN with canManageTopics).
+   */
+  async createTopic(
     groupId: string,
-    userId: string,
-    role: string,
+    name: string,
+    icon?: string,
+    color?: string,
     actorId?: string,
+    customSlug?: string,
   ) {
-    const member = await this.db.studyGroupMember.findFirst({
-      where: {
-        studyGroupId: toUuid(groupId),
-        userId: toUuid(userId),
-      },
+    const groupUuid = toUuid(groupId);
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
     });
-    return { groupId, userId, role, success: !!member };
+
+    if (!group) {
+      throw new NotFoundException(`Group with ID ${groupId} not found`);
+    }
+
+    if (actorId) {
+      const auth = await this.getMemberRoleAndPermissions(groupId, actorId);
+      const canCreate = auth.isOwner || (auth.isAdmin && auth.permissions?.canManageTopics !== false);
+      if (!canCreate) {
+        throw new ForbiddenException('Only the group owner or authorized admins can create topics.');
+      }
+    }
+
+    const slug = customSlug || name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `topic-${Date.now()}`;
+    const actorUuid = actorId ? toUuid(actorId) : group.createdById;
+    if (actorId) await this.ensureUserExists(actorId);
+
+    let dbTopic: any = null;
+    try {
+      dbTopic = await (this.db as any).groupTopic.create({
+        data: {
+          studyGroupId: group.id,
+          name: name.trim(),
+          slug,
+          icon: icon && !icon.startsWith('topic:') ? icon : '#',
+          color: color || '#0d9488',
+          createdById: actorUuid,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        dbTopic = await (this.db as any).groupTopic.findFirst({
+          where: { studyGroupId: group.id, slug },
+        });
+      }
+    }
+
+    return {
+      id: slug,
+      dbId: dbTopic?.id,
+      name: name.trim(),
+      slug,
+      icon: '#',
+      color: color || '#0d9488',
+      subtitle: `Topic: ${name.trim()}`,
+      time: '',
+      createdAt: dbTopic?.createdAt || new Date(),
+      groupId: group.id,
+      parentGroupId: group.id,
+      isTopic: true,
+    };
   }
 
+  /**
+   * Delete a topic from a group (Enforces OWNER or ADMIN with canManageTopics).
+   * 'General' cannot be deleted.
+   */
+  async deleteTopic(groupId: string, topicSlugOrId: string, actorId?: string) {
+    if (topicSlugOrId === 'general') {
+      throw new BadRequestException('The General topic is default and cannot be deleted.');
+    }
+
+    const groupUuid = toUuid(groupId);
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    if (actorId) {
+      const auth = await this.getMemberRoleAndPermissions(groupId, actorId);
+      const canDelete = auth.isOwner || (auth.isAdmin && auth.permissions?.canManageTopics !== false);
+      if (!canDelete) {
+        throw new ForbiddenException('Only the group owner or authorized admins can delete topics.');
+      }
+    }
+
+    try {
+      await (this.db as any).groupTopic.deleteMany({
+        where: {
+          studyGroupId: group.id,
+          OR: [{ slug: topicSlugOrId }, { id: topicSlugOrId }],
+        },
+      });
+    } catch (e) {}
+
+    // Clean up any legacy topic study_group rows
+    try {
+      await this.db.studyGroup.deleteMany({
+        where: {
+          icon: { startsWith: `topic:${group.id}:${topicSlugOrId}` },
+        },
+      });
+    } catch (e) {}
+
+    return { success: true, groupId: group.id, topicId: topicSlugOrId };
+  }
+
+  /**
+   * Promote to Admin or Demote to Member.
+   * OWNER ONLY ACTION. Owner cannot be demoted.
+   */
+  async updateMemberRole(
+    groupId: string,
+    targetUserId: string,
+    role: 'ADMIN' | 'MEMBER',
+    permissions?: AdminPermissions,
+    actorId?: string,
+  ) {
+    const groupUuid = toUuid(groupId);
+    const targetUuid = toUuid(targetUserId);
+
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    // Immunity: Owner cannot be demoted or changed
+    if (group.createdById === targetUuid) {
+      throw new ForbiddenException('The group owner cannot be demoted or modified.');
+    }
+
+    // Only OWNER can promote / demote admins
+    if (actorId) {
+      const actorUuid = toUuid(actorId);
+      if (group.createdById !== actorUuid) {
+        throw new ForbiddenException('Only the group owner can promote or demote administrators.');
+      }
+    }
+
+    const assignedPermissions = role === 'ADMIN'
+      ? { ...DEFAULT_ADMIN_PERMISSIONS, ...(permissions || {}) }
+      : null;
+
+    const member = await this.db.studyGroupMember.updateMany({
+      where: {
+        studyGroupId: group.id,
+        userId: targetUuid,
+      },
+      data: {
+        role,
+        permissions: assignedPermissions ? JSON.stringify(assignedPermissions) : null,
+      } as any,
+    });
+
+    return {
+      groupId: group.id,
+      userId: targetUserId,
+      role,
+      permissions: assignedPermissions,
+      success: true,
+    };
+  }
+
+  /**
+   * Remove a member from the group.
+   * Owner can remove anyone. Admin can remove Members (not Owner or other Admins).
+   */
+  async removeMember(groupId: string, targetUserId: string, actorId?: string) {
+    const groupUuid = toUuid(groupId);
+    const targetUuid = toUuid(targetUserId);
+
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+      include: {
+        members: true,
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    // Owner cannot be kicked
+    if (group.createdById === targetUuid) {
+      throw new ForbiddenException('The group owner cannot be removed from the group.');
+    }
+
+    if (actorId) {
+      const actorUuid = toUuid(actorId);
+      const isSelfLeave = actorUuid === targetUuid;
+
+      if (!isSelfLeave) {
+        const actorAuth = await this.getMemberRoleAndPermissions(groupId, actorId);
+        const targetMember = group.members.find((m) => m.userId === targetUuid);
+        const targetRole = (targetMember as any)?.role || 'MEMBER';
+
+        if (actorAuth.isOwner) {
+          // Owner can remove anyone
+        } else if (actorAuth.isAdmin && actorAuth.permissions?.canManageMembers !== false) {
+          if (targetRole === 'ADMIN' || targetRole === 'OWNER') {
+            throw new ForbiddenException('Admins cannot remove other admins or the group owner.');
+          }
+        } else {
+          throw new ForbiddenException('You do not have permission to remove members from this group.');
+        }
+      }
+    }
+
+    await this.db.studyGroupMember.deleteMany({
+      where: {
+        studyGroupId: group.id,
+        userId: targetUuid,
+      },
+    });
+
+    return { success: true, groupId: group.id, userId: targetUserId };
+  }
+
+  /**
+   * Add members to group (Enforces OWNER or ADMIN with canManageMembers).
+   */
+  async addMembers(groupId: string, userIds: string[], actorId?: string) {
+    const groupUuid = toUuid(groupId);
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    if (actorId) {
+      const auth = await this.getMemberRoleAndPermissions(groupId, actorId);
+      const canAdd = auth.isOwner || (auth.isAdmin && auth.permissions?.canManageMembers !== false);
+      if (!canAdd) {
+        throw new ForbiddenException('You do not have permission to add members to this group.');
+      }
+    }
+
+    for (const uId of userIds) {
+      await this.ensureUserExists(uId);
+      await this.db.studyGroupMember
+        .create({
+          data: {
+            studyGroupId: group.id,
+            userId: toUuid(uId),
+            role: 'MEMBER',
+          } as any,
+        })
+        .catch(() => {});
+    }
+
+    return await this.db.studyGroupMember.findMany({
+      where: { studyGroupId: group.id },
+      include: { user: true },
+    });
+  }
+
+  /**
+   * Update Group details (name, description, icon, color).
+   * Enforces OWNER or ADMIN with canEditGroupInfo.
+   */
+  async updateGroup(
+    groupId: string,
+    data: { name?: string; description?: string; icon?: string; color?: string },
+    actorId?: string,
+  ) {
+    const groupUuid = toUuid(groupId);
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    if (actorId) {
+      const auth = await this.getMemberRoleAndPermissions(groupId, actorId);
+      const canEdit = auth.isOwner || (auth.isAdmin && auth.permissions?.canEditGroupInfo === true);
+      if (!canEdit) {
+        throw new ForbiddenException('You do not have permission to edit group settings.');
+      }
+    }
+
+    return await this.db.studyGroup.update({
+      where: { id: group.id },
+      data: {
+        ...(data.name ? { name: data.name.trim() } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.icon ? { icon: data.icon } : {}),
+        ...(data.color ? { colorAccent: data.color } : {}),
+      },
+    });
+  }
+
+  /**
+   * Delete entire group. ONLY OWNER can perform this.
+   */
+  async deleteGroup(groupId: string, actorId?: string) {
+    const groupUuid = toUuid(groupId);
+    const group = await this.db.studyGroup.findUnique({
+      where: { id: groupUuid },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    if (actorId) {
+      const actorUuid = toUuid(actorId);
+      if (group.createdById !== actorUuid) {
+        throw new ForbiddenException('Only the group owner can delete this group.');
+      }
+    }
+
+    return await this.db.studyGroup.delete({
+      where: { id: group.id },
+    });
+  }
+
+  /**
+   * Loads all groups with permanent topics and member roles.
+   */
   async getGroups(userId?: string, classroomId?: string | number) {
     const classIdStr = classroomId ? String(classroomId) : undefined;
     const userUuid = userId ? toUuid(userId) : undefined;
@@ -311,25 +734,29 @@ export class ChatService {
             user: true,
           },
         },
+        topics: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+        },
       },
       orderBy: {
         createdAt: 'asc',
       },
     });
 
-    // Separate main groups from topic subchannels
+    // Separate standalone groups from legacy subchannel icons
     const mainGroups: any[] = [];
-    const topicsMap: Record<string, any[]> = {};
+    const legacyTopicsMap: Record<string, any[]> = {};
 
     for (const item of allRecords) {
       if (item.icon && item.icon.startsWith('topic:')) {
         const parts = item.icon.split(':');
         const parentId = parts[1] || 'general';
         const topicId = parts[2] || item.name.toLowerCase().replace(/\s+/g, '-');
-        if (!topicsMap[parentId]) {
-          topicsMap[parentId] = [];
+        if (!legacyTopicsMap[parentId]) {
+          legacyTopicsMap[parentId] = [];
         }
-        topicsMap[parentId].push({
+        legacyTopicsMap[parentId].push({
           id: topicId,
           dbId: item.id,
           name: item.name,
@@ -344,19 +771,38 @@ export class ChatService {
       }
     }
 
-    // Attach topics to their respective main group so topics NEVER appear as standalone groups
-    return mainGroups.map((g) => {
-      const groupSlug = (g.name || '').toLowerCase().replace(/\s+/g, '-');
-      const directTopics = topicsMap[g.id] || [];
-      const slugTopics = topicsMap[groupSlug] || [];
-      const combinedTopics = [...directTopics];
-      for (const st of slugTopics) {
-        if (!combinedTopics.some((t) => t.id === st.id)) {
-          combinedTopics.push(st);
+    return mainGroups.map((g: any) => {
+      const isOwner = userUuid ? g.createdById === userUuid : false;
+      const myMember = g.members?.find((m: any) => m.userId === userUuid);
+      const myRole = isOwner ? 'OWNER' : (myMember?.role || 'MEMBER');
+
+      let myPermissions: AdminPermissions = {};
+      if (isOwner) {
+        myPermissions = OWNER_PERMISSIONS;
+      } else if (myMember?.role === 'ADMIN') {
+        try {
+          myPermissions = typeof myMember.permissions === 'string'
+            ? JSON.parse(myMember.permissions)
+            : (myMember.permissions || DEFAULT_ADMIN_PERMISSIONS);
+        } catch (e) {
+          myPermissions = DEFAULT_ADMIN_PERMISSIONS;
         }
       }
 
-      const allTopics = [
+      // Permanent topics from GroupTopic table
+      const dbTopics = (g.topics || []).map((t: any) => ({
+        id: t.slug,
+        dbId: t.id,
+        name: t.name,
+        icon: t.icon || '#',
+        color: t.color || '#0d9488',
+        subtitle: `Topic: ${t.name}`,
+        time: '',
+        createdAt: t.createdAt,
+      }));
+
+      // Combined topics ensuring 'General' is always topic 0
+      const combinedTopics = [
         {
           id: 'general',
           name: 'General',
@@ -365,12 +811,63 @@ export class ChatService {
           subtitle: 'General chat room',
           time: '',
         },
-        ...combinedTopics,
       ];
 
+      for (const dt of dbTopics) {
+        if (dt.id !== 'general' && !combinedTopics.some((t) => t.id === dt.id)) {
+          combinedTopics.push(dt);
+        }
+      }
+
+      // Also merge any legacy mapped topics
+      const groupSlug = (g.name || '').toLowerCase().replace(/\s+/g, '-');
+      const legacyTopics = [...(legacyTopicsMap[g.id] || []), ...(legacyTopicsMap[groupSlug] || [])];
+      for (const lt of legacyTopics) {
+        if (lt.id !== 'general' && !combinedTopics.some((t) => t.id === lt.id)) {
+          combinedTopics.push(lt);
+        }
+      }
+
+      const formattedMembers = (g.members || []).map((m: any) => {
+        const isMemOwner = g.createdById === m.userId;
+        let perms = {};
+        if (isMemOwner) {
+          perms = OWNER_PERMISSIONS;
+        } else if (m.role === 'ADMIN') {
+          try {
+            perms = typeof m.permissions === 'string' ? JSON.parse(m.permissions) : (m.permissions || DEFAULT_ADMIN_PERMISSIONS);
+          } catch (e) {
+            perms = DEFAULT_ADMIN_PERMISSIONS;
+          }
+        }
+
+        return {
+          userId: m.userId,
+          role: isMemOwner ? 'OWNER' : (m.role || 'MEMBER'),
+          permissions: perms,
+          user: m.user ? {
+            id: m.user.id,
+            name: m.user.fullName || m.user.name || `User ${m.user.id}`,
+            email: m.user.email,
+            avatarBg: m.user.avatarBg,
+            initials: m.user.initials,
+          } : null,
+        };
+      });
+
       return {
-        ...g,
-        topics: allTopics,
+        id: g.id,
+        name: g.name,
+        description: g.description || '',
+        icon: g.icon || '📚',
+        color: g.colorAccent || '#6366f1',
+        ownerId: g.createdById,
+        createdById: g.createdById,
+        createdAt: g.createdAt,
+        myRole,
+        myPermissions,
+        members: formattedMembers,
+        topics: combinedTopics,
       };
     });
   }
@@ -434,6 +931,9 @@ export class ChatService {
             colorAccent: isTopic ? '#0d9488' : '#6366f1',
             classroomId,
             createdById: senderUuid,
+            members: {
+              create: [{ userId: senderUuid, role: 'OWNER' }],
+            },
           },
         });
       } catch (e) {}
@@ -513,7 +1013,15 @@ export class ChatService {
     }
   }
 
-  async togglePinMessage(messageId: string, isPinned: boolean) {
+  async togglePinMessage(messageId: string, isPinned: boolean, actorId?: string, groupId?: string) {
+    if (actorId && groupId) {
+      const auth = await this.getMemberRoleAndPermissions(groupId, actorId);
+      const canPin = auth.isOwner || (auth.isAdmin && auth.permissions?.canPinMessages !== false);
+      if (!canPin) {
+        throw new ForbiddenException('Only admins with pin permissions can pin messages.');
+      }
+    }
+
     const messageUuid = toUuid(messageId);
     const existing = await this.db.chatMessage.findUnique({
       where: { id: messageUuid },
@@ -543,10 +1051,30 @@ export class ChatService {
     return this.formatMessage(updated);
   }
 
-  async deleteMessage(messageId: string) {
+  async deleteMessage(messageId: string, actorId?: string, groupId?: string) {
+    const messageUuid = toUuid(messageId);
+    const msg = await this.db.chatMessage.findUnique({
+      where: { id: messageUuid },
+    });
+
+    if (!msg) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (actorId && msg.senderId !== toUuid(actorId)) {
+      const gId = groupId || msg.studyGroupId;
+      if (gId) {
+        const auth = await this.getMemberRoleAndPermissions(gId, actorId);
+        const canDeleteOthers = auth.isOwner || (auth.isAdmin && auth.permissions?.canDeleteMessages !== false);
+        if (!canDeleteOthers) {
+          throw new ForbiddenException('You can only delete your own messages.');
+        }
+      }
+    }
+
     try {
       return await this.db.chatMessage.delete({
-        where: { id: toUuid(messageId) },
+        where: { id: messageUuid },
       });
     } catch (err: any) {
       if (err?.code === 'P2025') {
@@ -556,8 +1084,20 @@ export class ChatService {
     }
   }
 
-  async editMessage(messageId: string, newText: string) {
+  async editMessage(messageId: string, newText: string, actorId?: string) {
     const messageUuid = toUuid(messageId);
+    const msg = await this.db.chatMessage.findUnique({
+      where: { id: messageUuid },
+    });
+
+    if (!msg) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (actorId && msg.senderId !== toUuid(actorId)) {
+      throw new ForbiddenException('You can only edit your own messages.');
+    }
+
     const updated = await this.db.chatMessage.update({
       where: { id: messageUuid },
       data: { content: newText },
@@ -611,32 +1151,5 @@ export class ChatService {
     });
 
     return this.groupReactions(currentReactions);
-  }
-
-  async deleteGroup(groupId: string, userId?: string) {
-    const groupUuid = toUuid(groupId);
-    const group = await this.db.studyGroup.findUnique({
-      where: { id: groupUuid },
-    });
-
-    if (!group) {
-      throw new NotFoundException('Group not found');
-    }
-
-    return await this.db.studyGroup.delete({
-      where: { id: groupUuid },
-    });
-  }
-
-  async removeMember(groupId: string, userId: string, actorId?: string) {
-    const groupUuid = toUuid(groupId);
-    const memberUuid = toUuid(userId);
-
-    return await this.db.studyGroupMember.deleteMany({
-      where: {
-        studyGroupId: groupUuid,
-        userId: memberUuid,
-      },
-    });
   }
 }

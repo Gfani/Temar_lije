@@ -78,7 +78,9 @@
 /* Base Layout */
 .chat-layout {
   display: flex;
-  height: 800px;
+  height: calc(100vh - 64px);
+  min-height: 600px;
+  max-height: 100vh;
   width: 100%;
   font-family: var(--font-sans);
   color: var(--text-main);
@@ -87,7 +89,6 @@
   box-sizing: border-box;
   text-align: left;
   position: relative;
-  /* Reset any text-align: center from App */
 }
 
 /* Sidebar Styling */
@@ -1836,4 +1837,56 @@
   opacity: 0.4;
   cursor: not-allowed;
   transform: none;
+}
+
+/* ============================================================
+   RESPONSIVE MEDIA QUERIES FOR CHAT
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .chat-sidebar {
+    width: 260px;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-layout {
+    flex-direction: column;
+    height: calc(100vh - 56px);
+  }
+
+  .chat-sidebar {
+    width: 100%;
+    max-height: 220px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .chat-container {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .chat-header {
+    padding: 10px 14px;
+  }
+
+  .chat-messages {
+    padding: 12px 14px;
+  }
+
+  .message-bubble {
+    max-width: 85%;
+  }
+
+  .chat-input-bar {
+    padding: 8px 12px;
+  }
+
+  .selection-action-bar {
+    width: calc(100% - 32px);
+    bottom: 70px;
+    padding: 8px 12px;
+    justify-content: space-between;
+  }
 }

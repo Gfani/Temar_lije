@@ -587,10 +587,48 @@
   color: #94a3b8;
 }
 
-.members-page-layout.dark .member-card-row.offline .member-name-text {
+.members-page-layout.dark .you-badge-label {
   color: #64748b;
 }
 
-.members-page-layout.dark .you-badge-label {
-  color: #64748b;
+/* ============================================================
+   RESPONSIVE MEDIA QUERIES FOR MEMBERS TAB
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .sidebar-container {
+    width: 240px;
+  }
+  .classroom-header-content {
+    padding: 16px 20px;
+  }
+  .classroom-tab-content {
+    padding: 16px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .members-page-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+  .sidebar-container {
+    width: 100%;
+    max-height: 240px;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .main-classroom-area {
+    width: 100%;
+  }
+  .study-group-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .study-group-banner .new-group-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }

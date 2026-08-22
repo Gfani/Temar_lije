@@ -645,6 +645,20 @@ export class QuizzesService {
         throw new NotFoundException('Quiz not found');
       }
 
+      // STRICT ONE-ATTEMPT RULE: Reject duplicate submissions
+      if (resolvedStudentId && quiz) {
+        const studentIdStr: string = String(resolvedStudentId);
+        const existingSubmission = await this.databaseService.quizSubmission.findFirst({
+          where: { quizId: quiz.id, studentId: studentIdStr },
+        });
+
+        if (existingSubmission) {
+          throw new ConflictException(
+            'You have already completed this test. Only one attempt is permitted.',
+          );
+        }
+      }
+
       const submittedAnswers = Array.isArray(dto?.answers) ? dto.answers : [];
       // Exploit prevention: denominator is always the sum of ALL quiz questions
       const totalMaxScore = quiz.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0);

@@ -485,8 +485,12 @@ export default function QuizzesTab({
     document.body.removeChild(link);
   };
 
-  // Student: Start Taking Quiz
+  // Student: Start Taking Quiz (Strict One Attempt Rule)
   const handleStartTakingQuiz = async (quiz) => {
+    if (quiz.submitted) {
+      handleViewResult(quiz.id);
+      return;
+    }
     setTakeError('');
     setLoading(true);
     try {
@@ -895,51 +899,27 @@ export default function QuizzesTab({
                   ) : (
                     <div style={{ display: 'flex', width: '100%', gap: '8px' }}>
                       {isSubmitted ? (
-                        <>
-                          <button
-                            type="button"
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid #d1d5db',
-                              background: '#fff',
-                              color: '#374151',
-                              fontSize: '0.825rem',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                            }}
-                            onClick={() => handleViewResult(quiz.id)}
-                          >
-                            <Eye size={14} /> Review ({quiz.score}/{quiz.maxScore} pts)
-                          </button>
-
-                          <button
-                            type="button"
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: 'none',
-                              background: '#14785c',
-                              color: '#fff',
-                              fontSize: '0.825rem',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                            }}
-                            onClick={() => handleStartTakingQuiz(quiz)}
-                          >
-                            <RotateCcw size={14} /> Retake Quiz
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          style={{
+                            width: '100%',
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #d1d5db',
+                            background: '#f8fafc',
+                            color: '#1e293b',
+                            fontSize: '0.825rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                          }}
+                          onClick={() => handleViewResult(quiz.id)}
+                        >
+                          <Eye size={14} /> Review Results ({quiz.score}/{quiz.maxScore} pts)
+                        </button>
                       ) : (
                         <button
                           type="button"
@@ -960,7 +940,7 @@ export default function QuizzesTab({
                           }}
                           onClick={() => handleStartTakingQuiz(quiz)}
                         >
-                          Start Quiz <ChevronRight size={16} />
+                          Start Test <ChevronRight size={16} />
                         </button>
                       )}
                     </div>

@@ -10,15 +10,30 @@ import {
 import { AttendanceService } from './attendance.service';
 
 /**
- * Controller providing REST API endpoints for attendance reporting and check-in.
+ * Controller providing REST API endpoints for attendance sessions, reporting, and check-in.
  */
 @Controller('attendance')
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   /**
+   * POST /attendance/session
+   * Teacher creates or starts a named attendance session for a class.
+   */
+  @Post('session')
+  async createSession(@Body() body: any, @Req() req: any) {
+    const classId = body?.classId;
+    const topic = body?.topic || body?.sessionTopic || body?.title;
+    const teacherId = req.user?.id || req.user?.sub || body?.teacherId;
+    if (!classId) {
+      throw new BadRequestException('classId is required');
+    }
+    return await this.attendanceService.createSession(classId, topic, teacherId);
+  }
+
+  /**
    * POST /attendance/check-in
-   * Student check-in endpoint.
+   * Student check-in endpoint (strict one-time check-in per session).
    */
   @Post('check-in')
   async recordCheckIn(@Body() body: any, @Req() req: any) {
@@ -39,21 +54,24 @@ export class AttendanceController {
 
   /**
    * GET /attendance/:classId/report and GET /attendance/class/:classId/report
-   * Retrieves the aggregated attendance summary report for teachers.
+   * Retrieves the aggregated attendance summary report for teachers and students.
    */
   @Get(':classId/report')
-  async getAttendanceReport(@Param('classId') classId: string) {
-    return await this.attendanceService.getAttendanceReport(classId);
+  async getAttendanceReport(@Param('classId') classId: string, @Req() req: any) {
+    const authHeader = req.headers?.authorization;
+    const userId = req.user?.id || req.user?.sub;
+    return await this.attendanceService.getAttendanceReport(classId, userId, authHeader);
   }
 
   @Get('class/:classId/report')
-  async getAttendanceReportAlias(@Param('classId') classId: string) {
-    return await this.attendanceService.getAttendanceReport(classId);
+  async getAttendanceReportAlias(@Param('classId') classId: string, @Req() req: any) {
+    const authHeader = req.headers?.authorization;
+    const userId = req.user?.id || req.user?.sub;
+    return await this.attendanceService.getAttendanceReport(classId, userId, authHeader);
   }
 
   /**
    * GET /attendance/:classId/live-tracking and GET /attendance/class/:classId/live-tracking
-   * Retrieves automated live attendance tracking metrics (PRESENT, LATE, ABSENT, durationMinutes).
    */
   @Get(':classId/live-tracking')
   async getClassroomAttendance(@Param('classId') classId: string) {

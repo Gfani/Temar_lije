@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   Optional,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -21,9 +22,6 @@ function toUuid(id: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-/**
- * Service managing classroom attendance tracking, Wi-Fi hotspot verification, and reporting.
- */
 @Injectable()
 export class AttendanceService {
   constructor(
@@ -129,9 +127,6 @@ export class AttendanceService {
     return created.id;
   }
 
-  /**
-   * Helper method to validate if an IP address belongs to the local classroom Wi-Fi network.
-   */
   isLocalIp(rawIp: string): boolean {
     if (!rawIp || typeof rawIp !== 'string') return false;
     const cleanIp = rawIp.replace(/^::ffff:/, '').trim();
@@ -147,7 +142,34 @@ export class AttendanceService {
   }
 
   /**
+   * Teacher creates or starts a named attendance session for a class.
+   */
+  async createSession(classId: string, topic?: string, teacherId?: string) {
+    const validClassId = await this.ensureClassroomExists(classId);
+
+    // Deactivate previous open sessions for this classroom
+    await this.databaseService.attendanceSession.updateMany({
+      where: { classroomId: validClassId, isActive: true },
+      data: { isActive: false, endedAt: new Date() },
+    });
+
+    const sessionTopic = topic && topic.trim() ? topic.trim() : `Session - ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+    const session = await this.databaseService.attendanceSession.create({
+      data: {
+        classroomId: validClassId,
+        sessionCode: sessionTopic,
+        isActive: true,
+        startedAt: new Date(),
+      },
+    });
+
+    return session;
+  }
+
+  /**
    * Records student check-in for an active attendance session.
+   * STRICT ONE-TIME RULE: Throws ConflictException if student already checked in for this session.
    */
   async recordCheckIn(
     classId: string,
@@ -174,10 +196,9 @@ export class AttendanceService {
     const validClassId = await this.ensureClassroomExists(classId);
     const validStudentId = await this.ensureUserExists(targetStudentId);
 
-    // Wi-Fi hotspot verification flag
     const isWifiVerified = this.isLocalIp(clientIp || '');
 
-    // 2. Find or create an active attendance session for this class
+    // 1. Find or create an active attendance session for this class
     let session = await this.databaseService.attendanceSession.findFirst({
       where: { classroomId: validClassId, isActive: true },
       orderBy: { startedAt: 'desc' },
@@ -187,21 +208,14 @@ export class AttendanceService {
       session = await this.databaseService.attendanceSession.create({
         data: {
           classroomId: validClassId,
+          sessionCode: `Session - ${new Date().toLocaleDateString()}`,
           isActive: true,
           startedAt: new Date(),
         },
       });
     }
 
-    // Calculate time difference in minutes
-    const now = new Date();
-    const startTime = session.startedAt || now;
-    const diffInMinutes = (now.getTime() - new Date(startTime).getTime()) / (1000 * 60);
-
-    // If join time is within 15 minutes of start, mark PRESENT; otherwise LATE
-    const status = diffInMinutes <= 15 ? 'PRESENT' : 'LATE';
-
-    // Check if record exists for this session & student
+    // 2. Strict One-Time Enforcement: Check if already checked in for THIS session
     const existingRecord = await this.databaseService.attendanceRecord.findFirst({
       where: {
         sessionId: session.id,
@@ -215,12 +229,15 @@ export class AttendanceService {
     });
 
     if (existingRecord) {
-      return {
-        ...existingRecord,
-        wifiVerified: isWifiVerified,
-        message: 'Already checked in for this session',
-      };
+      throw new ConflictException('Attendance already recorded for this session.');
     }
+
+    // Calculate time difference in minutes
+    const now = new Date();
+    const startTime = session.startedAt || now;
+    const diffInMinutes = (now.getTime() - new Date(startTime).getTime()) / (1000 * 60);
+
+    const status = diffInMinutes <= 15 ? 'PRESENT' : 'LATE';
 
     const createdRecord = await this.databaseService.attendanceRecord.create({
       data: {
@@ -238,84 +255,147 @@ export class AttendanceService {
 
     return {
       ...createdRecord,
+      hasCheckedIn: true,
       wifiVerified: isWifiVerified,
       message: `Checked in successfully as ${status}`,
     };
   }
 
   /**
-   * Generates an aggregated attendance report for a classroom.
+   * Generates an aggregated attendance report for a classroom's active session.
    */
-  async getAttendanceReport(classId: string) {
+  async getAttendanceReport(classId: string, currentUserId?: string, authHeader?: string) {
     if (!classId) {
       throw new BadRequestException('classId is required');
+    }
+
+    let resolvedUserId = currentUserId;
+    if (!resolvedUserId && authHeader && authHeader.startsWith('Bearer ') && this.jwtService) {
+      try {
+        const token = authHeader.replace(/^Bearer\s+/i, '');
+        const decoded: any = this.jwtService.decode(token);
+        if (decoded?.sub || decoded?.id) {
+          resolvedUserId = decoded.sub || decoded.id;
+        }
+      } catch (e) {}
     }
 
     const classroom = await this.resolveClassroom(classId);
     const validClassId = classroom ? classroom.id : toUuid(classId);
 
-    const sessions = await this.databaseService.attendanceSession.findMany({
+    // Get the most recent attendance session
+    const session = await this.databaseService.attendanceSession.findFirst({
       where: { classroomId: validClassId },
-      select: { id: true },
+      orderBy: { startedAt: 'desc' },
     });
 
-    const sessionIds = sessions.map((s) => s.id);
+    const sessionIds = session ? [session.id] : [];
 
-    const attendanceRecords = await this.databaseService.attendanceRecord.findMany({
-      where: { sessionId: { in: sessionIds } },
-      include: {
-        student: {
-          select: { id: true, fullName: true, email: true },
-        },
-      },
-      orderBy: { checkedInAt: 'desc' },
-    });
+    const attendanceRecords = session
+      ? await this.databaseService.attendanceRecord.findMany({
+          where: { sessionId: session.id },
+          include: {
+            student: {
+              select: { id: true, fullName: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+          orderBy: { checkedInAt: 'desc' },
+        })
+      : [];
 
     const enrollments = await this.databaseService.classroomMember.findMany({
       where: { classroomId: validClassId },
       include: {
         user: {
-          select: { id: true, fullName: true, email: true },
+          select: { id: true, fullName: true, name: true, email: true, avatarUrl: true },
         },
       },
     });
 
-    const checkedInStudentIds = new Set(
-      attendanceRecords.map((rec) => rec.studentId),
-    );
+    const checkedInMap = new Map<string, any>();
+    for (const rec of attendanceRecords) {
+      checkedInMap.set(rec.studentId, rec);
+    }
 
-    const present = attendanceRecords.filter((rec) => rec.status === 'PRESENT');
-    const late = attendanceRecords.filter((rec) => rec.status === 'LATE');
-
-    const absent = enrollments
-      .filter((enrollment) => !checkedInStudentIds.has(enrollment.userId))
-      .map((enrollment) => ({
-        studentId: enrollment.userId,
-        status: 'ABSENT',
-        student: enrollment.user,
+    // Build the complete student roster with real status and timestamp
+    const studentRoster = enrollments.map((en) => {
+      const rec = checkedInMap.get(en.userId);
+      if (rec) {
+        return {
+          id: rec.id,
+          studentId: en.userId,
+          student: en.user,
+          status: rec.status, // PRESENT or LATE
+          checkedInAt: rec.checkedInAt,
+        };
+      }
+      return {
+        id: `absent_${en.userId}`,
+        studentId: en.userId,
+        student: en.user,
+        status: 'NOT_SUBMITTED',
         checkedInAt: null,
-      }));
+      };
+    });
+
+    // Also include any guest records if enrolled list was empty
+    if (studentRoster.length === 0 && attendanceRecords.length > 0) {
+      for (const rec of attendanceRecords) {
+        studentRoster.push({
+          id: rec.id,
+          studentId: rec.studentId,
+          student: rec.student,
+          status: rec.status,
+          checkedInAt: rec.checkedInAt,
+        });
+      }
+    }
+
+    const present = studentRoster.filter((r) => r.status === 'PRESENT');
+    const late = studentRoster.filter((r) => r.status === 'LATE');
+    const notSubmitted = studentRoster.filter((r) => r.status === 'NOT_SUBMITTED' || r.status === 'ABSENT');
+
+    // Check if requesting user has already checked in
+    let hasCheckedIn = false;
+    let myRecord: any = null;
+
+    if (resolvedUserId) {
+      const cleanUserUuid = toUuid(resolvedUserId);
+      const myRec = studentRoster.find((r) => r.studentId === resolvedUserId || r.studentId === cleanUserUuid);
+      if (myRec && myRec.status !== 'NOT_SUBMITTED' && myRec.status !== 'ABSENT') {
+        hasCheckedIn = true;
+        myRecord = myRec;
+      }
+    }
 
     return {
       classId: validClassId,
+      session: session
+        ? {
+            id: session.id,
+            topic: session.sessionCode || 'General Attendance',
+            startedAt: session.startedAt,
+            isActive: session.isActive,
+          }
+        : null,
       timestamp: new Date().toISOString(),
+      hasCheckedIn,
+      myRecord,
       summary: {
-        totalEnrolled: enrollments.length || attendanceRecords.length,
+        totalEnrolled: studentRoster.length,
         PRESENT: present.length,
         LATE: late.length,
-        ABSENT: absent.length,
+        ABSENT: notSubmitted.length,
       },
       records: {
         PRESENT: present,
         LATE: late,
-        ABSENT: absent,
+        ABSENT: notSubmitted,
       },
+      students: studentRoster,
     };
   }
 
-  /**
-   * Automated live classroom join logging.
-   */
   async recordJoin(classId: string, userId: string) {
     if (!classId || !userId) return null;
 
@@ -356,9 +436,6 @@ export class AttendanceService {
     });
   }
 
-  /**
-   * Automated live classroom leave logging.
-   */
   async recordLeave(classId: string, userId: string) {
     if (!classId || !userId) return null;
 
@@ -392,9 +469,6 @@ export class AttendanceService {
     });
   }
 
-  /**
-   * Retrieves aggregated attendance status records for a live classroom.
-   */
   async getClassroomAttendance(classId: string) {
     if (!classId) throw new BadRequestException('classId is required');
 

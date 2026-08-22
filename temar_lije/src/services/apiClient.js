@@ -225,6 +225,19 @@ export async function deleteAssignment(assignmentId) {
 }
 
 // ---- ATTENDANCE API ----
+export async function createAttendanceSession(classId, topic) {
+  const res = await fetch(`${API_BASE_URL}/attendance/session`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ classId, topic }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to create attendance session');
+  }
+  return res.json();
+}
+
 export async function recordCheckIn(classId, studentId) {
   const res = await fetch(`${API_BASE_URL}/attendance/check-in`, {
     method: 'POST',

@@ -32,12 +32,13 @@ async function bootstrap() {
     'http://127.0.0.1:3000',
     'http://localhost:4173',
     'https://temar-lije.southafricanorth.cloudapp.azure.com',
+    'https://temarlije.mooo.com',
   ].filter(Boolean);
 
   app.enableCors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, or server-to-server)
-      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.cloudapp.azure.com')) {
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.cloudapp.azure.com') || origin.endsWith('.mooo.com')) {
         callback(null, true);
       } else {
         callback(null, true); // Permissive in dev/testing, but explicit

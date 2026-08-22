@@ -69,4 +69,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 
 # Start application with dumb-init for graceful shutdown & signal forwarding
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main.js"]

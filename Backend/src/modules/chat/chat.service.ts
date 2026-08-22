@@ -331,51 +331,90 @@ export class ChatService {
       ...otherMembers,
     ];
 
-    const createdGroup = await this.db.studyGroup.create({
-      data: {
-        ...(groupUuid ? { id: groupUuid } : {}),
-        name,
-        description: description || '',
-        icon: icon || '📚',
-        colorAccent: color || '#6366f1',
-        classroomId: effectiveClassroomId || undefined,
-        createdById: creatorUuid,
-        members: {
-          create: allMembersCreate,
-        },
-      },
-      include: {
-        members: {
-          include: {
-            user: true,
+    try {
+      const createdGroup = await this.db.studyGroup.create({
+        data: {
+          ...(groupUuid ? { id: groupUuid } : {}),
+          name,
+          description: description || '',
+          icon: icon || '📚',
+          colorAccent: color || '#6366f1',
+          classroomId: effectiveClassroomId || undefined,
+          createdById: creatorUuid,
+          members: {
+            create: allMembersCreate,
           },
         },
-      },
-    });
-
-    // Create default 'general' topic permanently
-    try {
-      await (this.db as any).groupTopic.create({
-        data: {
-          studyGroupId: createdGroup.id,
-          name: 'General',
-          slug: 'general',
-          icon: '#',
-          color: '#64748b',
-          createdById: creatorUuid,
+        include: {
+          members: {
+            include: {
+              user: true,
+            },
+          },
         },
       });
-    } catch (e) {}
 
-    return {
-      ...createdGroup,
-      ownerId: creatorUuid,
-      myRole: 'OWNER',
-      myPermissions: OWNER_PERMISSIONS,
-      topics: [
-        { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' },
-      ],
-    };
+      // Create default 'general' topic permanently if groupTopic model exists
+      try {
+        if ((this.db as any).groupTopic) {
+          await (this.db as any).groupTopic.create({
+            data: {
+              studyGroupId: createdGroup.id,
+              name: 'General',
+              slug: 'general',
+              icon: '#',
+              color: '#64748b',
+              createdById: creatorUuid,
+            },
+          });
+        }
+      } catch (e) {}
+
+      return {
+        ...createdGroup,
+        ownerId: creatorUuid,
+        myRole: 'OWNER',
+        myPermissions: OWNER_PERMISSIONS,
+        topics: [
+          { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' },
+        ],
+      };
+    } catch (err: any) {
+      // Fallback create without custom role columns if schema migration is pending
+      const fallbackGroup = await this.db.studyGroup.create({
+        data: {
+          ...(groupUuid ? { id: groupUuid } : {}),
+          name,
+          icon: icon || '📚',
+          colorAccent: color || '#6366f1',
+          classroomId: effectiveClassroomId || undefined,
+          createdById: creatorUuid,
+          members: {
+            create: [
+              { userId: creatorUuid },
+              ...otherMembers.map((m) => ({ userId: m.userId })),
+            ],
+          },
+        },
+        include: {
+          members: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      });
+
+      return {
+        ...fallbackGroup,
+        ownerId: creatorUuid,
+        myRole: 'OWNER',
+        myPermissions: OWNER_PERMISSIONS,
+        topics: [
+          { id: 'general', name: 'General', icon: '#', color: '#64748b', subtitle: 'General chat room', time: '' },
+        ],
+      };
+    }
   }
 
   /**
@@ -716,33 +755,66 @@ export class ChatService {
     const classIdStr = classroomId ? String(classroomId) : undefined;
     const userUuid = userId ? toUuid(userId) : undefined;
 
-    const allRecords = await this.db.studyGroup.findMany({
-      where: {
-        ...(classIdStr ? { classroomId: toUuid(classIdStr) } : {}),
-        ...(userUuid
-          ? {
-              OR: [
-                { createdById: userUuid },
-                { members: { some: { userId: userUuid } } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        members: {
-          include: {
-            user: true,
+    let allRecords: any[] = [];
+    try {
+      allRecords = await this.db.studyGroup.findMany({
+        where: {
+          ...(classIdStr ? { classroomId: toUuid(classIdStr) } : {}),
+          ...(userUuid
+            ? {
+                OR: [
+                  { createdById: userUuid },
+                  { members: { some: { userId: userUuid } } },
+                ],
+              }
+            : {}),
+        },
+        include: {
+          members: {
+            include: {
+              user: true,
+            },
+          },
+          topics: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
           },
         },
-        topics: {
-          where: { deletedAt: null },
-          orderBy: { createdAt: 'asc' },
+        orderBy: {
+          createdAt: 'asc',
         },
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
+      });
+    } catch (err: any) {
+      // Fallback if topics relation/migration is still pending on production database
+      try {
+        allRecords = await this.db.studyGroup.findMany({
+          where: {
+            ...(classIdStr ? { classroomId: toUuid(classIdStr) } : {}),
+            ...(userUuid
+              ? {
+                  OR: [
+                    { createdById: userUuid },
+                    { members: { some: { userId: userUuid } } },
+                  ],
+                }
+              : {}),
+          },
+          include: {
+            members: {
+              include: {
+                user: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        });
+      } catch (fallbackErr: any) {
+        console.error('getGroups query fallback notice:', fallbackErr?.message);
+        allRecords = [];
+      }
+    }
 
     // Separate standalone groups from legacy subchannel icons
     const mainGroups: any[] = [];

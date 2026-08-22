@@ -517,6 +517,7 @@ export class QuizzesService {
 
   /**
    * Get student-facing quiz questions (strips isCorrect)
+   * If already submitted, returns the full submission results
    */
   async getQuizForStudent(quizId: string, user?: any) {
     const quiz = await this.resolveQuiz(quizId);
@@ -525,18 +526,35 @@ export class QuizzesService {
     }
 
     const studentId = await this.resolveStudentUser(user?.id || user?.sub);
-    let submissions: any[] = [];
-    if (studentId) {
+    let existingSubmission: any = null;
+    if (studentId && quiz) {
       try {
-        submissions = await this.databaseService.quizSubmission.findMany({
-          where: { quizId: quiz.id, studentId },
+        existingSubmission = await this.databaseService.quizSubmission.findFirst({
+          where: { quizId: quiz.id, studentId: String(studentId) },
+          include: {
+            quiz: { include: { questions: true } },
+          },
           orderBy: { submittedAt: 'desc' },
         });
       } catch (e) {}
     }
 
-    const existingSubmission = submissions.length > 0 ? submissions[0] : null;
     const totalPoints = quiz.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0);
+
+    if (existingSubmission) {
+      const formatted = this._formatSubmission(existingSubmission);
+      return {
+        id: quiz.id,
+        title: quiz.title,
+        description: quiz.description,
+        durationMinutes: quiz.durationMinutes,
+        totalPoints,
+        alreadySubmitted: true,
+        submission: formatted,
+        result: formatted,
+        questions: [],
+      };
+    }
 
     return {
       id: quiz.id,
@@ -544,15 +562,9 @@ export class QuizzesService {
       description: quiz.description,
       durationMinutes: quiz.durationMinutes,
       totalPoints,
-      alreadySubmitted: !!existingSubmission,
-      submission: existingSubmission
-        ? {
-            id: existingSubmission.id,
-            score: existingSubmission.score,
-            maxScore: totalPoints,
-            submittedAt: existingSubmission.submittedAt,
-          }
-        : null,
+      alreadySubmitted: false,
+      submission: null,
+      result: null,
       questions: quiz.questions.map((q: any, index: number) => {
         const { options: parsedOptions } = this._extractOptionsAndExplanation(q.options);
 
@@ -645,17 +657,19 @@ export class QuizzesService {
         throw new NotFoundException('Quiz not found');
       }
 
-      // STRICT ONE-ATTEMPT RULE: Reject duplicate submissions
+      // STRICT ONE-ATTEMPT RULE: Check if attempt already exists
       if (resolvedStudentId && quiz) {
         const studentIdStr: string = String(resolvedStudentId);
         const existingSubmission = await this.databaseService.quizSubmission.findFirst({
           where: { quizId: quiz.id, studentId: studentIdStr },
+          include: {
+            quiz: { include: { questions: true } },
+          },
+          orderBy: { submittedAt: 'desc' },
         });
 
         if (existingSubmission) {
-          throw new ConflictException(
-            'You have already completed this test. Only one attempt is permitted.',
-          );
+          return this._formatSubmission(existingSubmission);
         }
       }
 
@@ -667,6 +681,8 @@ export class QuizzesService {
       );
 
       let totalScore = 0;
+      let correctCount = 0;
+      let incorrectCount = 0;
       const answerRecords: any[] = [];
 
       for (const question of quiz.questions) {
@@ -707,6 +723,7 @@ export class QuizzesService {
           submitted.selectedOptionId === null ||
           submitted.selectedOptionId === ''
         ) {
+          incorrectCount++;
           answerRecords.push({
             questionId: question.id,
             questionText: question.questionText,
@@ -716,6 +733,7 @@ export class QuizzesService {
             correctText: correctOptText || '',
             explanation: questionExplanation || '',
             isCorrect: false,
+            status: 'Incorrect',
             pointsAwarded: 0,
             maxPoints: question.points || 1,
           });
@@ -734,6 +752,9 @@ export class QuizzesService {
           rawSelected === String(correctOptId) ||
           (correctOptText && rawSelected.trim().toLowerCase() === String(correctOptText).trim().toLowerCase());
 
+        if (isCorrect) correctCount++;
+        else incorrectCount++;
+
         const pointsAwarded = isCorrect ? (question.points || 1) : 0;
         totalScore += pointsAwarded;
 
@@ -746,6 +767,7 @@ export class QuizzesService {
           correctText: correctOptText || '',
           explanation: questionExplanation || '',
           isCorrect: !!isCorrect,
+          status: isCorrect ? 'Correct' : 'Incorrect',
           pointsAwarded,
           maxPoints: question.points || 1,
         });
@@ -786,24 +808,37 @@ export class QuizzesService {
       }
 
       const percentage = totalMaxScore > 0 ? Math.round((totalScore / totalMaxScore) * 100) : 0;
+      const totalQuestions = quiz.questions.length || answerRecords.length;
 
       return {
+        id: submission?.id || `sub_${Date.now()}`,
         submissionId: submission?.id || `sub_${Date.now()}`,
+        quizId: quiz.id,
+        quizTitle: quiz.title,
         score: totalScore,
         maxScore: totalMaxScore,
         percentage,
+        totalQuestions,
+        correctCount,
+        incorrectCount,
         submittedAt: submission?.submittedAt || new Date(),
+        alreadySubmitted: true,
         answers: answerRecords,
       };
     } catch (err: any) {
       console.error('Quiz submission error handled:', err);
       // Fail-safe response to prevent UI crash
       return {
+        id: `sub_fallback_${Date.now()}`,
         submissionId: `sub_fallback_${Date.now()}`,
         score: 0,
         maxScore: 1,
         percentage: 0,
+        totalQuestions: 1,
+        correctCount: 0,
+        incorrectCount: 1,
         submittedAt: new Date(),
+        alreadySubmitted: true,
         answers: [],
       };
     }
@@ -862,10 +897,10 @@ export class QuizzesService {
   }
 
   private _formatSubmission(submission: any) {
-    const totalMaxScore = submission.quiz.questions.reduce(
+    const totalMaxScore = submission.quiz?.questions?.reduce(
       (sum: number, q: any) => sum + (q.points || 1),
       0,
-    );
+    ) || 1;
 
     let parsedAnswers: any[] = [];
     try {
@@ -877,22 +912,52 @@ export class QuizzesService {
       parsedAnswers = [];
     }
 
-    // Attach question explanation if missing from older submissions
-    const questionMap = new Map(submission.quiz.questions.map((q: any) => [q.id, q]));
+    const questionMap = new Map((submission.quiz?.questions || []).map((q: any) => [q.id, q]));
+    let correctCount = 0;
+    let incorrectCount = 0;
+
     const enrichedAnswers = parsedAnswers.map((ans: any) => {
-      if (ans.explanation) return ans;
       const q: any = questionMap.get(ans.questionId);
-      const { explanation } = this._extractOptionsAndExplanation(q?.options);
-      return { ...ans, explanation };
+      const isCorrect = ans.isCorrect === true;
+      if (isCorrect) correctCount++;
+      else incorrectCount++;
+
+      let explanation = ans.explanation;
+      if (!explanation && q) {
+        const extracted = this._extractOptionsAndExplanation(q.options);
+        explanation = extracted.explanation;
+      }
+
+      return {
+        questionId: ans.questionId,
+        questionText: ans.questionText || q?.questionText || 'Question',
+        selectedOptionId: ans.selectedOptionId,
+        selectedText: ans.selectedText || (ans.selectedOptionId ? String(ans.selectedOptionId) : 'No answer selected'),
+        correctOptionId: ans.correctOptionId || q?.correctAnswer,
+        correctText: ans.correctText || q?.correctAnswer || '',
+        isCorrect,
+        status: isCorrect ? 'Correct' : 'Incorrect',
+        pointsAwarded: ans.pointsAwarded !== undefined ? ans.pointsAwarded : (isCorrect ? (q?.points || 1) : 0),
+        maxPoints: ans.maxPoints || q?.points || 1,
+        explanation: explanation || '',
+      };
     });
+
+    const totalQuestions = submission.quiz?.questions?.length || enrichedAnswers.length;
 
     return {
       id: submission.id,
-      quizTitle: submission.quiz.title,
+      submissionId: submission.id,
+      quizId: submission.quizId,
+      quizTitle: submission.quiz?.title || 'Quiz Results',
       score: submission.score || 0,
       maxScore: totalMaxScore,
       percentage: totalMaxScore > 0 ? Math.round(((submission.score || 0) / totalMaxScore) * 100) : 0,
+      totalQuestions,
+      correctCount,
+      incorrectCount,
       submittedAt: submission.submittedAt,
+      alreadySubmitted: true,
       answers: enrichedAnswers,
     };
   }

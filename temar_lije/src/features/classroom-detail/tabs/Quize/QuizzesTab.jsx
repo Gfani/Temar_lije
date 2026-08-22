@@ -495,6 +495,12 @@ export default function QuizzesTab({
     setLoading(true);
     try {
       const details = await getQuizDetails(quiz.id);
+      if (details.alreadySubmitted && (details.result || details.submission)) {
+        setTakingQuiz(null);
+        setResultModal(details.result || details.submission);
+        await loadQuizzesList();
+        return;
+      }
       setTakingQuiz(details);
       setCurrentQuestionIdx(0);
       setStudentAnswers({});
@@ -738,7 +744,14 @@ export default function QuizzesTab({
                   transition: 'all 0.15s ease',
                 }}
               >
-                <div>
+                <div
+                  onClick={() => {
+                    if (!isTeacher && isSubmitted) {
+                      handleViewResult(quiz.id);
+                    }
+                  }}
+                  style={{ cursor: !isTeacher && isSubmitted ? 'pointer' : 'default' }}
+                >
                   {/* Top Badges */}
                   <div
                     style={{
@@ -2038,167 +2051,271 @@ export default function QuizzesTab({
       )}
 
       {/* STUDENT: Quiz Results & Educational Explanations Modal */}
-      {resultModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-        >
+      {resultModal && (() => {
+        const totalQuestions = resultModal.totalQuestions || resultModal.answers?.length || 0;
+        const correctCount = resultModal.correctCount !== undefined
+          ? resultModal.correctCount
+          : (resultModal.answers?.filter(a => a.isCorrect).length || 0);
+        const incorrectCount = resultModal.incorrectCount !== undefined
+          ? resultModal.incorrectCount
+          : Math.max(0, totalQuestions - correctCount);
+        const submittedDateStr = resultModal.submittedAt
+          ? new Date(resultModal.submittedAt).toLocaleString(undefined, {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            })
+          : 'Recorded';
+
+        return (
           <div
             style={{
-              backgroundColor: '#fff',
-              borderRadius: '16px',
-              width: '100%',
-              maxWidth: '640px',
-              maxHeight: '85vh',
-              overflowY: 'auto',
-              padding: '28px',
-              boxShadow: '0 25px 30px -5px rgba(0,0,0,0.15)',
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px',
             }}
           >
-            {/* Score Banner */}
             <div
               style={{
-                textAlign: 'center',
-                padding: '20px',
-                borderRadius: '12px',
-                background: resultModal.percentage >= 70 ? '#f0fdf4' : '#fff7ed',
-                border: resultModal.percentage >= 70 ? '1px solid #bbf7d0' : '1px solid #ffedd5',
-                marginBottom: '20px',
+                backgroundColor: '#fff',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '680px',
+                maxHeight: '88vh',
+                overflowY: 'auto',
+                padding: '28px',
+                boxShadow: '0 25px 30px -5px rgba(0,0,0,0.15)',
               }}
             >
-              <Award
-                size={36}
-                style={{
-                  margin: '0 auto 8px',
-                  color: resultModal.percentage >= 70 ? '#15803d' : '#c2410c',
-                }}
-              />
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', color: '#16181b' }}>
-                {resultModal.percentage}%
-              </h3>
-              <p style={{ margin: 0, color: '#4b5563', fontSize: '0.875rem' }}>
-                You scored <strong>{resultModal.score}</strong> out of <strong>{resultModal.maxScore}</strong> total points
-              </p>
-            </div>
-
-            {/* Answer Breakdown */}
-            <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#16181b' }}>
-              Question Breakdown & Feedback
-            </h4>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {resultModal.answers?.map((ans, idx) => (
-                <div
-                  key={ans.questionId || idx}
-                  style={{
-                    padding: '14px',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '10px',
-                    background: ans.isCorrect ? '#fcfdfd' : '#fffcfc',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                  }}
-                >
-                  <div
+              {/* Header with Title & Completion Badge */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', gap: '12px' }}>
+                <div>
+                  <span
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      color: '#15803d',
+                      background: '#dcfce7',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
                       alignItems: 'center',
+                      gap: '4px',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
                     }}
                   >
-                    <span style={{ fontWeight: '600', fontSize: '0.875rem', color: '#16181b' }}>
-                      Question {idx + 1}: {ans.questionText}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: '700',
-                        color: ans.isCorrect ? '#15803d' : '#dc2626',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      {ans.isCorrect ? (
-                        <>
-                          <CheckCircle2 size={14} /> +{ans.pointsAwarded} pt
-                        </>
-                      ) : (
-                        <>
-                          <XCircle size={14} /> 0 pt
-                        </>
-                      )}
-                    </span>
-                  </div>
+                    <CheckCircle2 size={13} /> Quiz Completed · 1 Attempt Only
+                  </span>
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: '1.35rem', fontWeight: '800', color: '#16181b' }}>
+                    {resultModal.quizTitle || 'Quiz Results'}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.825rem', color: '#6b7280' }}>
+                    Submitted on <strong>{submittedDateStr}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResultModal(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    fontSize: '1.2rem',
+                    padding: '4px',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
 
-                  <div style={{ fontSize: '0.825rem', color: '#4b5563' }}>
-                    <span>Your Answer: </span>
-                    <strong style={{ color: ans.isCorrect ? '#15803d' : '#dc2626' }}>
-                      {ans.selectedText}
-                    </strong>
+              {/* Score Banner & Stats Grid */}
+              <div
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  background: resultModal.percentage >= 70 ? '#f0fdf4' : '#fff7ed',
+                  border: resultModal.percentage >= 70 ? '1px solid #bbf7d0' : '1px solid #ffedd5',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '16px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: resultModal.percentage >= 70 ? '#dcfce7' : '#ffedd5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: resultModal.percentage >= 70 ? '#15803d' : '#c2410c',
+                    }}
+                  >
+                    <Award size={28} />
                   </div>
-
-                  {!ans.isCorrect && ans.correctText && (
-                    <div style={{ fontSize: '0.825rem', color: '#15803d' }}>
-                      <span>Correct Answer: </span>
-                      <strong>{ans.correctText}</strong>
+                  <div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#16181b', lineHeight: 1 }}>
+                      {resultModal.percentage}%
                     </div>
-                  )}
+                    <div style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: '2px' }}>
+                      Score: <strong>{resultModal.score}</strong> / {resultModal.maxScore} pts
+                    </div>
+                  </div>
+                </div>
 
-                  {ans.explanation && (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ padding: '6px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '500' }}>Total Questions</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#16181b' }}>{totalQuestions}</div>
+                  </div>
+                  <div style={{ padding: '6px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: '600' }}>Correct</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#15803d' }}>{correctCount}</div>
+                  </div>
+                  <div style={{ padding: '6px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: '600' }}>Incorrect</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#dc2626' }}>{incorrectCount}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Answer Breakdown */}
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: '700', color: '#16181b' }}>
+                Question Breakdown & Correct Answers
+              </h4>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {resultModal.answers?.map((ans, idx) => (
+                  <div
+                    key={ans.questionId || idx}
+                    style={{
+                      padding: '16px',
+                      border: ans.isCorrect ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                      borderRadius: '12px',
+                      background: ans.isCorrect ? '#fcfdfd' : '#fffcfc',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
                     <div
                       style={{
-                        marginTop: '4px',
-                        padding: '8px 10px',
-                        borderRadius: '6px',
-                        backgroundColor: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        fontSize: '0.8rem',
-                        color: '#475569',
                         display: 'flex',
+                        justifyContent: 'space-between',
                         alignItems: 'flex-start',
-                        gap: '6px',
+                        gap: '8px',
                       }}
                     >
-                      <Lightbulb size={14} style={{ color: '#eab308', flexShrink: 0, marginTop: '2px' }} />
-                      <span>
-                        <strong>Concept:</strong> {ans.explanation}
+                      <span style={{ fontWeight: '700', fontSize: '0.92rem', color: '#16181b' }}>
+                        Question {idx + 1}: {ans.questionText}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: '700',
+                          color: ans.isCorrect ? '#15803d' : '#dc2626',
+                          background: ans.isCorrect ? '#dcfce7' : '#fee2e2',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {ans.isCorrect ? (
+                          <>
+                            <CheckCircle2 size={13} /> Correct (+{ans.pointsAwarded} pt)
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={13} /> Incorrect (0 pt)
+                          </>
+                        )}
                       </span>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <button
-                type="button"
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: '#14785c',
-                  color: '#fff',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-                onClick={() => setResultModal(null)}
-              >
-                Done
-              </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.85rem', color: '#4b5563' }}>
+                        <span style={{ fontWeight: '600' }}>Your answer: </span>
+                        <strong style={{ color: ans.isCorrect ? '#15803d' : '#dc2626' }}>
+                          {ans.selectedText || 'No answer selected'}
+                        </strong>
+                      </div>
+
+                      <div style={{ fontSize: '0.85rem', color: '#15803d' }}>
+                        <span style={{ fontWeight: '600', color: '#374151' }}>Correct answer: </span>
+                        <strong style={{ color: '#15803d' }}>
+                          {ans.correctText || 'Answer recorded'}
+                        </strong>
+                      </div>
+
+                      <div style={{ fontSize: '0.825rem', color: '#6b7280' }}>
+                        <span>Status: </span>
+                        <strong style={{ color: ans.isCorrect ? '#15803d' : '#dc2626' }}>
+                          {ans.isCorrect ? 'Correct' : 'Incorrect'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {ans.explanation && (
+                      <div
+                        style={{
+                          marginTop: '4px',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          fontSize: '0.825rem',
+                          color: '#475569',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px',
+                        }}
+                      >
+                        <Lightbulb size={15} style={{ color: '#eab308', flexShrink: 0, marginTop: '2px' }} />
+                        <span>
+                          <strong>Explanation:</strong> {ans.explanation}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button
+                  type="button"
+                  style={{
+                    padding: '8px 24px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#14785c',
+                    color: '#fff',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setResultModal(null)}
+                >
+                  Close Results
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

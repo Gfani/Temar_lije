@@ -60,6 +60,31 @@ export class ClassroomsController {
   }
 
   /**
+   * POST /classrooms/:classroomId/members
+   * Enroll a student into the classroom
+   */
+  @Post(':classroomId/members')
+  async addClassroomMember(
+    @Param('classroomId') classroomId: string,
+    @Body() body: any,
+  ) {
+    const studentIdOrEmail = body.userId || body.studentId || body.email;
+    return await this.classroomsService.addStudentToClassroom(classroomId, studentIdOrEmail);
+  }
+
+  /**
+   * DELETE /classrooms/:classroomId/members/:userId
+   * Remove / un-enroll a student from the classroom
+   */
+  @Delete(':classroomId/members/:userId')
+  async removeClassroomMember(
+    @Param('classroomId') classroomId: string,
+    @Param('userId') userId: string,
+  ) {
+    return await this.classroomsService.removeStudentFromClassroom(classroomId, userId);
+  }
+
+  /**
    * DELETE /classrooms/:classroomId
    */
   @Delete(':classroomId')

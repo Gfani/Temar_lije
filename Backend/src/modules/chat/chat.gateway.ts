@@ -154,13 +154,16 @@ export class ChatGateway {
       if (savedMsg) {
         const payload = {
           ...savedMsg,
-          groupId: roomId,
-          roomId: roomId,
+          groupId: savedMsg.groupId || roomId,
+          topicId: savedMsg.topicId || 'general',
+          roomId: savedMsg.roomId || roomId,
           _optimisticId: data._optimisticId,
         };
-        // Emit to the specific room and global namespace for instantaneous reactivity
+        // Emit strictly to the specific room subscribers
         this.server.to(roomId).emit('newMessage', payload);
-        this.server.emit('newMessage', payload);
+        if (savedMsg.roomId && savedMsg.roomId !== roomId) {
+          this.server.to(savedMsg.roomId).emit('newMessage', payload);
+        }
       }
     } catch (err: any) {
       console.warn(`sendMessage failed in ${roomId}:`, err?.message);

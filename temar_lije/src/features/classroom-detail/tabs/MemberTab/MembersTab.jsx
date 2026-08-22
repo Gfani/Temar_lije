@@ -23,20 +23,67 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
     || 'U';
 
   const socketRef = useRef(null);
-  const { isUserOnline, onlineUserIds } = usePresence(socketRef.current, effectiveUserId, user?.email);
+  const { isUserOnline } = usePresence(socketRef.current, effectiveUserId, user?.email);
 
   const [realMembers, setRealMembers] = useState([]);
-  const [allStudents, setAllStudents] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
 
   const fetchMembers = React.useCallback(async () => {
     setLoadingMembers(true);
     try {
       const data = await getClassroomMembers(classroomId);
-      const studentOnly = (Array.isArray(data) ? data : []).filter(
-        (m) => (m.role || '').toUpperCase() !== 'TEACHER'
-      );
-      setRealMembers(studentOnly);
+      let studentList = [];
+      let teacherList = [];
+
+      if (data && Array.isArray(data.students)) {
+        studentList = data.students.map((s) => ({
+          id: s.id,
+          name: s.name || s.fullName || s.email,
+          email: s.email,
+          role: s.role || 'STUDENT',
+          initials: (s.name || s.fullName || s.email || 'ST').slice(0, 2).toUpperCase(),
+          avatarBg: '#3b82f6',
+          joinedAt: s.joinedAt,
+        }));
+        teacherList = (data.teachers || []).map((t) => ({
+          id: t.id,
+          name: t.name || t.fullName || t.email,
+          email: t.email,
+          role: 'TEACHER',
+          isOwner: t.isOwner,
+          initials: (t.name || t.fullName || t.email || 'TC').slice(0, 2).toUpperCase(),
+          avatarBg: '#14785c',
+        }));
+      } else if (Array.isArray(data)) {
+        studentList = data
+          .filter((m) => (m.role || '').toUpperCase() === 'STUDENT')
+          .map((s) => ({
+            id: s.id || s.userId,
+            name: s.name || s.fullName || s.email,
+            email: s.email,
+            role: 'STUDENT',
+            initials: (s.name || s.fullName || s.email || 'ST').slice(0, 2).toUpperCase(),
+            avatarBg: '#3b82f6',
+            joinedAt: s.joinedAt,
+          }));
+        teacherList = data
+          .filter((m) => (m.role || '').toUpperCase() === 'TEACHER')
+          .map((t) => ({
+            id: t.id || t.userId,
+            name: t.name || t.fullName || t.email,
+            email: t.email,
+            role: 'TEACHER',
+            isOwner: t.isOwner,
+            initials: (t.name || t.fullName || t.email || 'TC').slice(0, 2).toUpperCase(),
+            avatarBg: '#14785c',
+          }));
+      }
+
+      setRealMembers(studentList);
+      if (teacherList.length > 0) {
+        setTeachers(teacherList);
+      }
     } catch (err) {
       console.warn('Failed to load members:', err);
       setRealMembers([]);
@@ -47,37 +94,16 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
 
   useEffect(() => {
     fetchMembers();
-    fetch(`${API_BASE_URL}/users/students`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const students = data
-            .filter((s) => (s.role || '').toUpperCase() !== 'TEACHER')
-            .map((s) => ({
-              id: s.id,
-              name: s.fullName || s.name || s.email,
-              email: s.email,
-              initials: s.initials || (s.fullName || s.name ? (s.fullName || s.name).slice(0, 2).toUpperCase() : 'ST'),
-              avatarBg: s.avatarBg || '#3b82f6',
-              role: s.role,
-            }));
-          setAllStudents(students);
-        }
-      })
-      .catch((err) => console.warn('Failed to load all students:', err));
   }, [fetchMembers]);
 
-  // Combine enrolled students and platform students so any student can be invited
+  // Candidates for study groups strictly from enrolled classroom members
   const availableCandidates = React.useMemo(() => {
-    const map = new Map();
-    (allStudents || []).forEach((s) => map.set(s.id, s));
-    (realMembers || []).forEach((s) => map.set(s.id, s));
-    return Array.from(map.values());
-  }, [allStudents, realMembers]);
+    return realMembers;
+  }, [realMembers]);
 
   const memberProfiles = React.useMemo(() => {
     const map = {};
-    availableCandidates.forEach((m) => {
+    (availableCandidates || []).forEach((m) => {
       const online = isUserOnline(m.id, m.email);
       map[m.id] = {
         name: m.name || m.email,
@@ -446,21 +472,56 @@ export default function MembersTab({ darkMode, setDarkMode, classroom, currentUs
 
                   {/* Instructor Section */}
                   <section className="members-section">
-                    <h4 className="section-title">INSTRUCTOR</h4>
-                    <div className="member-card-row">
-                      <div className="member-avatar sm-bg" style={{ backgroundColor: '#14785c' }}>
-                        {(classroom?.instructor || 'T').charAt(0).toUpperCase()}
+                    <h4 className="section-title">INSTRUCTORS ({teachers.length || 1})</h4>
+                    {teachers.length > 0 ? (
+                      <div className="members-list-stack">
+                        {teachers.map((t) => {
+                          const isYou = t.id === effectiveUserId || t.email === user?.email;
+                          const online = isUserOnline(t.id, t.email);
+                          return (
+                            <div className={`member-card-row ${online ? '' : 'offline'}`} key={t.id}>
+                              <div className="member-avatar sm-bg" style={{ backgroundColor: '#14785c' }}>
+                                {t.initials || 'TC'}
+                              </div>
+                              <div className="member-details">
+                                <div className="member-name-row">
+                                  <span className="member-name-text">{t.name || t.email}</span>
+                                  <span className="teacher-badge-label">{t.isOwner ? 'Owner' : 'Teacher'}</span>
+                                  {isYou && <span className="you-badge-label">(you)</span>}
+                                </div>
+                                <span className="member-status-text" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <span
+                                    style={{
+                                      width: '8px',
+                                      height: '8px',
+                                      borderRadius: '50%',
+                                      backgroundColor: online ? '#22c55e' : '#94a3b8',
+                                      display: 'inline-block',
+                                    }}
+                                  />
+                                  {online ? 'online' : 'offline'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="member-details">
-                        <div className="member-name-row">
-                          <span className="member-name-text">{classroom?.instructor || 'Class Instructor'}</span>
-                          <span className="teacher-badge-label">Teacher</span>
+                    ) : (
+                      <div className="member-card-row">
+                        <div className="member-avatar sm-bg" style={{ backgroundColor: '#14785c' }}>
+                          {(classroom?.instructor || 'T').charAt(0).toUpperCase()}
                         </div>
-                        <span className="member-status-text">
-                          <span className="online-indicator-dot"></span> instructor
-                        </span>
+                        <div className="member-details">
+                          <div className="member-name-row">
+                            <span className="member-name-text">{classroom?.instructor || 'Class Instructor'}</span>
+                            <span className="teacher-badge-label">Teacher</span>
+                          </div>
+                          <span className="member-status-text">
+                            <span className="online-indicator-dot"></span> instructor
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </section>
 
                   {/* Registered Students Section */}

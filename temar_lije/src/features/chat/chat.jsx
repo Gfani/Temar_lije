@@ -1351,7 +1351,7 @@ function Chat({
 
     const activeMessagesKey = activeItem.isClassroom ? activeId : `${activeId}-${activeTopicId}`;
     const activeMessages = useMemo(() => {
-        const rawList = messagesByGroup[activeMessagesKey] || messagesByGroup[activeId] || [];
+        const rawList = messagesByGroup[activeMessagesKey] || [];
         const seenIds = new Set();
         const deduped = [];
         for (const m of rawList) {
@@ -1361,7 +1361,7 @@ function Chat({
             deduped.push(m);
         }
         return deduped;
-    }, [messagesByGroup, activeMessagesKey, activeId]);
+    }, [messagesByGroup, activeMessagesKey]);
 
     const pinnedMessage = activeMessages.find(m => m.isPinned);
 

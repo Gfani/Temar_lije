@@ -118,18 +118,25 @@ export async function getClassroomMembers(classId) {
     const res = await fetch(`${API_BASE_URL}/classrooms/${classId}/members`, {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) {
-      const res2 = await fetch(`${API_BASE_URL}/users/students`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res2.ok) return [];
-      return await res2.json();
-    }
+    if (!res.ok) return { classroomId: classId, teachers: [], students: [], members: [] };
     return await res.json();
   } catch (err) {
     console.warn('Failed to fetch classroom members:', err);
-    return [];
+    return { classroomId: classId, teachers: [], students: [], members: [] };
   }
+}
+
+export async function addClassroomMember(classId, studentIdOrEmail) {
+  const res = await fetch(`${API_BASE_URL}/classrooms/${classId}/members`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ studentId: studentIdOrEmail }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to add classroom member');
+  }
+  return res.json();
 }
 
 export async function removeClassroomMember(classId, memberId) {
@@ -445,3 +452,4 @@ export async function deleteQuiz(quizId) {
   }
   return res.json();
 }
+

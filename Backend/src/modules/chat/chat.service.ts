@@ -88,7 +88,8 @@ export class ChatService {
       senderId: msg.senderId,
       sender: senderObj,
       createdAt: msg.createdAt,
-      groupId: roomKey,
+      groupId: attachments.groupId || (roomKey && roomKey.includes('-') ? roomKey.split('-')[0] : roomKey),
+      topicId: attachments.topicId || (roomKey && roomKey.includes('-') ? roomKey.split('-').slice(1).join('-') : 'general'),
       roomId: roomKey,
       image: attachments.image,
       type: attachments.type || 'text',
@@ -944,15 +945,60 @@ export class ChatService {
     });
   }
 
+  /**
+   * Helper to parse a roomId string into parentGroupId and topicId
+   */
+  public parseChannelRoom(roomId: string): { parentGroupId: string; topicId: string; normalizedRoomId: string } {
+    if (!roomId) return { parentGroupId: 'general', topicId: 'general', normalizedRoomId: 'general-general' };
+    
+    const trimmed = String(roomId).trim();
+    // Check if starts with a 36-character UUID followed by '-' and topic
+    const uuidTopicRegex = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(.+)$/;
+    const uuidMatch = trimmed.match(uuidTopicRegex);
+    if (uuidMatch) {
+      const parent = uuidMatch[1];
+      const topic = uuidMatch[2];
+      return { parentGroupId: parent, topicId: topic, normalizedRoomId: `${parent}-${topic}` };
+    }
+
+    const uuidOnlyRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (uuidOnlyRegex.test(trimmed)) {
+      return { parentGroupId: trimmed, topicId: 'general', normalizedRoomId: `${trimmed}-general` };
+    }
+
+    if (trimmed.includes('-')) {
+      const parts = trimmed.split('-');
+      const parent = parts[0];
+      const topic = parts.slice(1).join('-');
+      return { parentGroupId: parent, topicId: topic || 'general', normalizedRoomId: `${parent}-${topic || 'general'}` };
+    }
+
+    return { parentGroupId: trimmed, topicId: 'general', normalizedRoomId: `${trimmed}-general` };
+  }
+
   async getChatHistory(groupId: string, userId?: string) {
-    const groupUuid = toUuid(groupId);
+    const { parentGroupId, topicId, normalizedRoomId } = this.parseChannelRoom(groupId);
+    const parentGroupUuid = toUuid(parentGroupId);
 
     const messages = await this.db.chatMessage.findMany({
       where: {
         OR: [
-          { studyGroupId: groupUuid },
+          { attachments: { contains: `"roomId":"${normalizedRoomId}"` } },
           { attachments: { contains: `"roomId":"${groupId}"` } },
-          { attachments: { contains: `"groupId":"${groupId}"` } },
+          {
+            AND: [
+              { attachments: { contains: `"groupId":"${parentGroupId}"` } },
+              { attachments: { contains: `"topicId":"${topicId}"` } },
+            ],
+          },
+          ...(topicId === 'general'
+            ? [
+                {
+                  studyGroupId: parentGroupUuid,
+                  attachments: { not: { contains: `"topicId":` } },
+                },
+              ]
+            : []),
         ],
       },
       orderBy: { createdAt: 'asc' },
@@ -961,57 +1007,144 @@ export class ChatService {
       },
     });
 
-    const formatted = messages.map((msg) => this.formatMessage(msg));
+    // In-memory strict topic filter to completely prevent topic message bleeding
+    const strictlyFiltered = messages.filter((msg) => {
+      let att: any = {};
+      if (typeof msg.attachments === 'string') {
+        try { att = JSON.parse(msg.attachments); } catch (e) {}
+      } else if (typeof msg.attachments === 'object' && msg.attachments) {
+        att = msg.attachments;
+      }
+
+      const msgTopic = att.topicId || (att.roomId && att.roomId.includes('-') ? att.roomId.split('-').slice(1).join('-') : 'general');
+      const msgGroup = att.groupId || (att.roomId ? att.roomId.split('-')[0] : msg.studyGroupId);
+
+      if (msgTopic !== topicId) return false;
+      if (msgGroup && parentGroupId && msgGroup !== parentGroupId && toUuid(msgGroup) !== parentGroupUuid) {
+        return false;
+      }
+      return true;
+    });
+
+    const formatted = strictlyFiltered.map((msg) => this.formatMessage(msg));
     await this.attachReplies(formatted);
     return formatted;
   }
 
   async saveMessage(groupId: string, senderId: string, data: any) {
-    const groupUuid = toUuid(groupId);
+    const { parentGroupId, topicId, normalizedRoomId } = this.parseChannelRoom(groupId);
+    const parentGroupUuid = toUuid(parentGroupId);
     const senderUuid = toUuid(senderId);
 
+    await this.ensureUserExists(senderId);
+
     let existingGroup = await this.db.studyGroup.findUnique({
-      where: { id: groupUuid },
+      where: { id: parentGroupUuid },
+      include: { members: true, topics: true },
     });
 
     if (!existingGroup) {
-      const isTopic = groupId.includes('-');
-      const parentKey = isTopic ? groupId.split('-')[0] : groupId;
-      const topicSuffix = isTopic ? groupId.split('-').slice(1).join('-') : 'general';
+      existingGroup = await this.db.studyGroup.findFirst({
+        where: { OR: [{ id: parentGroupId }, { name: parentGroupId }] },
+        include: { members: true, topics: true },
+      });
+    }
 
+    if (!existingGroup) {
       const creatorId = senderId;
-      await this.ensureUserExists(creatorId);
       const classroomId = await this.ensureClassroomExists(undefined, creatorId);
 
-      let groupName = groupId;
-      if (isTopic) {
-        groupName =
-          topicSuffix.charAt(0).toUpperCase() +
-          topicSuffix.slice(1).replace(/-/g, ' ');
-      } else if (groupId === 'flutter') {
+      let groupName = parentGroupId;
+      if (parentGroupId === 'flutter') {
         groupName = 'Flutter';
-      } else if (groupId === 'react-native') {
+      } else if (parentGroupId === 'react-native') {
         groupName = 'React Native';
       }
 
       try {
         existingGroup = await this.db.studyGroup.create({
           data: {
-            id: groupUuid,
+            id: parentGroupUuid,
             name: groupName,
-            icon: isTopic ? `topic:${parentKey}:${topicSuffix}` : '📚',
-            colorAccent: isTopic ? '#0d9488' : '#6366f1',
+            icon: '📚',
+            colorAccent: '#6366f1',
             classroomId,
             createdById: senderUuid,
             members: {
               create: [{ userId: senderUuid, role: 'OWNER' }],
             },
           },
+          include: { members: true, topics: true },
         });
       } catch (e) {}
     }
 
-    await this.ensureUserExists(senderId);
+    // Validate Membership / Enrollment
+    if (existingGroup) {
+      const isMember = (existingGroup.members || []).some(
+        (m: any) => m.userId === senderUuid || m.userId === senderId,
+      ) || existingGroup.createdById === senderUuid || existingGroup.createdById === senderId;
+
+      if (!isMember) {
+        if (existingGroup.classroomId) {
+          const isClassMember = await this.db.classroomMember.findUnique({
+            where: {
+              classroomId_userId: {
+                classroomId: existingGroup.classroomId,
+                userId: senderUuid,
+              },
+            },
+          });
+          const isClassTeacher = await this.db.classroomTeacher.findUnique({
+            where: {
+              classroomId_userId: {
+                classroomId: existingGroup.classroomId,
+                userId: senderUuid,
+              },
+            },
+          });
+
+          if (isClassMember || isClassTeacher) {
+            await this.db.studyGroupMember.create({
+              data: {
+                studyGroupId: existingGroup.id,
+                userId: senderUuid,
+                role: isClassTeacher ? 'ADMIN' : 'MEMBER',
+              },
+            }).catch(() => {});
+          } else {
+            throw new ForbiddenException('You must be a member of this classroom/group to send messages.');
+          }
+        } else {
+          await this.db.studyGroupMember.create({
+            data: {
+              studyGroupId: existingGroup.id,
+              userId: senderUuid,
+              role: 'MEMBER',
+            },
+          }).catch(() => {});
+        }
+      }
+
+      // Validate Topic Exists for this Group
+      if (topicId && topicId !== 'general') {
+        const topicMatch = (existingGroup.topics || []).some(
+          (t: any) => t.slug === topicId || t.id === topicId,
+        );
+        if (!topicMatch) {
+          try {
+            await (this.db as any).groupTopic?.create({
+              data: {
+                studyGroupId: existingGroup.id,
+                name: topicId.charAt(0).toUpperCase() + topicId.slice(1).replace(/-/g, ' '),
+                slug: topicId,
+                createdById: senderUuid,
+              },
+            });
+          } catch (e) {}
+        }
+      }
+    }
 
     const isStaleBlobAudio =
       data.type === 'audio' &&
@@ -1031,8 +1164,10 @@ export class ChatService {
       fileIcon: data.fileIcon,
       replyToId: data.replyToId,
       forwardedFrom: data.forwardedFrom,
-      roomId: groupId,
-      groupId: groupId,
+      groupId: parentGroupId,
+      topicId: topicId,
+      roomId: normalizedRoomId,
+      rawRoomId: groupId,
       isPinned: false,
       reactions: [],
     };
@@ -1041,7 +1176,7 @@ export class ChatService {
       data: {
         content: data.text || '',
         senderId: senderUuid,
-        studyGroupId: groupUuid,
+        studyGroupId: parentGroupUuid,
         attachments: JSON.stringify(attachments),
       },
       include: {

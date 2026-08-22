@@ -345,7 +345,76 @@ export class ClassroomsService {
         role: 'STUDENT',
         joinedAt: m.joinedAt,
       })),
+      members: [
+        ...teachers.map((t: any) => ({
+          id: t.user.id,
+          name: t.user.fullName || t.user.name || 'Instructor',
+          email: t.user.email,
+          role: 'TEACHER',
+          isOwner: t.isOwner,
+        })),
+        ...members.map((m: any) => ({
+          id: m.user.id,
+          name: m.user.fullName || m.user.name || 'Student',
+          email: m.user.email,
+          role: 'STUDENT',
+          joinedAt: m.joinedAt,
+        })),
+      ],
     };
+  }
+
+  /**
+   * Enroll a student into a classroom
+   */
+  async addStudentToClassroom(classroomId: string, studentIdOrEmail: string) {
+    const classroom = await this.resolveClassroom(classroomId);
+    if (!classroom) {
+      throw new NotFoundException('Classroom not found');
+    }
+
+    const user = await this.resolveUser(studentIdOrEmail);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.databaseService.classroomMember.upsert({
+      where: {
+        classroomId_userId: {
+          classroomId: classroom.id,
+          userId: user.id,
+        },
+      },
+      create: {
+        classroomId: classroom.id,
+        userId: user.id,
+      },
+      update: {},
+    });
+
+    return await this.getClassroomMembers(classroom.id);
+  }
+
+  /**
+   * Remove / un-enroll a student from a classroom
+   */
+  async removeStudentFromClassroom(classroomId: string, studentId: string) {
+    const classroom = await this.resolveClassroom(classroomId);
+    if (!classroom) {
+      throw new NotFoundException('Classroom not found');
+    }
+
+    const user = await this.resolveUser(studentId);
+    if (user) {
+      await this.databaseService.classroomMember.deleteMany({
+        where: {
+          classroomId: classroom.id,
+          userId: user.id,
+        },
+      });
+    }
+
+    return await this.getClassroomMembers(classroom.id);
   }
 
   /**

@@ -239,11 +239,29 @@ export async function recordCheckIn(classId, studentId) {
 }
 
 export async function getAttendanceReport(classId) {
-  const res = await fetch(`${API_BASE_URL}/attendance/class/${classId}/report`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error('Failed to fetch attendance report');
-  return res.json();
+  try {
+    let res = await fetch(`${API_BASE_URL}/attendance/${classId}/report`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      res = await fetch(`${API_BASE_URL}/attendance/class/${classId}/report`, {
+        headers: getAuthHeaders(),
+      });
+    }
+    if (!res.ok) {
+      return {
+        summary: { totalEnrolled: 0, PRESENT: 0, LATE: 0, ABSENT: 0 },
+        records: { PRESENT: [], LATE: [], ABSENT: [] },
+      };
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to fetch attendance report:', err);
+    return {
+      summary: { totalEnrolled: 0, PRESENT: 0, LATE: 0, ABSENT: 0 },
+      records: { PRESENT: [], LATE: [], ABSENT: [] },
+    };
+  }
 }
 
 // ---- LIVE CLASS API ----

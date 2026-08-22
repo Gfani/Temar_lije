@@ -48,10 +48,10 @@ services:
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-https://temar-lije.southafricanorth.cloudapp.azure.com}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-933501285980-kc8odq4llkijcrppkccbvf4u1gejhasl.apps.googleusercontent.com}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-https://temar-lije.southafricanorth.cloudapp.azure.com/api/auth/google/callback}
-      - GOOGLE_OAUTH_STATE_SECRET=${GOOGLE_OAUTH_STATE_SECRET:-}
+      - GOOGLE_OAUTH_STATE_SECRET=${GOOGLE_OAUTH_STATE_SECRET:-temar_super_secure_state_secret_2026_xyz}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}

@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MaterialsService } from './materials.service';
@@ -34,17 +35,21 @@ export class MaterialsController {
   @UseInterceptors(FileInterceptor('file', createMulterOptions('materials')))
   async uploadMaterial(
     @UploadedFile() file: any,
-    @Body('title') title: string,
-    @Body('classId') classId: string,
-    @Body('description') description?: string,
+    @Body() body: any,
+    @Req() req: any,
   ) {
-    if (!file) {
+    if (!file && !body?.fileUrl) {
       throw new BadRequestException('File is required for material upload');
     }
 
-    const filePath = `/uploads/materials/${file.filename}`;
-    const mimetype = (file.mimetype || '').toLowerCase();
-    const ext = (file.originalname || '').toLowerCase();
+    const title = body?.title || body?.materialTitle || file?.originalname || 'Uploaded Document';
+    const classId = body?.classId || body?.classroomId || req.params?.classId;
+    const description = body?.description;
+    const userId = req.user?.id || req.user?.sub || body?.uploadedById;
+
+    const filePath = file ? `/uploads/materials/${file.filename}` : body?.fileUrl;
+    const mimetype = (file?.mimetype || '').toLowerCase();
+    const ext = (file?.originalname || filePath || '').toLowerCase();
 
     let fileType = 'DOCUMENT';
     if (mimetype.includes('pdf') || ext.endsWith('.pdf')) {
@@ -53,15 +58,18 @@ export class MaterialsController {
       fileType = 'IMAGE';
     } else if (mimetype.includes('presentation') || mimetype.includes('powerpoint') || ext.match(/\.(ppt|pptx)$/)) {
       fileType = 'SLIDES';
+    } else if (mimetype.includes('audio') || ext.match(/\.(mp3|wav|ogg|webm|m4a)$/)) {
+      fileType = 'AUDIO';
     }
 
     return await this.materialsService.uploadMaterial({
-      title: title || file.originalname || 'Uploaded Document',
+      title: title.trim(),
       description,
       filePath,
       classId,
+      uploadedById: userId,
       fileType,
-      fileSizeBytes: file.size,
+      fileSizeBytes: file?.size || 0,
     });
   }
 

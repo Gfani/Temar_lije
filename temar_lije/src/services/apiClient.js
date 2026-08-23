@@ -180,11 +180,20 @@ export async function getAssignments(classId) {
 }
 
 export async function createAssignment(assignmentData) {
-  const res = await fetch(`${API_BASE_URL}/assignments/create`, {
+  let res = await fetch(`${API_BASE_URL}/assignments/create`, {
     method: 'POST',
     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(assignmentData),
   });
+
+  if (!res.ok) {
+    res = await fetch(`${API_BASE_URL}/assignments`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(assignmentData),
+    });
+  }
+
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || 'Failed to create assignment');

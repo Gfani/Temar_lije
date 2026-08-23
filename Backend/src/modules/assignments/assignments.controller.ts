@@ -26,19 +26,25 @@ export class AssignmentsController {
   @UseInterceptors(FileInterceptor('file', createMulterOptions('assignments')))
   async createAssignment(
     @UploadedFile() file: any,
-    @Body('title') title: string,
-    @Body('description') description: string,
-    @Body('deadline') deadline: string,
-    @Body('classId') classId: string,
-    @Body('guideUrl') guideUrl?: string,
+    @Body() body: any,
+    @Req() req: any,
   ) {
+    const title = body?.title || body?.assignmentTitle;
+    const description = body?.description || body?.instructions;
+    const deadline = body?.deadline || body?.dueDate;
+    const classId = body?.classId || body?.classroomId || req.params?.classId;
+    const totalPoints = body?.totalPoints ? Number(body?.totalPoints) : 100;
+    const guideUrl = body?.guideUrl;
     const guidePath = file ? `/uploads/assignments/${file.filename}` : guideUrl || undefined;
+    const userId = req.user?.id || req.user?.sub || body?.createdById;
 
     return await this.assignmentsService.createAssignment({
       title,
       description: description ? `${description}${guidePath ? `\nGuide: ${guidePath}` : ''}` : guidePath,
       deadline,
+      totalPoints,
       classId,
+      createdById: userId,
     });
   }
 

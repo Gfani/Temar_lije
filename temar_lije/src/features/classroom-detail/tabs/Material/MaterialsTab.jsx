@@ -6,8 +6,8 @@ import './MaterialsTab.css';
 export default function MaterialsTab({
   classId = '66666666-6666-4666-8666-666666666666',
   isTeacher = false,
-  _currentUser,
-  _onUploadMaterial,
+  currentUser,
+  onUploadMaterial,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [materials, setMaterials] = useState([]);
@@ -40,7 +40,7 @@ export default function MaterialsTab({
   }, [loadMaterials]);
 
   const handleOpenUpload = () => {
-    if (onUploadMaterial) {
+    if (typeof onUploadMaterial === 'function') {
       onUploadMaterial();
     } else {
       setShowUploadModal(true);
@@ -49,8 +49,8 @@ export default function MaterialsTab({
 
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!uploadTitle.trim() || !selectedFile) {
-      setUploadError('Title and file are required.');
+    if (!selectedFile) {
+      setUploadError('Please select a file to upload.');
       return;
     }
 

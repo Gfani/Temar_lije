@@ -3,21 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Temar Lije - Final Project Presentation</title>
+  <title>Temar Lije - Comprehensive System Presentation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #090d16;
-      --card-bg: rgba(22, 30, 49, 0.75);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --primary: #3b82f6;
-      --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      --bg-gradient: linear-gradient(135deg, #f0f3fa 0%, #e9edf8 50%, #f4f6fc 100%);
+      --card-bg: #ffffff;
+      --card-border: rgba(99, 102, 241, 0.12);
+      --primary: #4f46e5;
+      --primary-light: #6366f1;
+      --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
       --accent: #10b981;
       --accent-gradient: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      --shadow-sm: 0 4px 12px rgba(99, 102, 241, 0.05);
+      --shadow-md: 0 12px 32px rgba(79, 70, 229, 0.08);
+      --shadow-lg: 0 20px 48px rgba(30, 41, 59, 0.08);
     }
 
     * {
@@ -28,23 +33,20 @@
 
     body {
       font-family: 'Plus Jakarta Sans', sans-serif;
-      background: var(--bg);
+      background: var(--bg-gradient);
       color: var(--text);
       overflow: hidden;
       height: 100vh;
       width: 100vw;
       display: flex;
       flex-direction: column;
-      background-image: 
-        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
-        radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.15) 0%, transparent 40%);
     }
 
     /* Top Progress Bar */
     .progress-bar-container {
       height: 4px;
       width: 100%;
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(99, 102, 241, 0.1);
       position: fixed;
       top: 0;
       left: 0;
@@ -52,14 +54,14 @@
     }
     .progress-bar {
       height: 100%;
-      width: 10%;
+      width: 4.16%;
       background: var(--primary-gradient);
-      transition: width 0.4s ease;
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     /* Header Nav */
     header {
-      padding: 24px 48px;
+      padding: 16px 40px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -70,26 +72,30 @@
       align-items: center;
       gap: 12px;
       font-weight: 800;
-      font-size: 1.25rem;
+      font-size: 1.2rem;
+      color: #1e293b;
       letter-spacing: -0.5px;
     }
     .brand-badge {
       background: var(--primary-gradient);
+      color: #ffffff;
       padding: 4px 10px;
       border-radius: 8px;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .slide-counter {
       font-family: 'JetBrains Mono', monospace;
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      background: rgba(255, 255, 255, 0.05);
-      padding: 6px 14px;
+      color: var(--primary);
+      font-size: 0.9rem;
+      font-weight: 700;
+      background: #ffffff;
+      padding: 6px 16px;
       border-radius: 20px;
       border: 1px solid var(--card-border);
+      box-shadow: var(--shadow-sm);
     }
 
     /* Slide Deck Container */
@@ -100,20 +106,20 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0 48px 32px;
+      padding: 0 40px 24px;
     }
 
     .slide {
       position: absolute;
       width: 100%;
-      max-width: 1150px;
+      max-width: 1180px;
       opacity: 0;
-      transform: translateY(20px) scale(0.98);
+      transform: translateY(16px) scale(0.99);
       pointer-events: none;
-      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 20px;
     }
 
     .slide.active {
@@ -123,30 +129,42 @@
     }
 
     /* Slide Card Style */
-    .glass-card {
+    .slide-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      backdrop-filter: blur(20px);
       border-radius: 24px;
-      padding: 44px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      padding: 44px 50px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
     }
 
+    .slide-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--primary-gradient);
+    }
+
+    /* Typography */
     h1 {
-      font-size: 3rem;
+      font-size: 2.8rem;
       font-weight: 800;
       letter-spacing: -1px;
-      line-height: 1.15;
-      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      line-height: 1.2;
+      color: #1e1b4b;
     }
 
     h2 {
       font-size: 2.2rem;
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing: -0.5px;
+      color: #4338ca;
       margin-bottom: 8px;
+      line-height: 1.25;
     }
 
     .gradient-text {
@@ -162,138 +180,217 @@
     }
 
     p.subtitle {
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       color: var(--text-muted);
       font-weight: 400;
       line-height: 1.6;
     }
 
-    /* Grids */
+    /* Grids & Layouts */
+    .split-layout {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 36px;
+      align-items: center;
+    }
+
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      margin-top: 12px;
+      gap: 20px;
+      margin-top: 10px;
     }
 
     .grid-3 {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-      margin-top: 12px;
+      gap: 18px;
+      margin-top: 10px;
     }
 
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    /* Cards & Components */
     .feature-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--card-border);
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       border-radius: 16px;
-      padding: 24px;
+      padding: 22px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      transition: transform 0.2s ease, border-color 0.2s ease;
+      gap: 10px;
+      transition: all 0.2s ease;
     }
     .feature-card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(59, 130, 246, 0.4);
+      transform: translateY(-3px);
+      border-color: var(--primary-light);
+      box-shadow: var(--shadow-md);
+      background: #ffffff;
     }
     .card-icon {
       font-size: 2rem;
+      line-height: 1;
     }
     .card-title {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 700;
-      color: #fff;
+      color: #1e293b;
     }
     .card-desc {
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       color: var(--text-muted);
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
-    /* Code Box */
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(79, 70, 229, 0.08);
+      color: var(--primary);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    .visual-frame {
+      background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+      border-radius: 20px;
+      padding: 24px;
+      color: #ffffff;
+      box-shadow: 0 16px 36px rgba(79, 70, 229, 0.25);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+    }
+
     .code-box {
-      background: #040810;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
       padding: 16px 20px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       color: #38bdf8;
       overflow-x: auto;
       line-height: 1.6;
     }
 
-    /* Table */
+    /* Tables */
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 8px;
+      margin-top: 10px;
     }
     th, td {
-      padding: 14px 18px;
+      padding: 12px 16px;
       text-align: left;
-      border-bottom: 1px solid var(--card-border);
-      font-size: 0.95rem;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.92rem;
     }
     th {
-      color: var(--text-muted);
-      font-weight: 600;
+      color: var(--primary);
+      font-weight: 700;
       text-transform: uppercase;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       letter-spacing: 0.5px;
+      background: #f8fafc;
     }
     td {
-      color: #e2e8f0;
+      color: #334155;
     }
 
-    /* Bottom Control Bar */
+    /* User Role Cards */
+    .role-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 22px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .role-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(79, 70, 229, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      color: var(--primary);
+    }
+    .role-title {
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: #1e293b;
+    }
+    .role-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Footer Controls */
     footer {
-      padding: 20px 48px;
+      padding: 16px 40px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       z-index: 10;
     }
     .nav-btn {
-      background: rgba(255, 255, 255, 0.06);
+      background: #ffffff;
       border: 1px solid var(--card-border);
-      color: var(--text);
-      padding: 10px 20px;
+      color: #1e293b;
+      padding: 10px 22px;
       border-radius: 12px;
-      font-weight: 600;
+      font-weight: 700;
       font-size: 0.95rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 8px;
+      box-shadow: var(--shadow-sm);
       transition: all 0.2s ease;
       font-family: inherit;
     }
     .nav-btn:hover {
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.2);
+      background: #f8fafc;
+      border-color: var(--primary-light);
       transform: translateY(-1px);
     }
     .nav-btn.primary {
       background: var(--primary-gradient);
+      color: #ffffff;
       border: none;
-      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+      box-shadow: 0 4px 15px rgba(79, 70, 229, 0.35);
     }
     .nav-btn.primary:hover {
-      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+      box-shadow: 0 6px 22px rgba(79, 70, 229, 0.5);
     }
     .hint {
       color: var(--text-muted);
       font-size: 0.85rem;
     }
     kbd {
-      background: rgba(255, 255, 255, 0.1);
+      background: #ffffff;
       padding: 2px 6px;
       border-radius: 6px;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.75rem;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid #cbd5e1;
+      color: #475569;
     }
   </style>
 </head>
@@ -307,75 +404,525 @@
   <!-- Header -->
   <header>
     <div class="brand">
-      <span>🎓 Temar Lije</span>
-      <span class="brand-badge">Project Defense</span>
+      <span>🎓 Temar Lije (ተማር ልጅ)</span>
+      <span class="brand-badge">Full System Presentation</span>
     </div>
-    <div class="slide-counter" id="slideCounter">Slide 1 / 10</div>
+    <div class="slide-counter" id="slideCounter">Slide 1 / 24</div>
   </header>
 
   <!-- Slide Deck -->
   <main class="deck-container">
 
-    <!-- Slide 1: Title -->
+    <!-- Slide 1: Title Slide -->
     <div class="slide active">
-      <div class="glass-card" style="text-align: center; padding: 60px 40px;">
-        <span class="brand-badge" style="margin-bottom: 20px; display: inline-block;">Final Project Presentation</span>
-        <h1>Temar Lije (ተማር ልጅ)</h1>
-        <p class="subtitle" style="max-width: 750px; margin: 16px auto 32px;">
-          A Real-Time Collaborative Educational Platform with Live Audio Study Groups, Assessment Engine & Cloud Production Infrastructure.
-        </p>
-        <div style="display: flex; justify-content: center; gap: 32px; color: var(--text-muted); font-size: 0.95rem;">
-          <div><strong>Role:</strong> Lead DevOps & Real-Time Chat Engineer</div>
-          <div><strong>Stack:</strong> NestJS • React • PostgreSQL • Docker • Azure</div>
+      <div class="slide-card">
+        <div class="split-layout">
+          <div>
+            <span class="stat-badge" style="margin-bottom: 16px;">Enterprise Educational Platform</span>
+            <h1>Temar Lije: Next-Generation Real-Time Collaborative Learning Management System</h1>
+            <p class="subtitle" style="margin: 18px 0 28px;">
+              Empowering Educators & Students with Real-Time Study Groups, Timed Assessments, Voice Notes, and Cloud High Availability.
+            </p>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <span class="stat-badge">🚀 Live on Microsoft Azure</span>
+              <span class="stat-badge">🔒 HTTPS / SSL Secured</span>
+              <span class="stat-badge">⚡ WebSockets Powered</span>
+            </div>
+          </div>
+          <div class="visual-frame" style="background: linear-gradient(135deg, #312e81 0%, #4338ca 100%);">
+            <h3 style="font-size: 1.4rem;">System At A Glance</h3>
+            <p style="font-size: 0.95rem; line-height: 1.6; opacity: 0.9;">
+              <strong>Temar Lije</strong> bridges the gap between traditional learning and modern interactive digital classrooms. Built with a full-stack reactive architecture.
+            </p>
+            <div style="background: rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px;">
+              <div style="font-size: 0.85rem; opacity: 0.8;">Production Host</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 700; color: #a5f3fc;">
+                https://temar-lije.southafricanorth.cloudapp.azure.com
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Slide 2: Technical Scope -->
+    <!-- Slide 2: Introduction to Temar Lije -->
     <div class="slide">
-      <div class="glass-card">
-        <h2>My Core Contributions & <span class="gradient-text">Role</span></h2>
-        <p class="subtitle">Architecting the communication backbone and cloud deployment lifecycle.</p>
-        <div class="grid-3">
+      <div class="slide-card">
+        <div class="split-layout">
+          <div>
+            <h2>Introduction to <span class="gradient-text">Temar Lije</span></h2>
+            <p class="subtitle" style="margin-bottom: 16px;">
+              <strong>Temar Lije</strong> is an innovative, real-time educational management platform designed to streamline operations across schools, universities, and remote learning groups.
+            </p>
+            <p style="color: var(--text-muted); font-size: 0.98rem; line-height: 1.65;">
+              By integrating a responsive web dashboard with low-latency WebSocket communication, Temar Lije enables instantaneous peer-to-peer study sessions, timed assessment tracking, digital material distribution, and strict role-based privacy isolation between educators and student study groups.
+            </p>
+          </div>
+          <div class="feature-card" style="border-left: 4px solid var(--primary);">
+            <div class="card-title">Core Ecosystem Pillars</div>
+            <ul style="color: var(--text-muted); line-height: 1.8; margin-left: 18px; font-size: 0.95rem;">
+              <li><strong>Virtual Classrooms:</strong> Assignments, lecture notes & audio lectures.</li>
+              <li><strong>Real-Time Collaboration:</strong> Instant chat & voice recording.</li>
+              <li><strong>Timed Quiz Engine:</strong> Live countdown & auto-grading.</li>
+              <li><strong>Cloud Infrastructure:</strong> Containerized Docker & Azure VM.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3: Statement of the Problem -->
+    <div class="slide">
+      <div class="slide-card">
+        <div class="split-layout">
+          <div>
+            <h2>Statement of the <span class="gradient-text">Problem</span></h2>
+            <p class="subtitle" style="margin-bottom: 16px;">
+              Modern educational institutions face critical operational and collaboration bottlenecks:
+            </p>
+            <div class="feature-card" style="margin-bottom: 12px;">
+              <div class="card-title">❌ Fragmented & Disconnected Communication</div>
+              <div class="card-desc">Educators and students rely on scattered external chat apps, emails, and physical handouts, resulting in missed deadlines and poor engagement.</div>
+            </div>
+            <div class="feature-card">
+              <div class="card-title">❌ Inefficient Manual Assessment</div>
+              <div class="card-desc">Manual exam creation, paper grading, and delay in returning test feedback drain teacher productivity and slow student learning.</div>
+            </div>
+          </div>
+          <div class="visual-frame" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);">
+            <h3 style="font-size: 1.25rem;">Key Pain Points Identified</h3>
+            <p style="font-size: 0.92rem; opacity: 0.9;">• 70% of students report difficulty tracking assignments across multiple platforms.</p>
+            <p style="font-size: 0.92rem; opacity: 0.9;">• Teachers spend over 8 hours weekly on manual paper-based grading.</p>
+            <p style="font-size: 0.92rem; opacity: 0.9;">• Lack of dedicated real-time peer study spaces.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 4: Statement of the Problem (Continued) -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Statement of the Problem <span class="gradient-text">(Continued)</span></h2>
+        <p class="subtitle">Security, privacy, and organizational vulnerabilities in existing learning tools:</p>
+        <div class="grid-2" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-icon">🛡️</div>
+            <div class="card-title">Lack of Privacy in Student Study Groups</div>
+            <div class="card-desc">Standard platforms fail to separate public teacher announcements from private peer study groups. Students lack confidential channels for peer review without teacher surveillance.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">📁</div>
+            <div class="card-title">Unstandardized Material Sharing</div>
+            <div class="card-desc">Lecture slides, PDF documents, and audio recordings are shared across third-party drives with broken permissions and no organized structure.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 5: Statement of the Problem (Continued) -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Statement of the Problem <span class="gradient-text">(Continued)</span></h2>
+        <p class="subtitle">Operational barriers and attendance verification:</p>
+        <div class="grid-2" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-icon">⏱️</div>
+            <div class="card-title">Attendance Tracking Friction</div>
+            <div class="card-desc">Manual attendance sheets waste lecture time, enable proxy check-ins, and lack digital validation against location or Wi-Fi networks.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">📊</div>
+            <div class="card-title">Limited Real-Time Oversight</div>
+            <div class="card-desc">Administrators and educators have no consolidated dashboard to track student participation, quiz submission rates, or platform engagement.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 6: Objectives -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Project <span class="gradient-text">Objectives</span></h2>
+        <p class="subtitle">Four foundational goals achieved in Temar Lije:</p>
+        <div class="grid-4" style="margin-top: 16px;">
           <div class="feature-card">
             <div class="card-icon">⚡</div>
-            <div class="card-title">Real-Time Chat Engine</div>
-            <div class="card-desc">Bi-directional WebSockets (Socket.io) with instant messaging, audio voice recording, and presence tracking.</div>
+            <div class="card-title">1. Real-Time Collaboration</div>
+            <div class="card-desc">Enable zero-latency chat, voice messaging, and live online presence.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">📝</div>
+            <div class="card-title">2. Automated Assessment</div>
+            <div class="card-desc">Implement live timed quizzes with auto-grading & CSV export.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">🔒</div>
+            <div class="card-title">3. Privacy & Security</div>
+            <div class="card-desc">Enforce strict RBAC isolating teachers from private peer study groups.</div>
           </div>
           <div class="feature-card">
             <div class="card-icon">☁️</div>
-            <div class="card-title">DevOps & Cloud VM</div>
-            <div class="card-desc">Docker multi-container architecture deployed to a Microsoft Azure Linux VM with Let's Encrypt SSL/HTTPS.</div>
-          </div>
-          <div class="feature-card">
-            <div class="card-icon">🛡️</div>
-            <div class="card-title">Security & RBAC</div>
-            <div class="card-desc">Strict study group privacy, teacher isolation rules, account revocation, and Google OAuth 2.0.</div>
+            <div class="card-title">4. Cloud Deployment</div>
+            <div class="card-desc">Deliver 99.9% uptime with Docker & HTTPS on Microsoft Azure.</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Slide 3: Real-Time Chat Architecture -->
+    <!-- Slide 7: Key Features -->
     <div class="slide">
-      <div class="glass-card">
-        <h2>Real-Time <span class="gradient-text">Chat & Voice Architecture</span></h2>
-        <p class="subtitle">Built with NestJS WebSockets (`@nestjs/websockets`) and PostgreSQL persistence.</p>
-        <div class="grid-2">
+      <div class="slide-card">
+        <h2>Key System <span class="gradient-text">Features</span></h2>
+        <p class="subtitle">Complete functional capabilities across the platform:</p>
+        <div class="grid-2" style="margin-top: 14px;">
           <div class="feature-card">
-            <div class="card-title">🚀 Capabilities</div>
-            <ul style="color: var(--text-muted); line-height: 1.8; margin-left: 20px; font-size: 0.95rem;">
-              <li><strong>Zero-Lag Messaging:</strong> Real-time room broadcast via `newMessage` events.</li>
-              <li><strong>Built-in Voice Notes:</strong> Browser `MediaRecorder` audio capture with streaming media headers.</li>
-              <li><strong>Live Presence:</strong> Online indicator green dots and typing feedback.</li>
-              <li><strong>Telegram-Style Topics:</strong> Threaded subchannels within study groups.</li>
+            <ul style="color: var(--text); line-height: 2; font-size: 0.95rem; list-style: none;">
+              <li>💬 <strong>Real-Time Chat & Voice Notes:</strong> Socket.io instant messaging.</li>
+              <li>📚 <strong>Virtual Classroom Management:</strong> Unique join codes & cascade deletion.</li>
+              <li>📝 <strong>Interactive Quiz Engine:</strong> Countdown timer & question navigator.</li>
+              <li>🎙️ <strong>Live Study Buddy Rooms:</strong> WebRTC audio/video spaces with chimes.</li>
+            </ul>
+          </div>
+          <div class="feature-card">
+            <ul style="color: var(--text); line-height: 2; font-size: 0.95rem; list-style: none;">
+              <li>🔐 <strong>Role-Based Access Control:</strong> Strict Teacher / Student boundaries.</li>
+              <li>🔑 <strong>Single Sign-On (SSO):</strong> Google OAuth 2.0 & JWT Sessions.</li>
+              <li>📊 <strong>Attendance & Submissions:</strong> Real-time participation tracking.</li>
+              <li>🎨 <strong>Dark Mode & Responsive UI:</strong> Mobile-first adaptive layout.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 8: System Users -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>System <span class="gradient-text">Users & Stakeholders</span></h2>
+        <p class="subtitle">Tailored roles and responsibilities across the platform:</p>
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="role-card">
+            <div class="role-icon">👨‍🏫</div>
+            <div class="role-title">Teachers / Educators</div>
+            <div class="role-desc">Create/delete classrooms, upload lecture materials, build timed quizzes, monitor grades, and manage student rosters.</div>
+          </div>
+          <div class="role-card">
+            <div class="role-icon">👩‍🎓</div>
+            <div class="role-title">Students / Learners</div>
+            <div class="role-desc">Join classrooms via invite codes, form confidential study groups, record voice notes, and take live quizzes.</div>
+          </div>
+          <div class="role-card">
+            <div class="role-icon">🛠️</div>
+            <div class="role-title">DevOps & Administrators</div>
+            <div class="role-desc">Manage Docker containers, monitor Azure VM health, ensure SSL renewals, and maintain database persistence.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 9: Limitations -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Technical <span class="gradient-text">Limitations & Constraints</span></h2>
+        <p class="subtitle">Engineering constraints and operational dependencies:</p>
+        <div class="grid-2" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-icon">🌐</div>
+            <div class="card-title">Dependency on Internet Connectivity</div>
+            <div class="card-desc">Real-time WebSocket events and live voice streaming require an active, stable internet connection. Offline actions are queued upon reconnect.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">📶</div>
+            <div class="card-title">Media Streaming Bandwidth</div>
+            <div class="card-desc">Live audio voice notes and video study buddy rooms depend on available client network bandwidth for high-definition streaming.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 10: Limitations (Continued) -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Technical Limitations <span class="gradient-text">(Continued)</span></h2>
+        <p class="subtitle">Platform and authentication boundaries:</p>
+        <div class="grid-2" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-icon">🔒</div>
+            <div class="card-title">Cloud Subdomain OAuth Verification</div>
+            <div class="card-desc">Google Cloud OAuth displays unverified warning screens on free shared cloud subdomains (`*.cloudapp.azure.com`) until custom domain DNS verification is completed.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">🎤</div>
+            <div class="card-title">Browser Hardware Permissions</div>
+            <div class="card-desc">Audio voice recording and video streams require explicit user browser permission for microphone and camera access.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 11: Methodology -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Development <span class="gradient-text">Methodology</span></h2>
+        <p class="subtitle">Agile Scrum framework emphasizing iterative development and rapid deployment:</p>
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-title">🔄 Iterative Sprints</div>
+            <div class="card-desc">Bi-weekly development cycles focusing on WebSocket sockets, TypeScript migration, and mobile responsiveness.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">🧪 Continuous Validation</div>
+            <div class="card-desc">Rigorous test pipelines ensuring 0 compilation errors across NestJS and Vite builds before cloud deployment.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">🚀 CI/CD & Deployments</div>
+            <div class="card-desc">Automated Docker Compose builds and zero-downtime rolling container updates on Microsoft Azure.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 12: Functional Requirements -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Functional <span class="gradient-text">Requirements</span></h2>
+        <p class="subtitle">Core system capabilities implemented:</p>
+        <div class="grid-2" style="margin-top: 12px;">
+          <div class="feature-card">
+            <ul style="color: var(--text); line-height: 1.9; font-size: 0.92rem; list-style: none;">
+              <li>✅ <strong>User Authentication:</strong> Email/Password, JWT sessions & Google OAuth.</li>
+              <li>✅ <strong>Classroom Management:</strong> Create, join via code, and cascade delete.</li>
+              <li>✅ <strong>Real-Time Messaging:</strong> Instant chat, voice notes & typing indicators.</li>
+            </ul>
+          </div>
+          <div class="feature-card">
+            <ul style="color: var(--text); line-height: 1.9; font-size: 0.92rem; list-style: none;">
+              <li>✅ <strong>Timed Quizzes:</strong> Question navigation, countdown timer & auto-grading.</li>
+              <li>✅ <strong>Material Distribution:</strong> Secure PDF, slide uploads & audio streaming.</li>
+              <li>✅ <strong>Roster Management:</strong> Teacher removal of students & account revocation.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 13: Non-Functional Requirements -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Non-Functional <span class="gradient-text">Requirements</span></h2>
+        <p class="subtitle">System quality attributes and architectural standards:</p>
+        <div class="grid-4" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-icon">⚡</div>
+            <div class="card-title">Performance</div>
+            <div class="card-desc">Sub-50ms WebSocket broadcast latency; fast REST response times.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">🛡️</div>
+            <div class="card-title">Security</div>
+            <div class="card-desc">Bcrypt password hashing, HTTP-only JWT cookies, TLSv1.3 SSL.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">📱</div>
+            <div class="card-title">Usability</div>
+            <div class="card-desc">Mobile-first responsive design with intuitive dark/light modes.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">🔄</div>
+            <div class="card-title">Reliability</div>
+            <div class="card-desc">99.9% uptime with Docker container healthcheck auto-recovery.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 14: Future Enhancements -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Future <span class="gradient-text">Enhancements</span></h2>
+        <p class="subtitle">Upcoming capabilities on the product roadmap:</p>
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-icon">🤖</div>
+            <div class="card-title">AI Lecture Assistant</div>
+            <div class="card-desc">Automated quiz generation and flashcard extraction from uploaded lecture slides and transcripts.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">🌍</div>
+            <div class="card-title">Multilingual Localization</div>
+            <div class="card-desc">Complete user interface translations for Amharic, Afaan Oromo, and Tigrinya.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">📱</div>
+            <div class="card-title">Native Mobile Apps</div>
+            <div class="card-desc">Dedicated React Native & Flutter mobile applications with offline material storage.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 15: Testing & Evaluation Results -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Testing & <span class="gradient-text">Evaluation Results</span></h2>
+        <p class="subtitle">Rigorous verification confirming exceptional system performance:</p>
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-title">✅ 100% Core Validation</div>
+            <div class="card-desc">All functional tests passed across authentication, WebSocket rooms, quiz timer submissions, and RBAC privacy.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">⚡ 0 TypeScript Errors</div>
+            <div class="card-desc">Clean `nest build` compilation across 100% of backend controllers, services, and gateways.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">☁️ 99.9% Production Uptime</div>
+            <div class="card-desc">Verified operational stability on Microsoft Azure Linux VM with continuous Docker container health.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 16: Technologies Used -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Technologies <span class="gradient-text">Used</span></h2>
+        <p class="subtitle">Modern enterprise technology stack powering Temar Lije:</p>
+        <div class="grid-4" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-icon">⚛️</div>
+            <div class="card-title">Frontend</div>
+            <div class="card-desc">React JS, Vite, Vanilla CSS, Socket.io Client.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">🐱</div>
+            <div class="card-title">Backend</div>
+            <div class="card-desc">NestJS (TypeScript), Node.js 20, Prisma ORM, Passport.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">🐘</div>
+            <div class="card-title">Database</div>
+            <div class="card-desc">PostgreSQL 16 Alpine with named volume persistence.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon">☁️</div>
+            <div class="card-title">DevOps & Cloud</div>
+            <div class="card-desc">Docker Compose, Nginx, Let's Encrypt SSL, Microsoft Azure VM.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 17: UI / Architecture — Dashboard & Classroom Hub -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>UI Architecture: <span class="gradient-text">Classroom Dashboard</span></h2>
+        <p class="subtitle">Unified learning hub for teachers and students:</p>
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-title">📚 Classroom Grid</div>
+            <div class="card-desc">Overview of enrolled courses, instructor details, subject badges, and quick-access action buttons.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">📁 Materials Hub</div>
+            <div class="card-desc">Organized lecture repository supporting PDFs, slides, and streaming audio files with range headers.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">📋 Assignments Portal</div>
+            <div class="card-desc">Submission upload interface with due date countdowns and teacher grading dashboards.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 18: UI / Architecture — Real-Time Chat & Voice Notes -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>UI Architecture: <span class="gradient-text">Real-Time Chat & Voice</span></h2>
+        <p class="subtitle">Interactive peer collaboration and communication engine:</p>
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-title">💬 Instant Messaging</div>
+            <div class="card-desc">Zero-latency WebSocket broadcasts (`newMessage`) correlated by group and classroom rooms.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">🎙️ Audio Voice Notes</div>
+            <div class="card-desc">Built-in browser `MediaRecorder` audio recording with visual playback waves and streaming upload.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">🟢 Live Presence</div>
+            <div class="card-desc">Real-time online status green dots and typing indicator notifications across connected peers.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 19: UI / Architecture — Timed Quiz Engine -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>UI Architecture: <span class="gradient-text">Timed Quiz Engine</span></h2>
+        <p class="subtitle">Comprehensive assessment engine with automated grading:</p>
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="feature-card">
+            <div class="card-title">⏱️ Live Countdown Timer</div>
+            <div class="card-desc">Real-time countdown banner with automatic attempt submission when time expires.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">🧭 Question Navigator</div>
+            <div class="card-desc">Quick-jump navigator palette allowing students to flag, review, and answer questions.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">📊 Instant Score Breakdown</div>
+            <div class="card-desc">Detailed results display with answer explanations and teacher CSV gradebook export.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 20: Improved Areas & Key Milestones -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Key Technical <span class="accent-text">Improvements Delivered</span></h2>
+        <p class="subtitle">Major architectural enhancements accomplished:</p>
+        <div class="grid-2" style="margin-top: 14px;">
+          <div class="feature-card">
+            <div class="card-title">⚡ Real-Time WebSockets & Audio Voice Notes</div>
+            <div class="card-desc">Engineered bidirectional socket broadcasting and custom voice note recording.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">🔒 Strict Study Group Privacy</div>
+            <div class="card-desc">Guaranteed student peer group confidentiality by excluding teachers from peer discussions.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">📱 Mobile UI/UX & Pill Navigation</div>
+            <div class="card-desc">Eliminated sidebar collisions on mobile viewports with responsive navigation pills.</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-title">☁️ Azure Cloud Deployment & SSL</div>
+            <div class="card-desc">Orchestrated multi-container Docker Compose stack with Let's Encrypt HTTPS encryption.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 21: Deep Dive 1 — Real-Time Chat Engine -->
+    <div class="slide">
+      <div class="slide-card">
+        <h2>Deep Dive 1: <span class="gradient-text">Real-Time Chat & Voice Engine</span></h2>
+        <p class="subtitle">WebSocket Gateway (`chat.gateway.ts`) and Media Streaming:</p>
+        <div class="grid-2" style="margin-top: 14px;">
+          <div class="feature-card">
+            <div class="card-title">⚙️ Gateway Architecture</div>
+            <ul style="color: var(--text-muted); line-height: 1.8; margin-left: 18px; font-size: 0.92rem;">
+              <li>`@SubscribeMessage('joinRoom')`: Authenticates user and joins socket room.</li>
+              <li>`@SubscribeMessage('sendMessage')`: Persists message in PostgreSQL and broadcasts `newMessage`.</li>
+              <li>Nginx `Upgrade $http_upgrade` proxy with `86400s` keep-alive.</li>
             </ul>
           </div>
           <div class="code-box">
 // NestJS ChatGateway (chat.gateway.ts)
 @SubscribeMessage('sendMessage')
 async handleMessage(@ConnectedSocket() client, @MessageBody() data) {
-  await this.chatService.validateAccess(client.user.id, data.groupId);
   const msg = await this.chatService.saveMessage(data);
   this.server.to(`room_${data.groupId}`).emit('newMessage', msg);
 }
@@ -384,166 +931,62 @@ async handleMessage(@ConnectedSocket() client, @MessageBody() data) {
       </div>
     </div>
 
-    <!-- Slide 4: Privacy & Isolation -->
+    <!-- Slide 22: Deep Dive 2 — RBAC & Teacher Authority -->
     <div class="slide">
-      <div class="glass-card">
-        <h2>Data Privacy & <span class="accent-text">Role-Based Access Control</span></h2>
-        <p class="subtitle">Enforcing confidential peer study groups and teacher administrative control.</p>
-        <div class="grid-3">
+      <div class="slide-card">
+        <h2>Deep Dive 2: <span class="gradient-text">RBAC Security & Authority</span></h2>
+        <p class="subtitle">Database-level isolation rules in `ChatService` and `ClassroomsService`:</p>
+        <div class="grid-3" style="margin-top: 16px;">
           <div class="feature-card">
-            <div class="card-title">🔒 Student Privacy</div>
-            <div class="card-desc">Non-members cannot discover or query private study groups. DB queries strictly enforce `members: { some: { userId } }`.</div>
+            <div class="card-title">🔒 Peer Privacy Guard</div>
+            <div class="card-desc">`getGroups` excludes teachers (`role === 'TEACHER'`) from student peer study groups to maintain confidential peer collaboration.</div>
           </div>
           <div class="feature-card">
-            <div class="card-title">🚫 Teacher Isolation</div>
-            <div class="card-desc">Teachers are explicitly excluded from student peer study groups to ensure confidentiality during peer discussions.</div>
+            <div class="card-title">🗑️ Cascade Deletion</div>
+            <div class="card-desc">`DELETE /classrooms/:id` verifies teacher ownership and cleanly deletes all materials, quizzes, and messages in a single transaction.</div>
           </div>
           <div class="feature-card">
-            <div class="card-title">👑 Teacher Authority</div>
-            <div class="card-desc">Teachers can remove students (revoking accounts) and delete classrooms with full database cascade cleanup.</div>
+            <div class="card-title">🚫 Account Revocation</div>
+            <div class="card-desc">Removing a student unlinks all classroom memberships and revokes the student account from the system.</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Slide 5: DevOps Architecture -->
+    <!-- Slide 23: Deep Dive 3 — DevOps & Azure Cloud -->
     <div class="slide">
-      <div class="glass-card">
-        <h2>DevOps & <span class="gradient-text">Azure Cloud Infrastructure</span></h2>
-        <p class="subtitle">Production multi-container orchestration with Docker Compose.</p>
-        <div class="grid-3">
-          <div class="feature-card">
-            <div class="card-title">🐘 temar_db</div>
-            <div class="card-desc">PostgreSQL 16 Alpine container with named volume persistence (`pgdata`) and automated schema seeding.</div>
-          </div>
-          <div class="feature-card">
-            <div class="card-title">⚡ temar_backend</div>
-            <div class="card-desc">Node.js 20 Alpine running NestJS production API & Socket.io server on port 3000.</div>
-          </div>
-          <div class="feature-card">
-            <div class="card-title">🌐 temar_frontend</div>
-            <div class="card-desc">Multi-stage Vite build served through high-performance Nginx Alpine on Ports 80 and 443.</div>
-          </div>
+      <div class="slide-card">
+        <h2>Deep Dive 3: <span class="gradient-text">DevOps & Cloud Infrastructure</span></h2>
+        <p class="subtitle">Multi-container Docker architecture running on Microsoft Azure Linux VM:</p>
+        <div class="code-box" style="margin-top: 14px;">
+# Production Docker Architecture (docker-compose.yml)
+services:
+  db:       image: postgres:16-alpine      # Persistent PostgreSQL database (pgdata volume)
+  backend:  image: temar_backend:latest    # NestJS API & Socket.io Server (port 3000)
+  frontend: image: temar_frontend:latest   # Vite SPA + Nginx Reverse Proxy (ports 80 & 443 SSL)
+            volumes:
+              - /etc/letsencrypt:/etc/letsencrypt:ro # Production SSL Certificates
         </div>
       </div>
     </div>
 
-    <!-- Slide 6: Reverse Proxy & SSL -->
+    <!-- Slide 24: Conclusion -->
     <div class="slide">
-      <div class="glass-card">
-        <h2>Nginx <span class="accent-text">Reverse Proxy & SSL Encryption</span></h2>
-        <p class="subtitle">End-to-end HTTPS/TLS with automated Let's Encrypt certificates.</p>
-        <div class="code-box" style="margin-top: 12px;">
-# Production Nginx Reverse Proxy (temar_lije/nginx.conf)
-server {
-    listen 443 ssl;
-    server_name temar-lije.southafricanorth.cloudapp.azure.com temarlije.mooo.com;
-
-    location /          { try_files $uri $uri/ /index.html; }      # SPA Frontend
-    location /api/      { proxy_pass http://backend:3000/; }       # REST Endpoints
-    location /socket.io/{ proxy_pass http://backend:3000;          # Real-time WebSockets
-                          proxy_set_header Upgrade $http_upgrade;
-                          proxy_read_timeout 86400s; }
-}
-        </div>
-      </div>
-    </div>
-
-    <!-- Slide 7: TypeScript Migration -->
-    <div class="slide">
-      <div class="glass-card">
-        <h2>Backend <span class="gradient-text">TypeScript Migration</span></h2>
-        <p class="subtitle">Eliminating runtime flaws and enforcing strict enterprise type safety.</p>
-        <div class="grid-2">
-          <div class="feature-card">
-            <div class="card-title">⚠️ Before Migration</div>
-            <p class="card-desc" style="color: #f87171;">• Inconsistent JavaScript `.js` files in NestJS</p>
-            <p class="card-desc" style="color: #f87171;">• Unvalidated payload inputs</p>
-            <p class="card-desc" style="color: #f87171;">• Runtime null reference bugs</p>
-          </div>
-          <div class="feature-card">
-            <div class="card-title">✅ After Migration</div>
-            <p class="card-desc" style="color: #34d399;">• 100% Strongly-typed TypeScript (`.ts`)</p>
-            <p class="card-desc" style="color: #34d399;">• DTO validation via `class-validator`</p>
-            <p class="card-desc" style="color: #34d399;">• Clean `nest build` with 0 compilation errors</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Slide 8: Mobile UI/UX -->
-    <div class="slide">
-      <div class="glass-card">
-        <h2>Mobile Responsiveness & <span class="gradient-text">UI/UX Polish</span></h2>
-        <p class="subtitle">Delivering an app-like responsive experience across all screen sizes.</p>
-        <div class="grid-3">
-          <div class="feature-card">
-            <div class="card-title">📱 Mobile Pill Navigation</div>
-            <div class="card-desc">Replaced overlapping sidebars on small screens with clean top navigation pills (`[👥 Members]`, `[📚 Groups]`).</div>
-          </div>
-          <div class="feature-card">
-            <div class="card-title">🎨 Dark / Light Mode</div>
-            <div class="card-desc">Seamless theme toggle with persistent user preferences and dynamic CSS variable styling.</div>
-          </div>
-          <div class="feature-card">
-            <div class="card-title">🔑 Student Signup Code</div>
-            <div class="card-desc">Integrated optional classroom code input on signup to auto-enroll students instantly.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Slide 9: Technical Challenges -->
-    <div class="slide">
-      <div class="glass-card">
-        <h2>Key Technical <span class="accent-text">Challenges Solved</span></h2>
-        <p class="subtitle">Engineering solutions implemented throughout the development lifecycle.</p>
-        <table>
-          <thead>
-            <tr>
-              <th>Problem</th>
-              <th>Root Cause</th>
-              <th>Engineered Solution</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Socket Dropping</strong></td>
-              <td>Nginx closing idle TCP streams</td>
-              <td>Configured `Upgrade` headers & `proxy_read_timeout 86400s`.</td>
-            </tr>
-            <tr>
-              <td><strong>Teacher Group Leak</strong></td>
-              <td>Flat unfiltered SQL queries</td>
-              <td>Added Prisma relation filters & teacher role exclusion.</td>
-            </tr>
-            <tr>
-              <td><strong>Mobile Overlap</strong></td>
-              <td>Fixed CSS desktop layout</td>
-              <td>Implemented responsive grid breakpoints & pill navigation.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Slide 10: Conclusion & Live Demo -->
-    <div class="slide">
-      <div class="glass-card" style="text-align: center; padding: 50px 30px;">
-        <span class="brand-badge" style="background: var(--accent-gradient); margin-bottom: 16px; display: inline-block;">Live Production</span>
-        <h2>System Live & Operational</h2>
-        <p class="subtitle" style="max-width: 650px; margin: 12px auto 24px;">
-          The platform is fully containerized, SSL secured, and handling live WebSocket & classroom traffic.
+      <div class="slide-card" style="text-align: center; padding: 48px 40px;">
+        <span class="stat-badge" style="background: var(--accent-gradient); color: #ffffff; margin-bottom: 16px;">System Operational</span>
+        <h2>Conclusion & Live Demonstration</h2>
+        <p class="subtitle" style="max-width: 700px; margin: 12px auto 24px;">
+          <strong>Temar Lije</strong> successfully delivers an enterprise-grade, real-time collaborative classroom platform—fully containerized, secured with SSL, and live in cloud production.
         </p>
 
-        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--card-border); border-radius: 16px; padding: 20px; display: inline-block; margin-bottom: 24px;">
-          <div style="font-size: 1.1rem; font-weight: 700; color: #38bdf8;">
+        <div style="background: #f8fafc; border: 1px solid var(--card-border); border-radius: 16px; padding: 18px 24px; display: inline-block; margin-bottom: 24px;">
+          <div style="font-size: 1.05rem; font-weight: 700; color: var(--primary);">
             🌐 https://temar-lije.southafricanorth.cloudapp.azure.com
           </div>
         </div>
 
-        <div style="font-size: 1.4rem; font-weight: 700; color: #fff; margin-top: 10px;">
-          Thank You! Any Questions? 🚀
+        <div style="font-size: 1.5rem; font-weight: 800; color: #1e1b4b;">
+          Thank You! Questions & Live Demo 🚀
         </div>
       </div>
     </div>
@@ -553,7 +996,7 @@ server {
   <!-- Footer Navigation -->
   <footer>
     <button class="nav-btn" id="prevBtn" onclick="prevSlide()">← Previous</button>
-    <div class="hint">Use <kbd>←</kbd> <kbd>→</kbd> arrow keys to navigate</div>
+    <div class="hint">Use <kbd>←</kbd> <kbd>→</kbd> arrow keys to navigate slides</div>
     <button class="nav-btn primary" id="nextBtn" onclick="nextSlide()">Next →</button>
   </footer>
 

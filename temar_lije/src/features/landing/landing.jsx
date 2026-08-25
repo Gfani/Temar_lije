@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Sparkles, GraduationCap, FileText, Video, LogIn, Users, UserPlus, Mail } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Sparkles, GraduationCap, FileText, Video, LogIn, Users, UserPlus, Mail, Radio, Mic, Zap } from 'lucide-react';
 import './landing.css'; 
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import heroClassroom from '../../assets/hero-classroom.png';
@@ -10,6 +10,42 @@ export default function LandingPage({
   onSignIn = () => {},
   onEscapePress 
 }) {
+  // 3D Tilt State for Hero Media
+  const [tiltStyle, setTiltStyle] = useState({ transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)' });
+  const [glarePos, setGlarePos] = useState({ x: 50, y: 50, opacity: 0 });
+  const heroCardRef = useRef(null);
+
+  const handleMouseMove = (e) => {
+    if (!heroCardRef.current) return;
+    const rect = heroCardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const xPct = x / rect.width;
+    const yPct = y / rect.height;
+
+    const rotX = ((yPct - 0.5) * -16).toFixed(2);
+    const rotY = ((xPct - 0.5) * 18).toFixed(2);
+
+    setTiltStyle({
+      transform: `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.02, 1.02, 1.02)`,
+      transition: 'transform 0.1s ease-out',
+    });
+
+    setGlarePos({
+      x: (xPct * 100).toFixed(1),
+      y: (yPct * 100).toFixed(1),
+      opacity: 0.35,
+    });
+  };
+
+  const handleMouseLeave = () => {
+    setTiltStyle({
+      transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)',
+      transition: 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)',
+    });
+    setGlarePos((prev) => ({ ...prev, opacity: 0 }));
+  };
 
   // ESC Key Listener
   useEffect(() => {
@@ -32,6 +68,11 @@ export default function LandingPage({
 
   return (
     <div className="landing-container">
+      {/* Background Animated Aurora Glows */}
+      <div className="aurora-glow glow-1" />
+      <div className="aurora-glow glow-2" />
+      <div className="aurora-glow glow-3" />
+
       {/* Navbar Header */}
       <header className="landing-header">
         <div className="landing-logo-brand">
@@ -48,11 +89,11 @@ export default function LandingPage({
       <main className="landing-hero">
         <div className="hero-content">
           <div className="ai-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <Sparkles size={16} /> AI-powered smart classroom
+            <Sparkles size={16} className="sparkle-icon-animated" /> AI-powered smart classroom
           </div>
 
           <h1 className="hero-headline">
-            Teach more. Administrate less.
+            Teach more. <span className="headline-gradient">Administrate less.</span>
           </h1>
 
           <p className="hero-description">
@@ -71,8 +112,60 @@ export default function LandingPage({
           </div>
         </div>
 
-        <div className="hero-media">
-          <img src={heroClassroom} alt="Classroom learning with teacher" className="hero-classroom-img" />
+        {/* 3D Interactive Hero Media Card with Floating Badges */}
+        <div className="hero-media-wrapper">
+          <div 
+            className="hero-3d-card"
+            ref={heroCardRef}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            style={tiltStyle}
+          >
+            {/* Dynamic Light Glare */}
+            <div 
+              className="hero-glare-effect"
+              style={{
+                background: `radial-gradient(circle at ${glarePos.x}% ${glarePos.y}%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 65%)`,
+                opacity: glarePos.opacity,
+              }}
+            />
+
+            <img src={heroClassroom} alt="Classroom learning with teacher" className="hero-classroom-img" />
+
+            {/* Floating 3D Badge 1: Live Class */}
+            <div className="floating-badge badge-top-left">
+              <span className="live-indicator-dot" />
+              <div className="badge-text-col">
+                <span className="badge-title">Live Class Active</span>
+                <span className="badge-sub">24 Students Connected</span>
+              </div>
+            </div>
+
+            {/* Floating 3D Badge 2: AI Quiz Assistant */}
+            <div className="floating-badge badge-bottom-right">
+              <div className="badge-icon-wrap ai-purple">
+                <Zap size={14} />
+              </div>
+              <div className="badge-text-col">
+                <span className="badge-title">AI Quiz Engine</span>
+                <span className="badge-sub">Generated in 1.2s</span>
+              </div>
+            </div>
+
+            {/* Floating 3D Badge 3: Voice Note */}
+            <div className="floating-badge badge-bottom-left">
+              <div className="badge-icon-wrap voice-green">
+                <Mic size={14} />
+              </div>
+              <div className="badge-audio-wave">
+                <span className="wave-bar b1" />
+                <span className="wave-bar b2" />
+                <span className="wave-bar b3" />
+                <span className="wave-bar b4" />
+              </div>
+              <span className="badge-sub" style={{ marginLeft: '4px' }}>0.3s Sync</span>
+            </div>
+          </div>
         </div>
       </main>
 

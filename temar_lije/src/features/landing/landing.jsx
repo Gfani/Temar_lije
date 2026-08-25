@@ -1,9 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Sparkles, GraduationCap, FileText, Video, LogIn, Users, UserPlus, Mail, Radio, Mic, Zap } from 'lucide-react';
-import ParticleCanvas from '../../components/ParticleCanvas/ParticleCanvas';
+import { Sparkles, GraduationCap, FileText, Video, LogIn, Users, UserPlus, Mail, ArrowRight, ShieldCheck, Zap, Globe, BookOpen } from 'lucide-react';
 import './landing.css'; 
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import heroClassroom from '../../assets/hero-classroom.png';
+
+const ROTATING_PHRASES = [
+  'Administrate less.',
+  'Inspire your students.',
+  'Auto-grade in seconds.',
+  'Collaborate in real time.',
+  'Empower digital education.',
+];
 
 export default function LandingPage({ 
   onStartTeaching = () => {}, 
@@ -11,42 +18,21 @@ export default function LandingPage({
   onSignIn = () => {},
   onEscapePress 
 }) {
-  // 3D Tilt State for Hero Media
-  const [tiltStyle, setTiltStyle] = useState({ transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)' });
-  const [glarePos, setGlarePos] = useState({ x: 50, y: 50, opacity: 0 });
-  const heroCardRef = useRef(null);
+  const [currentPhraseIndex, setCurrentPhraseIndex] = useState(0);
+  const [fadeState, setFadeState] = useState('fade-in');
 
-  const handleMouseMove = (e) => {
-    if (!heroCardRef.current) return;
-    const rect = heroCardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const xPct = x / rect.width;
-    const yPct = y / rect.height;
+  // Kinetic Rotating Word Timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFadeState('fade-out');
+      setTimeout(() => {
+        setCurrentPhraseIndex((prev) => (prev + 1) % ROTATING_PHRASES.length);
+        setFadeState('fade-in');
+      }, 350);
+    }, 3200);
 
-    const rotX = ((yPct - 0.5) * -16).toFixed(2);
-    const rotY = ((xPct - 0.5) * 18).toFixed(2);
-
-    setTiltStyle({
-      transform: `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.02, 1.02, 1.02)`,
-      transition: 'transform 0.1s ease-out',
-    });
-
-    setGlarePos({
-      x: (xPct * 100).toFixed(1),
-      y: (yPct * 100).toFixed(1),
-      opacity: 0.35,
-    });
-  };
-
-  const handleMouseLeave = () => {
-    setTiltStyle({
-      transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)',
-      transition: 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)',
-    });
-    setGlarePos((prev) => ({ ...prev, opacity: 0 }));
-  };
+    return () => clearInterval(interval);
+  }, []);
 
   // ESC Key Listener
   useEffect(() => {
@@ -68,15 +54,7 @@ export default function LandingPage({
   }, [onEscapePress, onSignIn]);
 
   return (
-    <div className="landing-container">
-      {/* 3D Interactive Particle Constellation Canvas */}
-      <ParticleCanvas />
-
-      {/* Background Animated Aurora Glows */}
-      <div className="aurora-glow glow-1" />
-      <div className="aurora-glow glow-2" />
-      <div className="aurora-glow glow-3" />
-
+    <div className="landing-container kinetic-mode">
       {/* Navbar Header */}
       <header className="landing-header">
         <div className="landing-logo-brand">
@@ -89,128 +67,117 @@ export default function LandingPage({
         </button>
       </header>
 
-      {/* Main Hero Section */}
+      {/* Main Hero Section with Kinetic Motion */}
       <main className="landing-hero">
         <div className="hero-content">
-          <div className="ai-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <Sparkles size={16} className="sparkle-icon-animated" /> AI-powered smart classroom
+          <div className="ai-badge kinetic-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={16} className="sparkle-icon" /> AI-Powered Smart Classroom
           </div>
 
-          <h1 className="hero-headline">
-            Teach more. <span className="headline-gradient">Administrate less.</span>
+          <h1 className="hero-headline kinetic-headline">
+            Teach more. <br />
+            <span className={`headline-rotating ${fadeState}`}>
+              {ROTATING_PHRASES[currentPhraseIndex]}
+            </span>
           </h1>
 
           <p className="hero-description">
-            Temar Lije puts classroom management, lesson materials and live teaching in 
-            one place — then adds AI assistants so teachers spend their time with 
-            students, not paperwork.
+            Temar Lije puts classroom management, lesson materials, real-time collaboration, 
+            and live teaching in one place — with built-in AI assistants so teachers spend their 
+            time inspiring students, not doing paperwork.
           </p>
 
           <div className="hero-actions">
-            <button className="btn-start-teaching" onClick={onStartTeaching} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <GraduationCap size={18} /> Start teaching
+            <button className="btn-start-teaching kinetic-btn" onClick={onStartTeaching}>
+              <GraduationCap size={18} /> Start teaching free
+              <ArrowRight size={16} className="btn-arrow" />
             </button>
-            <button className="btn-join-class" onClick={onJoinClass} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <button className="btn-join-class kinetic-btn-secondary" onClick={onJoinClass}>
               <Users size={18} /> Join a class
             </button>
           </div>
         </div>
 
-        {/* 3D Interactive Hero Media Card with Floating Badges */}
         <div className="hero-media-wrapper">
-          <div 
-            className="hero-3d-card"
-            ref={heroCardRef}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            style={tiltStyle}
-          >
-            {/* Dynamic Light Glare */}
-            <div 
-              className="hero-glare-effect"
-              style={{
-                background: `radial-gradient(circle at ${glarePos.x}% ${glarePos.y}%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 65%)`,
-                opacity: glarePos.opacity,
-              }}
-            />
-
+          <div className="hero-motion-card">
             <img src={heroClassroom} alt="Classroom learning with teacher" className="hero-classroom-img" />
-
-            {/* Floating 3D Badge 1: Live Class */}
-            <div className="floating-badge badge-top-left">
-              <span className="live-indicator-dot" />
-              <div className="badge-text-col">
-                <span className="badge-title">Live Class Active</span>
-                <span className="badge-sub">24 Students Connected</span>
-              </div>
-            </div>
-
-            {/* Floating 3D Badge 2: AI Quiz Assistant */}
-            <div className="floating-badge badge-bottom-right">
-              <div className="badge-icon-wrap ai-purple">
-                <Zap size={14} />
-              </div>
-              <div className="badge-text-col">
-                <span className="badge-title">AI Quiz Engine</span>
-                <span className="badge-sub">Generated in 1.2s</span>
-              </div>
-            </div>
-
-            {/* Floating 3D Badge 3: Voice Note */}
-            <div className="floating-badge badge-bottom-left">
-              <div className="badge-icon-wrap voice-green">
-                <Mic size={14} />
-              </div>
-              <div className="badge-audio-wave">
-                <span className="wave-bar b1" />
-                <span className="wave-bar b2" />
-                <span className="wave-bar b3" />
-                <span className="wave-bar b4" />
-              </div>
-              <span className="badge-sub" style={{ marginLeft: '4px' }}>0.3s Sync</span>
-            </div>
           </div>
         </div>
       </main>
 
-      {/* Feature Section: Built for real teaching days */}
+      {/* Kinetic Stats Strip */}
+      <section className="stats-strip">
+        <div className="stat-pill">
+          <Zap size={18} className="stat-icon teal" />
+          <div className="stat-info">
+            <span className="stat-val">Sub-50ms</span>
+            <span className="stat-lbl">Real-Time Sync</span>
+          </div>
+        </div>
+
+        <div className="stat-pill">
+          <ShieldCheck size={18} className="stat-icon purple" />
+          <div className="stat-info">
+            <span className="stat-val">100% Isolated</span>
+            <span className="stat-lbl">Student Study Groups</span>
+          </div>
+        </div>
+
+        <div className="stat-pill">
+          <BookOpen size={18} className="stat-icon blue" />
+          <div className="stat-info">
+            <span className="stat-val">Instant AI</span>
+            <span className="stat-lbl">Quiz & Assessment Engine</span>
+          </div>
+        </div>
+
+        <div className="stat-pill">
+          <Globe size={18} className="stat-icon green" />
+          <div className="stat-info">
+            <span className="stat-val">99.9% Uptime</span>
+            <span className="stat-lbl">Azure Cloud Infrastructure</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Feature Section: Staggered Kinetic Cards */}
       <section className="features-section">
         <h2 className="section-title">Built for real teaching days</h2>
         
         <div className="features-grid">
           {/* Card 1 */}
-          <div className="feature-card">
+          <div className="feature-card kinetic-card delay-1">
             <div className="feature-icon-badge"><GraduationCap size={24} /></div>
             <h3 className="feature-card-title">Classrooms in seconds</h3>
             <p className="feature-card-desc">
-              Create a class, share a six-character code and watch students join themselves.
+              Create a class, share a six-character invite code and watch students join automatically.
             </p>
           </div>
 
           {/* Card 2 */}
-          <div className="feature-card">
+          <div className="feature-card kinetic-card delay-2">
             <div className="feature-icon-badge"><FileText size={24} /></div>
             <h3 className="feature-card-title">Materials, organised</h3>
             <p className="feature-card-desc">
-              Upload slides, PDFs and worksheets. Students only see the classes they belong to.
+              Upload slides, PDFs, voice notes, and worksheets with byte-range audio streaming.
             </p>
           </div>
 
           {/* Card 3 */}
-          <div className="feature-card">
+          <div className="feature-card kinetic-card delay-3">
             <div className="feature-icon-badge"><Video size={24} /></div>
             <h3 className="feature-card-title">Live teaching built in</h3>
             <p className="feature-card-desc">
-              Every classroom has its own video room with screen sharing and chat.
+              Every classroom has its own live room with low-latency chat, attendance, and screen sharing.
             </p>
           </div>
 
           {/* Card 4 */}
-          <div className="feature-card">
+          <div className="feature-card kinetic-card delay-4">
             <div className="feature-icon-badge"><Sparkles size={24} /></div>
             <h3 className="feature-card-title">AI on your side</h3>
             <p className="feature-card-desc">
-              Lesson planning, quiz generation and analytics arrive on this same foundation.
+              Automated quiz generation, curriculum recommendations, and AI Study Buddy support.
             </p>
           </div>
         </div>

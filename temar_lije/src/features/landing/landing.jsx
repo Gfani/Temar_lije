@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Sparkles, GraduationCap, FileText, Video, LogIn, Users, UserPlus, Mail, Radio, Mic, Zap } from 'lucide-react';
+import ParticleCanvas from '../../components/ParticleCanvas/ParticleCanvas';
 import './landing.css'; 
 import temarLijeLogo from '../../assets/temar-lije-logo.png';
 import heroClassroom from '../../assets/hero-classroom.png';
@@ -68,6 +69,9 @@ export default function LandingPage({
 
   return (
     <div className="landing-container">
+      {/* 3D Interactive Particle Constellation Canvas */}
+      <ParticleCanvas />
+
       {/* Background Animated Aurora Glows */}
       <div className="aurora-glow glow-1" />
       <div className="aurora-glow glow-2" />
